@@ -1,4 +1,5 @@
 import * as sdk from 'matrix-js-sdk'
+import { security } from './security.svelte'
 
 const SESSION_KEY = 'tessera.session'
 
@@ -21,6 +22,8 @@ export interface Msg {
   replyTo?: string
   reactions: Record<string, number>
   imageUrl?: string
+  undecryptable?: boolean
+  decrypting?: boolean
 }
 
 export interface RoomItem {
@@ -32,6 +35,7 @@ export interface RoomItem {
   isSpace: boolean
   parents: string[]
   isDM: boolean
+  encrypted: boolean
 }
 
 class Chat {
@@ -93,13 +97,25 @@ class Chat {
 
   async start(s: Session) {
     this.userId = s.userId
+    const store = new sdk.IndexedDBStore({
+      indexedDB: window.indexedDB,
+      localStorage: window.localStorage,
+      dbName: `tessera-sync-${s.userId}`,
+    })
     const client = sdk.createClient({
       baseUrl: s.baseUrl,
       accessToken: s.accessToken,
       userId: s.userId,
       deviceId: s.deviceId,
+      store,
+      cryptoCallbacks: security.callbacks,
     })
     this.client = client
+    await store.startup()
+    await client.initRustCrypto({ cryptoDatabasePrefix: `tessera-crypto-${s.userId}` })
+    security.attach(client)
+    security.refresh()
+    client.on(sdk.MatrixEventEvent.Decrypted, () => this.refreshMessages())
     client.on(sdk.ClientEvent.Sync, (state) => {
       if (state === 'PREPARED' || state === 'SYNCING') {
         this.ready = true
@@ -127,6 +143,7 @@ class Chat {
       /* token may already be invalid */
     }
     this.client?.stopClient()
+    await this.client?.clearStores().catch(() => {})
     localStorage.removeItem(SESSION_KEY)
     location.reload()
   }
@@ -156,6 +173,7 @@ class Chat {
         isSpace: create?.getContent().type === 'm.space',
         parents,
         isDM: dms.has(room.roomId),
+        encrypted: c.isRoomEncrypted(room.roomId),
       })
     }
     items.sort((a, b) => b.lastTs - a.lastTs)
@@ -227,7 +245,8 @@ class Chat {
     }
     const out: Msg[] = []
     for (const ev of events) {
-      if (ev.getType() !== 'm.room.message' || ev.isRedacted()) continue
+      const encrypted = ev.getType() === 'm.room.encrypted'
+      if ((ev.getType() !== 'm.room.message' && !encrypted) || ev.isRedacted()) continue
       const content = ev.getContent()
       if (content['m.relates_to']?.rel_type === 'm.replace') continue
       const id = ev.getId() ?? ev.getTxnId() ?? String(ev.getTs())
@@ -240,7 +259,13 @@ class Chat {
         id,
         sender,
         senderName: room.getMember(sender)?.name ?? sender,
-        body: edits.get(id) ?? content.body ?? '',
+        body: encrypted
+          ? ev.isDecryptionFailure()
+            ? 'Unable to decrypt this message'
+            : 'Decrypting…'
+          : (edits.get(id) ?? content.body ?? ''),
+        undecryptable: encrypted && ev.isDecryptionFailure(),
+        decrypting: encrypted && !ev.isDecryptionFailure(),
         ts: ev.getTs(),
         mine: sender === this.userId,
         pending: ev.status != null,
@@ -304,8 +329,14 @@ class Chat {
     if (this.activeRoom) this.client?.sendTyping(this.activeRoom, on, 5000).catch(() => {})
   }
 
-  async createRoom(name: string) {
-    const r = await this.client!.createRoom({ name, preset: sdk.Preset.PrivateChat })
+  async createRoom(name: string, encrypted = true) {
+    const r = await this.client!.createRoom({
+      name,
+      preset: sdk.Preset.PrivateChat,
+      initial_state: encrypted
+        ? [{ type: 'm.room.encryption', state_key: '', content: { algorithm: 'm.megolm.v1.aes-sha2' } }]
+        : [],
+    })
     this.openRoom(r.room_id)
   }
 

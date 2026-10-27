@@ -1,6 +1,8 @@
 <script lang="ts">
   import { tick } from 'svelte'
   import { chat, type Msg } from './matrix.svelte'
+  import { render } from './markdown'
+  import { tile, initials } from './ui.svelte'
 
   let text = $state('')
   let replyTo = $state<Msg | null>(null)
@@ -79,17 +81,17 @@
   {:else}
     <header>
       <button class="back" onclick={() => (chat.activeRoom = null)} aria-label="Back">←</button>
-      <strong>{chat.active.isDM ? '@' : '#'} {chat.active.name}</strong>
+      <span class="tile" style={tile(chat.active.name)}>{initials(chat.active.name)}</span><strong>{chat.active.name}</strong>{#if chat.active.encrypted}<span class="enc">🔒 Encrypted</span>{/if}
     </header>
     <div class="scroll" bind:this={scroller} {onscroll}>
       {#if chat.loadingOlder}<div class="note">Loading earlier messages…</div>{/if}
       {#each grouped as { m, cont } (m.id)}
-        <article class:cont class:pending={m.pending}>
-          {#if !cont}<div class="av">{m.senderName.slice(0, 1).toUpperCase()}</div>{:else}<div class="av ghost"></div>{/if}
+        <article class:cont class:pending={m.pending} class:mine={m.mine}>
+          {#if !cont && !m.mine}<div class="av" style={tile(m.senderName)}>{initials(m.senderName)}</div>{:else if !m.mine}<div class="av ghost"></div>{/if}
           <div class="body">
-            {#if !cont}<div class="meta"><b>{m.senderName}</b><time>{fmt(m.ts)}</time></div>{/if}
+            {#if !cont && !m.mine}<div class="meta"><b>{m.senderName}</b><time>{fmt(m.ts)}</time></div>{/if}
             {#if m.replyTo}<div class="quote">↪ {byId(m.replyTo)?.body ?? 'message'}</div>{/if}
-            {#if m.imageUrl}<img src={m.imageUrl} alt={m.body} loading="lazy" />{:else}<div class="text">{m.body}{#if m.edited}<small> (edited)</small>{/if}</div>{/if}
+            {#if m.imageUrl}<img src={m.imageUrl} alt={m.body} loading="lazy" />{:else}<div class="text" class:utd={m.undecryptable}>{@html render(m.body)}{#if m.edited}<small> (edited)</small>{/if}</div>{/if}
             {#if Object.keys(m.reactions).length}
               <div class="reacts">{#each Object.entries(m.reactions) as [k, n] (k)}<button onclick={() => chat.react(m.id, k)}>{k} {n}</button>{/each}</div>
             {/if}
@@ -116,28 +118,35 @@
 </section>
 
 <style>
-  section { display: flex; flex-direction: column; min-width: 0; height: 100%; }
+  section { display: flex; flex-direction: column; min-width: 0; height: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; }
   .empty { margin: auto; text-align: center; color: var(--muted); }
-  header { display: flex; gap: 10px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  header { display: flex; gap: 12px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  .tile { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 700; }
+  .enc { margin-left: auto; font-size: 12px; color: var(--muted); background: var(--tile); padding: 3px 10px; border-radius: 999px; }
   .back { display: none; } @media (max-width: 720px) { .back { display: block; } }
-  .scroll { flex: 1; overflow-y: auto; padding: 12px 0; }
+  .scroll { flex: 1; overflow-y: auto; padding: 16px 0; }
   .note { text-align: center; color: var(--muted); font-size: 12px; padding: 6px; }
-  article { position: relative; display: flex; gap: 12px; padding: 2px 20px; margin-top: 12px; }
-  article.cont { margin-top: 0; } article.pending { opacity: .55; } article:hover { background: var(--bg-2); }
-  .av { flex: none; width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; display: grid; place-items: center; font-weight: 600; }
+  article { position: relative; display: flex; gap: 10px; padding: 0 20px; margin-top: 14px; align-items: flex-end; }
+  article.cont { margin-top: 3px; } article.pending { opacity: .55; } article.mine { justify-content: flex-end; }
+  .av { flex: none; width: 34px; height: 34px; border-radius: 50%; color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
   .av.ghost { background: none; }
-  .body { min-width: 0; } .meta { display: flex; gap: 8px; align-items: baseline; } time, small { color: var(--muted); font-size: 12px; }
-  .text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+  .body { min-width: 0; max-width: min(640px, 78%); padding: 9px 14px; background: var(--tile); border-radius: 18px 18px 18px 6px; }
+  article.mine .body { background: var(--mine); border-radius: 18px 18px 6px 18px; }
+  .meta { display: flex; gap: 8px; align-items: baseline; margin-bottom: 2px; } .meta b { font-size: 13px; }
+  time, small { color: var(--muted); font-size: 12px; }
+  .text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; } .text.utd { color: var(--muted); font-style: italic; }
+  .text :global(code) { background: var(--bg); padding: 1px 6px; border-radius: 6px; font-size: 13px; } .text :global(pre) { margin: 6px 0 0; padding: 10px; background: var(--bg); border-radius: 10px; overflow-x: auto; } .text :global(pre code) { padding: 0; }
+  .text :global(blockquote) { margin: 2px 0; padding-left: 10px; border-left: 3px solid var(--accent); color: var(--muted); } .text :global(a) { color: var(--accent); }
   .quote { color: var(--muted); font-size: 13px; border-left: 3px solid var(--accent); padding-left: 8px; margin: 2px 0; }
-  img { max-width: min(480px, 100%); border-radius: 10px; margin-top: 4px; }
-  .reacts { display: flex; gap: 6px; margin-top: 4px; } .reacts button { padding: 1px 8px; border-radius: 12px; background: var(--bg-3); border: 1px solid var(--line); font-size: 13px; }
-  .tools { display: none; position: absolute; right: 20px; top: -14px; background: var(--bg-3); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
-  article:hover .tools, article:focus-within .tools { display: flex; } .tools button { padding: 3px 7px; font-size: 13px; border-radius: 6px; } .tools button:hover { background: var(--line); }
-  .typing { height: 20px; padding: 0 20px; font-size: 12px; color: var(--muted); }
-  footer { padding: 0 20px 16px; } .ctx { font-size: 12px; color: var(--muted); padding: 6px 12px; background: var(--bg-2); border-radius: 8px 8px 0 0; }
-  .composer { display: flex; align-items: flex-end; gap: 8px; padding: 8px 10px; background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); }
+  img { max-width: min(480px, 100%); border-radius: 12px; margin-top: 4px; }
+  .reacts { display: flex; gap: 6px; margin-top: 6px; } .reacts button { padding: 1px 8px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; }
+  .tools { display: none; position: absolute; top: -16px; right: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 2px 4px; box-shadow: 0 4px 14px #0004; }
+  article:hover .tools, article:focus-within .tools { display: flex; } .tools button { padding: 3px 7px; font-size: 13px; border-radius: 999px; } .tools button:hover { background: var(--tile); }
+  .typing { height: 20px; padding: 0 24px; font-size: 12px; color: var(--muted); }
+  footer { padding: 0 16px 16px; } .ctx { font-size: 12px; color: var(--muted); padding: 6px 14px; background: var(--tile); border-radius: 14px 14px 0 0; }
+  .composer { display: flex; align-items: flex-end; gap: 8px; padding: 8px 10px; background: var(--tile); border: 1px solid var(--line); border-radius: 20px; }
   .composer:focus-within { border-color: var(--accent); }
   textarea { flex: 1; resize: none; max-height: 160px; background: none; border: 0; outline: none; padding: 6px 4px; field-sizing: content; }
   .attach { cursor: pointer; padding: 4px 8px; color: var(--muted); font-size: 18px; }
-  .send { padding: 7px 14px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; font-weight: 600; } .send:disabled { opacity: .4; }
+  .send { padding: 7px 16px; border-radius: 999px; background: var(--accent); color: #1a1208; font-weight: 700; } .send:disabled { opacity: .35; }
 </style>

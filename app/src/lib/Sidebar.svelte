@@ -1,63 +1,67 @@
 <script lang="ts">
   import { chat } from './matrix.svelte'
+  import { initials, tile, ui } from './ui.svelte'
   let { onsearch }: { onsearch: () => void } = $props()
-  const initials = (n: string) => n.replace(/^[#@!]/, '').slice(0, 2).toUpperCase()
   const dms = $derived(chat.visibleRooms.filter((r) => r.isDM))
   const channels = $derived(chat.visibleRooms.filter((r) => !r.isDM))
-
-  async function newRoom() {
-    const name = prompt('New channel name')
-    if (name) await chat.createRoom(name)
-  }
-  async function join() {
-    const alias = prompt('Room alias or ID (e.g. #room:server)')
-    if (alias) await chat.joinRoom(alias).catch((e) => alert(e.message))
-  }
+  const total = $derived(chat.rooms.reduce((n, r) => n + (r.isSpace ? 0 : r.unread), 0))
 </script>
 
 <aside>
+  <header>
+    <div class="brand"><span class="mark">◆</span> Tessera {#if total}<span class="pill">{total}</span>{/if}</div>
+    <button onclick={() => (ui.modal = 'settings')} aria-label="Settings" title="Settings">⚙</button>
+  </header>
+
   <nav class="spaces" aria-label="Spaces">
-    <button class:on={!chat.activeSpace} onclick={() => (chat.activeSpace = null)} title="Home" aria-label="Home">⌂</button>
+    <button class:on={!chat.activeSpace} onclick={() => (chat.activeSpace = null)}>All</button>
     {#each chat.spaces as s (s.id)}
-      <button class:on={chat.activeSpace === s.id} onclick={() => (chat.activeSpace = s.id)} title={s.name}>{initials(s.name)}</button>
+      <button class:on={chat.activeSpace === s.id} onclick={() => (chat.activeSpace = s.id)}>{s.name}</button>
     {/each}
   </nav>
+
+  <button class="search" onclick={onsearch}>Jump to… <kbd>Ctrl K</kbd></button>
+
   <div class="list">
-    <button class="search" onclick={onsearch}>Search or jump to… <kbd>Ctrl K</kbd></button>
-    <div class="head"><span>Channels</span><span><button onclick={join} title="Join room" aria-label="Join room">⎆</button><button onclick={newRoom} title="New channel" aria-label="New channel">+</button></span></div>
+    <div class="head"><span>Rooms</span>
+      <span><button onclick={() => (ui.modal = 'join-room')} title="Join a room" aria-label="Join a room">⎆</button><button onclick={() => (ui.modal = 'new-room')} title="New room" aria-label="New room">＋</button></span></div>
     {#each channels as r (r.id)}
       <button class="room" class:active={chat.activeRoom === r.id} class:unread={r.unread > 0} onclick={() => chat.openRoom(r.id)}>
-        <span class="hash">#</span><span class="name">{r.name}</span>
+        <span class="tile" style={tile(r.name)}>{initials(r.name)}</span>
+        <span class="name">{r.name}</span>
+        {#if r.encrypted}<span class="lock" title="Encrypted">🔒</span>{/if}
         {#if r.unread}<span class="badge" class:hl={r.highlight > 0}>{r.unread}</span>{/if}
       </button>
     {/each}
-    {#if dms.length}<div class="head"><span>Direct messages</span></div>{/if}
+    {#if dms.length}<div class="head"><span>People</span></div>{/if}
     {#each dms as r (r.id)}
       <button class="room" class:active={chat.activeRoom === r.id} class:unread={r.unread > 0} onclick={() => chat.openRoom(r.id)}>
-        <span class="av">{initials(r.name)}</span><span class="name">{r.name}</span>
+        <span class="tile round" style={tile(r.name)}>{initials(r.name)}</span>
+        <span class="name">{r.name}</span>
         {#if r.unread}<span class="badge hl">{r.unread}</span>{/if}
       </button>
     {/each}
-    <footer><span>{chat.userId}</span><button onclick={() => chat.logout()}>Sign out</button></footer>
   </div>
 </aside>
 
 <style>
-  aside { display: flex; background: var(--bg-2); border-right: 1px solid var(--line); min-width: 0; height: 100%; }
-  .spaces { width: 56px; padding: 10px 0; display: flex; flex-direction: column; align-items: center; gap: 8px; border-right: 1px solid var(--line); }
-  .spaces button { width: 38px; height: 38px; border-radius: 12px; background: var(--bg-3); font-weight: 600; font-size: 13px; transition: border-radius .15s, background .15s; }
-  .spaces button:hover, .spaces button.on { border-radius: 10px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
-  .list { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 10px 8px; overflow-y: auto; }
-  .search { display: flex; justify-content: space-between; padding: 9px 12px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); background: var(--bg); }
+  aside { display: flex; flex-direction: column; gap: 10px; min-width: 0; height: 100%; padding: 14px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 0 6px; }
+  .brand { font-weight: 700; letter-spacing: -.01em; display: flex; gap: 8px; align-items: center; } .mark { color: var(--accent); }
+  header button { color: var(--muted); font-size: 18px; padding: 4px; }
+  .pill { background: var(--accent); color: #1a1208; border-radius: 999px; padding: 0 8px; font-size: 11px; font-weight: 700; }
+  .spaces { display: flex; gap: 6px; overflow-x: auto; padding: 2px 4px 6px; scrollbar-width: none; }
+  .spaces button { flex: none; padding: 5px 12px; border-radius: 999px; background: var(--tile); color: var(--muted); font-size: 13px; }
+  .spaces button.on { background: var(--accent); color: #1a1208; font-weight: 600; }
+  .search { display: flex; justify-content: space-between; padding: 10px 14px; border-radius: 14px; color: var(--muted); background: var(--tile); }
   kbd { font-size: 11px; opacity: .7; }
-  .head { display: flex; justify-content: space-between; padding: 14px 8px 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+  .head { display: flex; justify-content: space-between; padding: 12px 10px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
   .head button { color: var(--muted); font-size: 16px; padding: 0 4px; }
-  .room { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; text-align: left; color: var(--muted); }
-  .room:hover { background: var(--bg-3); } .room.active { background: var(--bg-3); color: var(--text); }
+  .room { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 14px; text-align: left; color: var(--muted); }
+  .room:hover { background: var(--tile); } .room.active { background: var(--tile); color: var(--text); box-shadow: inset 3px 0 0 var(--accent); }
   .room.unread { color: var(--text); font-weight: 600; }
-  .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .hash { opacity: .6; } .av { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 9px; display: grid; place-items: center; }
-  .badge { background: var(--muted); color: var(--bg); border-radius: 10px; padding: 0 7px; font-size: 11px; } .badge.hl { background: var(--danger); color: #fff; }
-  footer { margin-top: auto; display: flex; justify-content: space-between; gap: 8px; padding: 10px 8px 0; font-size: 12px; color: var(--muted); }
-  footer span { overflow: hidden; text-overflow: ellipsis; } footer button { color: var(--accent); }
+  .tile { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 700; } .tile.round { border-radius: 50%; }
+  .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .lock { font-size: 10px; opacity: .6; }
+  .badge { background: var(--muted); color: var(--bg); border-radius: 999px; padding: 0 7px; font-size: 11px; } .badge.hl { background: var(--accent); color: #1a1208; font-weight: 700; }
 </style>

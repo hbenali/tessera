@@ -28,7 +28,7 @@
 
 <style>
   .scrim { position: fixed; inset: 0; background: #0008; display: grid; place-items: start center; padding-top: 14vh; z-index: 10; }
-  .box { width: min(560px, 92vw); background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px #000a; }
+  .box { width: min(560px, 92vw); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px #000a; }
   input { width: 100%; padding: 16px; background: none; border: 0; border-bottom: 1px solid var(--line); font-size: 16px; outline: none; }
-  button { display: block; width: 100%; text-align: left; padding: 10px 16px; } .sel { background: var(--bg-3); }
+  button { display: block; width: 100%; text-align: left; padding: 10px 16px; } .sel { background: var(--tile); }
 </style>

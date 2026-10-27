@@ -1,8 +1,12 @@
 <script lang="ts">
   import { chat } from './matrix.svelte'
+  import { ui } from './ui.svelte'
   import Sidebar from './Sidebar.svelte'
   import Timeline from './Timeline.svelte'
   import Palette from './Palette.svelte'
+  import Settings from './Settings.svelte'
+  import NewRoom from './NewRoom.svelte'
+  import Verification from './Verification.svelte'
 
   let palette = $state(false)
   function key(e: KeyboardEvent) {
@@ -20,12 +24,17 @@
   <Timeline />
 </div>
 {#if palette}<Palette onclose={() => (palette = false)} />{/if}
+{#if ui.modal === 'settings'}<Settings />{/if}
+{#if ui.modal === 'new-room'}<NewRoom />{/if}
+{#if ui.modal === 'join-room'}<NewRoom join />{/if}
+<Verification />
 
 <style>
-  .shell { height: 100%; display: grid; grid-template-columns: 300px 1fr; }
+  .shell { height: 100%; display: grid; grid-template-columns: 320px 1fr; gap: 10px; padding: 10px; }
   @media (max-width: 720px) {
-    .shell { grid-template-columns: 1fr; }
+    .shell { grid-template-columns: 1fr; padding: 0; gap: 0; }
     .shell.has-room :global(aside) { display: none; }
     .shell:not(.has-room) :global(section.main) { display: none; }
+    .shell :global(aside), .shell :global(section.main) { border-radius: 0 !important; }
   }
 </style>
