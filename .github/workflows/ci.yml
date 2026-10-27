@@ -60,10 +60,12 @@ jobs:
           mkdir synapse
           docker run --rm -v "$PWD/synapse:/data" -e SYNAPSE_SERVER_NAME=localhost -e SYNAPSE_REPORT_STATS=no "$SYNAPSE_IMAGE" generate
           sudo chown -R "$USER" synapse
-          SECRET=$(openssl rand -hex 24)
+          # generate already wrote a registration_shared_secret; a second key would be ignored, so reuse it
+          SECRET=$(sed -n 's/^registration_shared_secret: *"\(.*\)"$/\1/p' synapse/homeserver.yaml)
+          test -n "$SECRET"
+          echo "::add-mask::$SECRET"
           echo "SYNAPSE_REGISTRATION_SECRET=$SECRET" >> "$GITHUB_ENV"
           cat >> synapse/homeserver.yaml <<EOF
-          registration_shared_secret: "$SECRET"
           suppress_key_server_warning: true
           rc_message: {per_second: 1000, burst_count: 10000}
           rc_login: {address: {per_second: 1000, burst_count: 10000}, account: {per_second: 1000, burst_count: 10000}, failed_attempts: {per_second: 1000, burst_count: 10000}}

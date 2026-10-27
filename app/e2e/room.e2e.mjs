@@ -233,7 +233,7 @@ describe('tessera e2e', () => {
     })
 
     it('passes axe (WCAG 2.1 A/AA) in every theme', async () => {
-      await r.page.addScriptTag({ content: axeSource })
+      await r.page.evaluate(axeSource) // via the debugger, so the page CSP can stay on
       await r.page.getByRole('button', { name: 'Room details' }).click()
       for (const theme of THEMES) {
         const bad = await r.page.evaluate(async (t) => {
