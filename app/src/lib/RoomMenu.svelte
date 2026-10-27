@@ -78,6 +78,7 @@
       {:else}
         <button role="menuitem" onclick={() => run(() => chat.setRoomNotifs(room.id, 'mentions'))}><Icon name="at" size={15} />Mentions only</button>
       {/if}
+      <button role="menuitem" onclick={() => run(() => chat.setQuiet(room.id, !chat.isQuiet(room.id)))}><Icon name="eyeOff" size={15} />{chat.isQuiet(room.id) ? 'Stop quiet reading' : 'Read quietly'}</button>
       <button role="menuitem" onclick={() => run(() => chat.setFavourite(room.id, !room.favourite))}><Icon name="star" size={15} />{room.favourite ? 'Remove from favourites' : 'Add to favourites'}</button>
       <hr />
       <button role="menuitem" onclick={copy}><Icon name="link" size={15} />Copy link</button>

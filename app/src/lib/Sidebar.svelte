@@ -89,7 +89,8 @@
               <span class="name">{r.name}</span>
               {#if r.favourite}<span class="lock fav" title="Favourite"><Icon name="star" size={12} /><span class="sr">Favourite</span></span>{/if}
               {#if r.encrypted}<span class="lock" title="End-to-end encrypted"><Icon name="lock" size={12} /></span>{/if}
-              {#if r.notifs === 'mute'}<span class="lock" title="Notifications are muted"><Icon name="bellOff" size={12} /><span class="sr">Muted</span></span>{:else if r.notifs === 'mentions'}<span class="lock" title="Only mentions notify you"><Icon name="at" size={12} /><span class="sr">Mentions only</span></span>{/if}
+              {#if chat.isQuiet(r.id)}<span class="lock" title="Quiet reading"><Icon name="eyeOff" size={12} /><span class="sr">Quiet reading</span></span>{/if}
+            {#if r.notifs === 'mute'}<span class="lock" title="Notifications are muted"><Icon name="bellOff" size={12} /><span class="sr">Muted</span></span>{:else if r.notifs === 'mentions'}<span class="lock" title="Only mentions notify you"><Icon name="at" size={12} /><span class="sr">Mentions only</span></span>{/if}
               <span class="time">{r.lastTs ? shortTime(r.lastTs) : ''}</span>
             </span>
             <span class="bottom">

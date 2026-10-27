@@ -14,6 +14,18 @@
   let editing = $state<Msg | null>(null)
   let notice = $state('')
   let picker = $state<string | null>(null) // message id, or 'composer'
+  let seenFor = $state<string | null>(null) // message whose list of readers is open
+  let seenUp = $state(false) // open the list upward when there is no room below
+  // The readers list closes on Escape, on a click anywhere else, and when the room changes.
+  $effect(() => {
+    if (!seenFor) return
+    const away = (e: Event) => { if (!(e.target as HTMLElement).closest?.('.seen')) seenFor = null }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') seenFor = null }
+    addEventListener('pointerdown', away)
+    addEventListener('keydown', esc)
+    return () => { removeEventListener('pointerdown', away); removeEventListener('keydown', esc) }
+  })
+  $effect(() => { chat.activeRoom; seenFor = null })
   let scroller: HTMLElement | undefined = $state()
   let fileInput: HTMLInputElement | undefined = $state()
   let stick = true
@@ -235,7 +247,7 @@
     <header>
       <button class="icon-btn back" onclick={() => chat.closeRoom()} aria-label="Back to rooms"><Icon name="back" /></button>
       <Avatar name={chat.active.name} size={32} round={chat.active.isDM} src={chat.active.avatar} presence={chat.active.dmUser ? (chat.presenceOf(chat.active.dmUser) ?? 'offline') : undefined} />
-      <div class="title"><h1>{chat.active.name}{#if chat.active.notifs === 'mute'}<span class="muted" title="Notifications are muted"><Icon name="bellOff" size={14} /><span class="sr">Muted</span></span>{/if}</h1>{#if chat.active.dmUser}<span class="topic">{({ online: 'Online', unavailable: 'Away', offline: 'Offline' })[chat.presenceOf(chat.active.dmUser) ?? 'offline']}</span>{:else if chat.active.topic}<span class="topic">{chat.active.topic}</span>{:else}<span class="topic">{chat.active.memberCount} {chat.active.memberCount === 1 ? 'member' : 'members'}</span>{/if}</div>
+      <div class="title"><h1>{chat.active.name}{#if chat.isQuiet(chat.active.id)}<span class="muted" title="Quiet reading: people are not shown that you read this room"><Icon name="eyeOff" size={14} /><span class="sr">Quiet reading</span></span>{/if}{#if chat.active.notifs === 'mute'}<span class="muted" title="Notifications are muted"><Icon name="bellOff" size={14} /><span class="sr">Muted</span></span>{/if}</h1>{#if chat.active.dmUser}<span class="topic">{({ online: 'Online', unavailable: 'Away', offline: 'Offline' })[chat.presenceOf(chat.active.dmUser) ?? 'offline']}</span>{:else if chat.active.topic}<span class="topic">{chat.active.topic}</span>{:else}<span class="topic">{chat.active.memberCount} {chat.active.memberCount === 1 ? 'member' : 'members'}</span>{/if}</div>
       {#if chat.active.encrypted}<span class="enc" title="End-to-end encrypted"><Icon name="lock" size={13} /> Encrypted</span>{/if}
       <button class="icon-btn" aria-label="Room menu" aria-haspopup="menu" onclick={(e) => { const b = e.currentTarget.getBoundingClientRect(); ui.openRoomMenu(chat.active!.id, b.right - 220, b.bottom + 4, e.currentTarget) }}><Icon name="more" /></button>
       <button class="icon-btn" class:on={ui.details} onclick={() => (ui.details = !ui.details)} aria-label="Room details" aria-pressed={ui.details}><Icon name="info" /></button>
@@ -266,7 +278,7 @@
       {/if}
       {#each rows as { m, newDay, cont } (m.id)}
         {#if newDay}<div class="day" role="separator"><span>{dayLabel(m.ts)}</span></div>{/if}
-        <article class:cont class:pending={m.pending} class:active={picker === m.id} class:mention={m.mentionsMe} data-id={m.id}>
+        <article class:cont class:pending={m.pending} class:active={picker === m.id || seenFor === m.id} class:mention={m.mentionsMe} data-id={m.id}>
           <div class="gutter">
             {#if !cont}<Avatar name={m.senderName} size={36} round src={m.senderAvatar} presence={m.mine ? undefined : chat.presenceOf(m.sender)} />{:else}<time>{fmt(m.ts)}</time>{/if}
           </div>
@@ -275,7 +287,22 @@
             {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {byId(m.replyTo)?.body ?? 'earlier message'}</div>{/if}
             {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable}>{@html render(m.body, { name: chat.nameOf, me: chat.userId })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
-            {#if m.seenBy?.length}<div class="seen" title="Seen by {m.seenBy.map((s) => s.name).join(', ')}">{#each m.seenBy.slice(0, 5) as s (s.name)}<Avatar name={s.name} size={14} round src={s.avatar} />{/each}<span>Seen{m.seenBy.length > 5 ? ` by ${m.seenBy.length}` : ''}</span></div>{/if}
+            {#if m.seenBy?.length}
+              {@const who = m.seenBy}
+              {@const names = who.map((s) => s.name).join(', ')}
+              {@const dm = !!chat.active?.isDM}
+              <div class="seen" title="Seen by {names}">
+                <button class="seen-btn" aria-expanded={seenFor === m.id} aria-label="Seen by {names}. Show who and when" onclick={(e) => { seenUp = !!scroller && e.currentTarget.getBoundingClientRect().bottom + 260 > scroller.getBoundingClientRect().bottom; seenFor = seenFor === m.id ? null : m.id }}>
+                  <span class="stack">{#each who.slice(0, 4) as s (s.id)}<Avatar name={s.name} size={16} round src={s.avatar} />{/each}</span>
+                  {#if dm && who[0].ts}<span class="when">Seen {fmt(who[0].ts)}</span>{:else if who.length > 4}<span class="when">+{who.length - 4}</span>{:else if dm}<span class="when">Seen</span>{/if}
+                </button>
+                {#if seenFor === m.id}
+                  <ul class="seen-list" class:up={seenUp} aria-label="Seen by">
+                    {#each who as s (s.id)}<li><Avatar name={s.name} size={20} round src={s.avatar} /><span class="who">{s.name}</span>{#if s.ts}<time>{fmt(s.ts)}</time>{/if}</li>{/each}
+                  </ul>
+                {/if}
+              </div>
+            {/if}
             {#if Object.keys(m.reactions).length}
               <div class="reacts">{#each Object.entries(m.reactions) as [k, n] (k)}
                 {@const who = m.reactors[k] ?? []}
@@ -357,13 +384,24 @@
   .pin-count { border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--muted); font: inherit; padding: 2px 10px; cursor: pointer; }
   .pinlist { position: absolute; z-index: 6; top: 100%; left: 12px; right: 12px; margin: 4px 0 0; padding: 4px; list-style: none; max-height: 260px; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); } .pinlist li { display: flex; align-items: center; gap: 4px; } .pinlist li > button:first-child { flex: 1; min-width: 0; display: flex; gap: 8px; border: 0; background: none; color: var(--text); font: inherit; text-align: left; padding: 6px 8px; border-radius: 7px; cursor: pointer; } .pinlist li > button:first-child:hover { background: var(--tile); } .pinlist span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
   .pinned { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: 11px; }
-  .seen { display: flex; align-items: center; gap: 3px; margin-top: 3px; color: var(--muted); font-size: 11px; } .seen span { margin-left: 3px; }
+  .seen { position: relative; display: flex; justify-content: flex-end; margin-top: 3px; padding-right: 4px; font-size: 11px; color: var(--muted); }
+  .seen-btn { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 999px; color: inherit; } .seen-btn:hover { background: var(--tile); }
+  .stack { display: inline-flex; } .stack :global(.wrap) { margin-left: -5px; box-shadow: 0 0 0 2px var(--bg); border-radius: 50%; animation: pop .18s ease-out; } .stack :global(.wrap:first-child) { margin-left: 0; }
+  @keyframes pop { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } } @media (prefers-reduced-motion: reduce) { .stack :global(.wrap) { animation: none; } }
+  .seen-list { position: absolute; z-index: 9; right: 0; top: calc(100% + 4px); min-width: 200px; max-height: 240px; overflow-y: auto; margin: 0; padding: 6px; list-style: none; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); font-size: 13px; color: var(--text); }
+  .seen-list.up { top: auto; bottom: calc(100% + 4px); }
+  .seen-list li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; } .seen-list .who { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .seen-list time { color: var(--muted); font-size: 11px; }
   .reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; } .reacts button { display: inline-flex; flex: none; gap: 5px; align-items: center; white-space: nowrap; line-height: 20px; min-height: 24px; padding: 1px 9px; font-variant-numeric: tabular-nums; border-radius: 999px; background: var(--tile); border: 1px solid var(--line); font-size: 12px; font-weight: 600; } .reacts button span { font-size: 14px; line-height: 20px; } .reacts button:hover { border-color: var(--accent); } .reacts button { position: relative; } .reacts button.mine { background: color-mix(in srgb, var(--accent) 18%, var(--tile)); border-color: var(--accent); }
   .reacts button::after { content: attr(data-who); position: absolute; left: 0; bottom: calc(100% + 6px); max-width: 240px; width: max-content; padding: 5px 9px; border-radius: 7px; background: var(--text); color: var(--bg); font-size: 12px; font-weight: 500; white-space: normal; line-height: 1.35; opacity: 0; pointer-events: none; transition: opacity .12s; z-index: 7; } .reacts button:hover::after, .reacts button:focus-visible::after { opacity: 1; } @media (prefers-reduced-motion: reduce) { .reacts button::after { transition: none; } }
   .tools { display: none; position: absolute; top: -16px; right: 20px; z-index: 2; gap: 0; padding: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
   /* content-visibility clips overflow; the toolbar and emoji picker hang outside the row, so lift it while the row is in use. */
   article:hover, article:focus-within, article.active { content-visibility: visible; }
-  article:hover .tools, article:focus-within .tools, article.active .tools { display: flex; } .tools .icon-btn { width: 30px; height: 28px; font-size: 15px; } .pw { position: relative; }
+  article:hover .tools, article:focus-within .tools, article.active .tools { display: flex; }
+  /* Each action shows its name under the toolbar on hover or keyboard focus. The text is the button's own accessible name. */
+  .tools .icon-btn { position: relative; }
+  .tools .icon-btn::after { content: attr(aria-label); position: absolute; top: calc(100% + 8px); right: 0; width: max-content; max-width: 220px; padding: 4px 9px; border-radius: 7px; background: var(--text); color: var(--bg); font: 500 12px/1.3 var(--sans); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .12s .35s; z-index: 8; }
+  .tools .icon-btn:hover::after, .tools .icon-btn:focus-visible::after { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .tools .icon-btn::after { transition: none; } } .tools .icon-btn { width: 30px; height: 28px; font-size: 15px; } .pw { position: relative; }
   .line { display: flex; align-items: flex-end; gap: 8px; } .line .text { flex: 1; min-width: 0; }
   .muted { display: inline-flex; margin-left: 8px; color: var(--muted); vertical-align: -1px; }
   .tick { display: inline-flex; flex: none; margin-bottom: 3px; color: var(--muted); } .tick.st-seen { color: var(--accent); } .tick.st-failed { color: var(--danger); }

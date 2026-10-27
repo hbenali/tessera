@@ -50,6 +50,7 @@
     {/if}
     <div class="enc" class:on={r.encrypted}><Icon name={r.encrypted ? 'shield' : 'info'} size={16} />{r.encrypted ? 'End-to-end encrypted' : 'Not encrypted'}</div>
     <button class="btn ghost fav" aria-pressed={r.favourite} onclick={() => chat.setFavourite(r.id, !r.favourite)}><Icon name="star" size={15} /> {r.favourite ? 'Remove from favourites' : 'Add to favourites'}</button>
+    <label class="quiet"><input type="checkbox" checked={chat.isQuiet(r.id)} onchange={(e) => chat.setQuiet(r.id, e.currentTarget.checked)} /> <span><b>Read quietly</b><small>Open this room and read everything without showing people that you have. Your unread count still clears.</small></span></label>
     <h4 class="label">Notifications</h4>
     <div class="seg" role="radiogroup" aria-label="Notifications for this room">
       {#each [['all', 'All'], ['mentions', 'Mentions'], ['mute', 'Mute']] as [v, t] (v)}
@@ -82,5 +83,6 @@
   h4 { margin: 18px 0 6px; } ul { list-style: none; margin: 0; padding: 0; } li { display: flex; align-items: center; gap: 10px; padding: 5px 0; } .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .you { color: var(--muted); }
   .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; border-radius: 8px; background: var(--tile); } .seg button { border: 0; background: none; color: var(--muted); padding: 6px 0; border-radius: 6px; cursor: pointer; font: inherit; } .seg button.on { background: var(--panel); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
   .edit { display: grid; gap: 10px; margin-bottom: 8px; } .edit label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); } .edit input, .edit textarea { font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; resize: vertical; } .edit .row { display: flex; gap: 8px; } .err { color: var(--danger); margin: 0; }
+  .quiet { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--tile); cursor: pointer; } .quiet small { display: block; color: var(--muted); margin-top: 2px; } .quiet input { margin-top: 3px; }
   .actions { margin-top: 20px; display: grid; gap: 8px; } .actions p { margin: 0; } .btn { display: inline-flex; gap: 8px; align-items: center; justify-content: center; } .btn.danger { background: var(--danger); color: var(--bg); }
 </style>

@@ -40,7 +40,8 @@ export interface Msg {
   threadReplies: number
   mentionsMe: boolean
   pinned: boolean
-  seenBy?: { name: string; avatar?: string }[]
+  /** People whose read position is at this message, most recent first. */
+  seenBy?: { id: string; name: string; avatar?: string; ts?: number }[]
   /** Delivery of my own messages: sending, failed, sent to the server, or read by someone. */
   state?: 'sending' | 'failed' | 'sent' | 'seen'
   senderAvatar?: string
@@ -210,7 +211,7 @@ class Chat {
         this.ready = true
         this.refreshRooms()
         this.refreshMessages()
-        if (!this.routed) { this.routed = true; this.applyRoute() }
+        if (!this.routed) { this.routed = true; this.applyRoute(true) }
       } else if (state === 'ERROR') {
         this.error = 'Connection lost, retrying…'
       }
@@ -225,7 +226,10 @@ class Chat {
     client.on(sdk.ThreadEvent.NewReply as never, (() => this.scheduleRefresh()) as never)
     client.on('Thread.new' as never, (() => this.scheduleRefresh()) as never)
     // Push rules and tags change from other devices too, and the list shows both.
-    client.on(sdk.ClientEvent.AccountData, (ev) => { if (ev.getType() === 'm.push_rules') this.refreshRooms() })
+    client.on(sdk.ClientEvent.AccountData, (ev) => {
+      if (ev.getType() === 'm.push_rules') this.refreshRooms()
+      if (ev.getType() === Chat.QUIET) this.loadQuiet()
+    })
     client.on(sdk.RoomEvent.Tags, () => this.refreshRooms())
     client.on(sdk.RoomMemberEvent.Typing, () => { this.refreshTyping(); this.refreshRooms() })
     client.on(sdk.UserEvent.Presence, (_e, u) => { this.presence[u.userId] = u.presence as Presence })
@@ -235,6 +239,7 @@ class Chat {
     this.loadProfile()
     this.setStatus(this.myStatus)
     this.refreshPush()
+    this.loadQuiet()
   }
 
   async logout() {
@@ -337,10 +342,35 @@ class Chat {
     history.pushState(null, '', h || location.pathname + location.search)
   }
 
-  /** Open whatever the address bar names. */
-  applyRoute() {
-    const r = parse(location.hash)
+  /** The room I had open last time, per account, so the app comes back where I left it. */
+  private lastKey = () => `tessera.lastRoom.${this.userId}`
+  private rememberRoom(id: string | null) {
+    try {
+      if (id) localStorage.setItem(this.lastKey(), id)
+      else localStorage.removeItem(this.lastKey())
+    } catch {
+      /* storage blocked: nothing to remember with */
+    }
+  }
+  private lastRoom(): string | null {
+    try {
+      return localStorage.getItem(this.lastKey())
+    } catch {
+      return null
+    }
+  }
+
+  /** Open whatever the address bar names. On a first start with no link, reopen the last room. */
+  applyRoute(initial = false) {
+    let r = parse(location.hash)
     this.routeMissing = null
+    if (!r.room && initial) {
+      const last = this.lastRoom()
+      if (last && this.client?.getRoom(last)?.getMyMembership() === 'join') {
+        r = { room: last }
+        history.replaceState(null, '', format(r)) // show it in the address bar without adding a Back step
+      }
+    }
     if (!r.room) {
       this.activeRoom = null
       return
@@ -355,6 +385,7 @@ class Chat {
   }
 
   closeRoom() {
+    this.rememberRoom(null) // going back to the list on purpose: do not reopen it next time
     this.activeRoom = null
     this.routeMissing = null
     this.pushRoute({})
@@ -369,6 +400,7 @@ class Chat {
     this.activeRoom = id
     this.routeMissing = null
     if (push) this.pushRoute({ room: id })
+    this.rememberRoom(id)
     this.closeThread()
     this.messages = []
     this.refreshMessages()
@@ -376,7 +408,38 @@ class Chat {
     const room = this.client?.getRoom(id)
     if (room) {
       const last = room.getLiveTimeline().getEvents().at(-1)
-      if (last) await this.client!.sendReadReceipt(last).catch(() => {})
+      if (last) await this.sendRead(room.roomId, last)
+    }
+  }
+
+  /** Rooms where I read quietly: my read state is kept, but other people are not shown that I have read. */
+  quietRooms = $state<string[]>([])
+  private static QUIET = 'ovh.hbenali.tessera.quiet_rooms'
+  isQuiet = (roomId: string) => this.quietRooms.includes(roomId)
+
+  private loadQuiet() {
+    const c = this.client?.getAccountData(Chat.QUIET as never)?.getContent() as { rooms?: unknown } | undefined
+    this.quietRooms = Array.isArray(c?.rooms) ? c.rooms.filter((r): r is string => typeof r === 'string') : []
+  }
+
+  /** Stored as account data, so the choice follows you to your other devices. */
+  async setQuiet(roomId: string, on: boolean) {
+    const rooms = on ? [...new Set([...this.quietRooms, roomId])] : this.quietRooms.filter((r) => r !== roomId)
+    this.quietRooms = rooms
+    await this.client!.setAccountData(Chat.QUIET as never, { rooms } as never)
+  }
+
+  /**
+   * Mark a room read up to an event. A quiet room uses a private receipt (m.read.private): the server still counts
+   * the room as read for me and my other devices, but no one else sees "seen". The fully-read marker is private anyway.
+   */
+  private async sendRead(roomId: string, last: sdk.MatrixEvent) {
+    const c = this.client!
+    if (this.isQuiet(roomId)) {
+      await c.sendReadReceipt(last, sdk.ReceiptType.ReadPrivate).catch(() => {})
+      await c.setRoomReadMarkers(roomId, last.getId()!, undefined, last).catch(() => {})
+    } else {
+      await c.sendReadReceipt(last).catch(() => {})
     }
   }
 
@@ -445,8 +508,6 @@ class Chat {
         mentionsMe: sender !== this.userId && mentionsUser(content, this.userId, this.client?.getUser(this.userId)?.displayName),
       })
     }
-    // Delivery of my messages. A read receipt on a later event covers the earlier ones, so walk back from the
-    // newest until someone has read, and mark everything before that as seen.
     const byId = new Map(events.map((e) => [e.getId() ?? e.getTxnId(), e]))
     // Where each other member has read up to, as an index into this event list. A receipt often sits on an event
     // that is not shown (a reaction, a join), so compare positions instead of asking per message.
@@ -454,23 +515,23 @@ class Chat {
     const readers = room
       .getJoinedMembers()
       .filter((m) => m.userId !== this.userId)
-      .map((m) => ({ m, at: pos.get(room.getEventReadUpTo(m.userId) ?? '') ?? -1 }))
-    let seenFrom = -1
-    for (let i = out.length - 1; i >= 0; i--) {
-      const m = out[i]
-      if (!m.mine || m.pending) continue
-      const at = pos.get(m.id) ?? Infinity
-      const seen = readers.filter((r) => r.at >= at)
-      if (seen.length) {
-        m.seenBy = seen.map(({ m: u }) => ({ name: u.name, avatar: u.getMxcAvatarUrl() ?? undefined }))
-        seenFrom = i
-        break
-      }
+      .map((m) => ({ m, at: pos.get(room.getEventReadUpTo(m.userId) ?? '') ?? -1, ts: room.getReadReceiptForUserId(m.userId)?.data?.ts }))
+      .filter((r) => r.at >= 0)
+    // Each reader is shown once, on the last shown message at or before their position: that is where they stopped.
+    const at = out.map((m) => pos.get(m.id) ?? -1)
+    for (const r of readers) {
+      let i = out.length - 1
+      while (i >= 0 && !(at[i] >= 0 && at[i] <= r.at)) i--
+      if (i < 0 || out[i].sender === r.m.userId) continue // sending a message already says you saw it
+      ;(out[i].seenBy ??= []).push({ id: r.m.userId, name: r.m.name, avatar: r.m.getMxcAvatarUrl() ?? undefined, ts: r.ts })
     }
-    out.forEach((m, i) => {
+    for (const m of out) m.seenBy?.sort((x, y) => (y.ts ?? 0) - (x.ts ?? 0))
+    // My message is "seen" once anyone has read at or after it: a receipt on a later event covers the earlier ones.
+    const furthest = Math.max(-1, ...readers.map((r) => r.at))
+    out.forEach((m) => {
       if (!m.mine) return
       const st = byId.get(m.id)?.status
-      m.state = st === 'not_sent' ? 'failed' : m.pending ? 'sending' : i <= seenFrom ? 'seen' : 'sent'
+      m.state = st === 'not_sent' ? 'failed' : m.pending ? 'sending' : (pos.get(m.id) ?? Infinity) <= furthest ? 'seen' : 'sent'
     })
     return out
   }
@@ -656,8 +717,7 @@ class Chat {
     const room = this.client?.getRoom(roomId)
     const last = room?.getLiveTimeline().getEvents().at(-1)
     if (!room || !last) return
-    await this.client!.sendReadReceipt(last)
-    await this.client!.setRoomReadMarkers(roomId, last.getId()!, last).catch(() => {})
+    await this.sendRead(roomId, last)
     this.refreshRooms()
   }
 
