@@ -33,6 +33,13 @@ describe('tessera e2e', () => {
     return { page, ctx, errors }
   }
 
+  // Centre a row and let history loading finish: loading shifts rows under the mouse, and the hover toolbar
+  // only exists while its row is hovered.
+  async function centre(page, row) {
+    await row.evaluate((el) => el.scrollIntoView({ block: 'center' }))
+    await page.waitForFunction(() => !document.querySelector('.sentinel')?.textContent?.trim())
+  }
+
   describe('login page', () => {
     it('does not load the Matrix SDK', async () => {
       const ctx = await browser.newContext()
@@ -93,8 +100,7 @@ describe('tessera e2e', () => {
     it('does not clip the hover toolbar or the emoji picker', async () => {
       // A row inside the view (a toolbar hanging off the very top edge of the list is cut by the list itself).
     const first = r.page.locator('article', { hasText: 'hello bob' })
-    await first.scrollIntoViewIfNeeded()
-    await r.page.locator('.scroll').evaluate((s) => { s.scrollTop = Math.max(0, s.scrollTop - 80) })
+    await centre(r.page, first)
       await first.hover()
       const tools = first.locator('.tools')
       await tools.waitFor()
@@ -201,7 +207,7 @@ describe('tessera e2e', () => {
       const root = first.chunk.find((e) => e.type === 'm.room.message' && e.content.body === 'hello bob')
       await send(data.bob, data.room, { msgtype: 'm.text', body: `in the thread, cc ${data.alice.id}`, 'm.mentions': { user_ids: [data.alice.id] }, 'm.relates_to': { rel_type: 'm.thread', event_id: root.event_id, is_falling_back: true, 'm.in_reply_to': { event_id: root.event_id } } })
       const row = r.page.locator('article', { hasText: 'hello bob' }).first()
-      await row.scrollIntoViewIfNeeded()
+      await centre(r.page, row)
       await row.getByRole('button', { name: /1 reply|1 replies/ }).click({ timeout: 10_000 })
       const panel = r.page.getByRole('complementary').filter({ hasText: 'in the thread' })
       await panel.locator('.mention').first().waitFor()
@@ -215,9 +221,9 @@ describe('tessera e2e', () => {
       const synapse = process.env.SYNAPSE_URL ?? 'http://localhost:8008'
       const pin = async (text) => {
         const row = r.page.locator('article', { hasText: text }).first()
-        await row.scrollIntoViewIfNeeded()
+        await centre(r.page, row)
         await row.hover()
-        await row.getByRole('button', { name: 'Pin message' }).click()
+        await row.getByRole('button', { name: 'Pin message' }).click({ timeout: 10_000 })
       }
       await pin('hello bob')
       await r.page.locator('.pinbar').waitFor()
