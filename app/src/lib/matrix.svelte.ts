@@ -462,6 +462,36 @@ class Chat {
     n.onclick = () => { window.focus(); if (ev.getRoomId()) this.openRoom(ev.getRoomId()!) }
   }
 
+  /**
+   * Per-room notification level as ordinary push rules, so other clients agree:
+   * mentions = room rule with no actions; mute = override rule matching the room (beats mention rules).
+   */
+  roomNotifs(roomId: string): 'all' | 'mentions' | 'mute' {
+    const rules = this.client?.pushRules?.global
+    if (rules?.override?.some((r) => r.enabled && r.rule_id === roomId)) return 'mute'
+    return rules?.room?.some((r) => r.enabled && r.rule_id === roomId && r.actions.length === 0) ? 'mentions' : 'all'
+  }
+
+  async setRoomNotifs(roomId: string, level: 'all' | 'mentions' | 'mute') {
+    const c = this.client!
+    // The cached rules lag behind the server, so PUT/DELETE rather than trusting them.
+    const drop = (kind: string) => c.deletePushRule('global', kind as never, roomId).catch(() => {})
+    if (level === 'mute') {
+      await c.addPushRule('global', 'override' as never, roomId, {
+        actions: [],
+        conditions: [{ kind: 'event_match', key: 'room_id', pattern: roomId }],
+      } as never)
+      await drop('room')
+    } else if (level === 'mentions') {
+      await c.addPushRule('global', 'room' as never, roomId, { actions: [] })
+      await drop('override')
+    } else {
+      await drop('room')
+      await drop('override')
+    }
+    this.refreshRooms()
+  }
+
   async deleteMessage(id: string) {
     if (this.activeRoom) await this.client!.redactEvent(this.activeRoom, id)
   }
