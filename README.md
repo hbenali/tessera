@@ -1,23 +1,41 @@
 # Tessera
 
-A fast, private Matrix client for Synapse and any Matrix homeserver. Svelte 5, Vite and TypeScript on `matrix-js-sdk`, with the Rust crypto module for end-to-end encryption.
+[![CI](https://github.com/hbenali/tessera/actions/workflows/ci.yml/badge.svg)](https://github.com/hbenali/tessera/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+A fast, private, workspace-style [Matrix](https://matrix.org) client for Synapse and any other homeserver. It runs entirely in the browser and installs as a PWA. Built with Svelte 5, Vite and TypeScript on `matrix-js-sdk`, with the Rust crypto module for end-to-end encryption.
+
+**Live:** <https://tessera.hbenali.ovh> (sign in with your own homeserver; nothing is stored on the server that hosts the app).
+
+> Status: early, usable, not audited. It is a personal project and has been tested against one Synapse (1.118) and one real browser (Chrome). Do not rely on it as your only client for anything critical yet.
+
+## Why
+
+- **Fast and light.** The sign-in page is about 32 KiB; the Matrix SDK and crypto WASM load only after you sign in. Long rooms use CSS `content-visibility`.
+- **Workspace feel.** Spaces as a workspace switcher, threads in a side panel, pinned messages, per-room notification levels, a Ctrl K switcher.
+- **Simple.** One list of conversations with previews, unread filters and no settings maze.
+- **Eight themes**, including a high-contrast one, chosen from Settings.
 
 ## What works
 
 - **Sign in:** password, or single sign-on when the homeserver offers it. Bare domains resolve through `.well-known`.
-- **Conversations:** room list with previews, times, unread badges and All/Unread/People filters; spaces through a workspace switcher; invitations; direct messages with user-directory search; join by address; leave.
-- **Threads and search:** reply in a thread with a side panel and live updates; Ctrl K searches rooms and loaded messages, including inside encrypted rooms, and jumps to the message.
-- **Messages:** Markdown subset (safe by construction), replies, edits, deletes, reactions with an emoji picker, image and file upload, typing indicators, day dividers, history on scroll.
-- **End-to-end encryption:** Rust crypto with IndexedDB stores, encrypted rooms and DMs, cross-signing, secret storage and key backup setup, restore from a recovery key, emoji (SAS) verification.
-- **Pinned messages, drafts, image paste and "Seen" receipts** in every room.
-- **Notifications:** desktop notifications that follow your push rules, and an unread count in the tab title. Per-room level (all, mentions, mute) in the room details.
+- **Conversations:** room list with avatars, previews, times, unread badges and All/Unread/People filters; spaces; invitations; direct messages with user-directory search; join by address; leave; edit a room's name, topic and photo.
+- **Messages:** Markdown subset (escaped first, so safe by construction), replies, edits, deletes, reactions with an emoji picker, image and file upload (also by paste or drag and drop), typing indicators, day dividers, history on scroll, "Seen" receipts, per-room drafts that survive a reload.
+- **Mentions:** `@` autocomplete, mention pills, highlighted messages, and structured `m.mentions` so people are notified reliably.
+- **Threads, pins and search:** reply in a thread with live updates; pin and unpin messages with a pin bar; Ctrl K searches rooms and the messages already loaded on the device, including inside encrypted rooms.
+- **End-to-end encryption:** encrypted rooms and DMs, cross-signing, secret storage and key backup, restore from a recovery key, emoji (SAS) verification.
+- **Notifications:** desktop notifications that follow your push rules, an unread count in the tab title, and a per-room level (all, mentions, mute) stored as standard push rules so other clients agree.
 - **Installable:** web app manifest and an offline-shell service worker.
-- **Themes:** System, Dark, Light, Midnight, Sand, Forest, Ocean and High contrast.
-- **Accessibility:** axe-core reports no violations on any theme (room, details panel, settings). Full RGAA conformity also needs manual review.
 
 ## Not yet
 
-Voice and video calls, QR verification, server-side search (search covers messages already loaded on the device), a full timeline virtualiser (long rooms use CSS `content-visibility` for now).
+Voice and video calls, QR verification, server-side search (search covers loaded messages only), and a true timeline virtualiser.
+
+Known gaps in what has been verified: single sign-on was only exercised against a stand-in identity provider, not a real one; desktop notification pop-ups were not exercised (the unread count was); and accessibility has been checked with automated tools only (see below).
+
+## Accessibility
+
+axe-core (WCAG 2.1 A and AA) reports no violations in each theme (System follows dark or light) across the room, details, thread, pin and settings views, and this runs in CI. Lighthouse scores 100 for Performance, Accessibility and Best Practices on the sign-in page. Automated tools cannot show RGAA or WCAG conformity on their own: a manual keyboard and screen-reader review is still needed.
 
 ## Develop
 
@@ -35,7 +53,7 @@ For local testing, run a Synapse (`matrixdotorg/synapse`) with the `rc_*` rate l
 
 ### Browser tests
 
-`npm run e2e` drives the installed Google Chrome (via `playwright-core`, nothing is downloaded) against the production build, served with `vite preview`. Each run creates two throwaway users and a seeded room (mentions, an image, a reaction, 45 older messages), then checks the things that broke before: the composer staying on screen, scrolling from the top of a long room, the hover toolbar and emoji picker not being clipped, avatars and authenticated images loading, mention pills, per-room notification push rules, a phone-sized screen, no SDK in the login bundle, and axe (WCAG 2.1 A/AA) in every theme.
+`npm run e2e` drives the installed Google Chrome (via `playwright-core`; nothing is downloaded) against the production build, served with `vite preview`. Each run creates two throwaway users and a seeded room (mentions, an image, a reaction, 45 older messages), then checks the things that broke before: the composer staying on screen, scrolling from the top of a long room, the hover toolbar and emoji picker not being clipped, avatars and authenticated images loading, mention pills, pins, receipts, drafts, paste, per-room notification push rules, a phone-sized screen, no SDK in the sign-in bundle, and axe in every theme. CI runs it against a throwaway Synapse on every push.
 
 ```sh
 npm run build
@@ -48,13 +66,21 @@ Set `TESSERA_URL` to test an already running instance instead of `vite preview`.
 
 ## Deploy
 
+**Docker (recommended).** Unprivileged nginx serving the static build with a strict Content Security Policy and security headers:
+
 ```sh
 docker build -t tessera .
 docker run -p 8080:8080 tessera
 ```
 
-The image serves the static build with unprivileged nginx and a strict Content Security Policy. It holds no secrets or state: the browser talks to your homeserver directly, so the homeserver must allow the CORS origin where Tessera is hosted (Synapse does by default).
+**GitHub Pages.** `.github/workflows/pages.yml` builds and deploys on every push to `main`; `app/public/CNAME` holds the custom domain. Pages cannot send response headers, so that build embeds the Content-Security-Policy as a `<meta>` tag instead (the browser suite passes under it). One difference: `frame-ancestors` cannot be set from a meta tag, so a Pages deployment can be framed by other sites. Prefer the Docker image if that matters to you.
+
+Either way the app holds no secrets or state: the browser talks to your homeserver directly, so the homeserver must allow the origin where Tessera is hosted (Synapse does by default).
 
 ## Security
 
-See [SECURITY.md](SECURITY.md). Messages are rendered with an escaping Markdown renderer covered by XSS regression tests.
+See [SECURITY.md](SECURITY.md) to report a vulnerability. Messages are rendered with an escaping Markdown renderer covered by XSS regression tests; the session, including the access token, is kept in the browser's `localStorage` and is only sent to your homeserver (so an XSS bug would be serious, which is why the CSP is strict).
+
+## License
+
+[MIT](LICENSE).
