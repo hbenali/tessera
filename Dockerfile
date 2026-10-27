@@ -1,6 +1,6 @@
 # Static build served by unprivileged nginx. Tessera talks to your homeserver
 # directly from the browser, so the container holds no secrets or state.
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /src
 COPY app/package.json app/package-lock.json ./
 RUN npm ci
