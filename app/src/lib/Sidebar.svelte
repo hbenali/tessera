@@ -81,22 +81,25 @@
       </div>
     {/each}
     {#each rooms as r (r.id)}
-      <button class="row" class:active={chat.activeRoom === r.id} class:unread={r.unread > 0 && r.notifs !== 'mute'} class:muted={r.notifs === 'mute'} onclick={() => chat.openRoom(r.id)}>
-        <Avatar name={r.name} size={38} round={r.isDM} src={r.avatar} presence={r.dmUser ? (chat.presenceOf(r.dmUser) ?? 'offline') : undefined} />
-        <span class="body">
-          <span class="top">
-            <span class="name">{r.name}</span>
-            {#if r.favourite}<span class="lock fav" title="Favourite"><Icon name="star" size={12} /><span class="sr">Favourite</span></span>{/if}
-            {#if r.encrypted}<span class="lock" title="End-to-end encrypted"><Icon name="lock" size={12} /></span>{/if}
-            {#if r.notifs === 'mute'}<span class="lock" title="Notifications are muted"><Icon name="bellOff" size={12} /><span class="sr">Muted</span></span>{:else if r.notifs === 'mentions'}<span class="lock" title="Only mentions notify you"><Icon name="at" size={12} /><span class="sr">Mentions only</span></span>{/if}
-            <span class="time">{r.lastTs ? shortTime(r.lastTs) : ''}</span>
+      <div class="item">
+        <button class="row" class:active={chat.activeRoom === r.id} class:unread={r.unread > 0 && r.notifs !== 'mute'} class:muted={r.notifs === 'mute'} onclick={() => chat.openRoom(r.id)} oncontextmenu={(e) => { e.preventDefault(); ui.openRoomMenu(r.id, e.clientX, e.clientY, e.currentTarget) }}>
+          <Avatar name={r.name} size={38} round={r.isDM} src={r.avatar} presence={r.dmUser ? (chat.presenceOf(r.dmUser) ?? 'offline') : undefined} />
+          <span class="body">
+            <span class="top">
+              <span class="name">{r.name}</span>
+              {#if r.favourite}<span class="lock fav" title="Favourite"><Icon name="star" size={12} /><span class="sr">Favourite</span></span>{/if}
+              {#if r.encrypted}<span class="lock" title="End-to-end encrypted"><Icon name="lock" size={12} /></span>{/if}
+              {#if r.notifs === 'mute'}<span class="lock" title="Notifications are muted"><Icon name="bellOff" size={12} /><span class="sr">Muted</span></span>{:else if r.notifs === 'mentions'}<span class="lock" title="Only mentions notify you"><Icon name="at" size={12} /><span class="sr">Mentions only</span></span>{/if}
+              <span class="time">{r.lastTs ? shortTime(r.lastTs) : ''}</span>
+            </span>
+            <span class="bottom">
+              {#if r.typing}<span class="preview typing" aria-live="polite">typing<i></i><i></i><i></i></span>{:else}<span class="preview">{r.preview || (r.topic ? r.topic : 'No messages yet')}</span>{/if}
+              {#if r.unread}<span class="badge" class:hl={r.highlight > 0 && r.notifs !== 'mute'} class:quiet={r.notifs === 'mute'}>{r.unread}</span>{/if}
+            </span>
           </span>
-          <span class="bottom">
-            {#if r.typing}<span class="preview typing" aria-live="polite">typing<i></i><i></i><i></i></span>{:else}<span class="preview">{r.preview || (r.topic ? r.topic : 'No messages yet')}</span>{/if}
-            {#if r.unread}<span class="badge" class:hl={r.highlight > 0 && r.notifs !== 'mute'} class:quiet={r.notifs === 'mute'}>{r.unread}</span>{/if}
-          </span>
-        </span>
-      </button>
+        </button>
+        <button class="more icon-btn" aria-label="Options for {r.name}" aria-haspopup="menu" onclick={(e) => { const b = e.currentTarget.getBoundingClientRect(); ui.openRoomMenu(r.id, b.left, b.bottom + 4, e.currentTarget) }}><Icon name="more" size={16} /></button>
+      </div>
     {/each}
     {#if !rooms.length && !invites.length}
       <p class="empty">{view === 'unread' ? 'You are all caught up.' : view === 'mentions' ? 'No one has mentioned you.' : view === 'favourites' ? 'Star a room in its details to find it here.' : 'Nothing here yet.'}</p>
@@ -133,6 +136,7 @@
   .search { display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 8px 10px; border-radius: 8px; background: var(--tile); color: var(--muted); } .search:hover { color: var(--text); }
   .search span { flex: 1; text-align: left; } kbd { font-size: 11px; }
   .list { flex: 1; overflow-y: auto; padding: 0 6px 8px; }
+  .item { position: relative; } .more { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); opacity: 0; background: var(--panel); box-shadow: 0 0 0 1px var(--line); width: 28px; height: 28px; } .item:hover .more, .item:focus-within .more, .more:focus-visible { opacity: 1; } @media (hover: none) { .more { opacity: 1; width: 24px; height: 24px; right: 2px; top: 10px; transform: none; background: none; box-shadow: none; } }
   .row { display: flex; gap: 10px; width: 100%; padding: 8px; border-radius: 10px; text-align: left; align-items: center; } .row:hover { background: var(--tile); } .row.active { background: var(--tile); box-shadow: inset 2px 0 0 var(--accent); }
   .body { flex: 1; min-width: 0; display: grid; gap: 1px; }
   .top, .bottom { display: flex; align-items: center; gap: 6px; min-width: 0; }

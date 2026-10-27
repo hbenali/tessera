@@ -19,7 +19,7 @@ A fast, private, workspace-style [Matrix](https://matrix.org) client for Synapse
 ## What works
 
 - **Sign in:** password, or single sign-on when the homeserver offers it. Bare domains resolve through `.well-known`; the form starts on `matrix.org`.
-- **Conversations:** room list with avatars, previews, times, unread badges, muted and favourite markers, and animated typing; views and spaces from one menu; invitations; direct messages with user-directory search; join by address; leave; edit a room's name, topic and photo.
+- **Conversations:** a room menu (right-click, the more button or Shift+F10) with mark as read, mute, mentions only, favourite, copy link, details and leave; room list with avatars, previews, times, unread badges, muted and favourite markers, and animated typing; views and spaces from one menu; invitations; direct messages with user-directory search; join by address; leave; edit a room's name, topic and photo.
 - **Presence:** online and away dots on avatars, your own status (Online, Away, Invisible) from the sidebar, and your own avatar and name, which you can change in Settings.
 - **Messages:** sending, sent and seen marks on your messages; hover a reaction to see who reacted (click your own to take it back); Copy link on any message; Markdown subset (escaped first, so safe by construction), replies, edits, deletes, reactions with an emoji picker, image and file upload (also by paste or drag and drop), typing indicators, day dividers, history on scroll, "Seen" receipts, per-room drafts (kept across a reload only in unencrypted rooms, never written to disk for encrypted ones).
 - **Mentions:** `@` autocomplete, mention pills, highlighted messages, and structured `m.mentions` so people are notified reliably.

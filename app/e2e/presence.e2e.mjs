@@ -25,7 +25,7 @@ describe('presence, delivery and typing', () => {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } })
     const page = await ctx.newPage()
     await signIn(page, server.url, user)
-    await page.getByRole('button', { name: /e2e room/ }).click()
+    await page.getByRole('button', { name: /e2e room/ }).first().click()
     await page.getByRole('combobox', { name: 'Message' }).waitFor()
     return { ctx, page }
   }
@@ -71,7 +71,7 @@ describe('presence, delivery and typing', () => {
     await a.page.reload()
     await a.page.getByRole('navigation', { name: 'Rooms' }).waitFor()
     assert.match(await a.page.locator('footer .me').innerText(), /Away/)
-    await a.page.getByRole('button', { name: /e2e room/ }).click()
+    await a.page.getByRole('button', { name: /e2e room/ }).first().click()
     await a.page.locator('footer .me').click()
     await a.page.getByRole('menuitemradio', { name: 'Online' }).click()
   })

@@ -43,20 +43,20 @@ describe('room views, muted and favourite rooms, and who reacted', () => {
 
   it('People shows only direct chats and Rooms only the rest', async () => {
     await view('People')
-    await rooms().getByRole('button', { name: /bob direct/ }).waitFor()
-    assert.equal(await rooms().getByRole('button', { name: /e2e room/ }).count(), 0)
+    await rooms().getByRole('button', { name: /bob direct/ }).first().waitFor()
+    assert.equal(await rooms().getByRole('button', { name: /e2e room/ }).first().count(), 0)
     assert.match(await page.locator('aside header .wsname').innerText(), /People/)
     await view('Rooms')
-    await rooms().getByRole('button', { name: /e2e room/ }).waitFor()
-    assert.equal(await rooms().getByRole('button', { name: /bob direct/ }).count(), 0)
+    await rooms().getByRole('button', { name: /e2e room/ }).first().waitFor()
+    assert.equal(await rooms().getByRole('button', { name: /bob direct/ }).first().count(), 0)
     await view('All conversations')
   })
 
   it('shows a muted room with an indicator, in the list and in the room header', async () => {
-    await rooms().getByRole('button', { name: /e2e room/ }).click()
+    await rooms().getByRole('button', { name: /e2e room/ }).first().click()
     await page.getByRole('button', { name: 'Room details' }).click()
     await page.getByRole('radio', { name: 'Mute' }).click()
-    const row = rooms().getByRole('button', { name: /e2e room/ })
+    const row = rooms().getByRole('button', { name: /e2e room/ }).first()
     await row.getByText('Muted', { exact: true }).waitFor({ timeout: 15_000 })
     await page.locator('main header h1').getByText('Muted', { exact: true }).waitFor()
     await page.getByRole('radio', { name: 'Mentions' }).click()
@@ -68,10 +68,10 @@ describe('room views, muted and favourite rooms, and who reacted', () => {
 
   it('stars a room and lists it under Favourites', async () => {
     await page.getByRole('button', { name: 'Add to favourites' }).click()
-    await rooms().getByRole('button', { name: /e2e room/ }).getByText('Favourite', { exact: true }).waitFor({ timeout: 15_000 })
+    await rooms().getByRole('button', { name: /e2e room/ }).first().getByText('Favourite', { exact: true }).waitFor({ timeout: 15_000 })
     await view('Favourites')
-    await rooms().getByRole('button', { name: /e2e room/ }).waitFor()
-    assert.equal(await rooms().getByRole('button', { name: /bob direct/ }).count(), 0)
+    await rooms().getByRole('button', { name: /e2e room/ }).first().waitFor()
+    assert.equal(await rooms().getByRole('button', { name: /bob direct/ }).first().count(), 0)
     await view('All conversations')
   })
 
@@ -96,7 +96,7 @@ describe('room views, muted and favourite rooms, and who reacted', () => {
 
   it('passes axe in every theme with the views menu open, a muted room and reaction chips shown', async () => {
     await page.evaluate(axeSource)
-    await rooms().getByRole('button', { name: /e2e room/ }).click()
+    await rooms().getByRole('button', { name: /e2e room/ }).first().click()
     await page.getByRole('radio', { name: 'Mute' }).click()
     await page.locator('aside header .switch').click()
     for (const theme of THEMES) {

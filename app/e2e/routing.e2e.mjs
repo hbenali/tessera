@@ -25,7 +25,7 @@ describe('url routing', () => {
   const hash = () => page.evaluate(() => location.hash)
 
   it('puts the open room in the address bar', async () => {
-    await page.getByRole('button', { name: /e2e room/ }).click()
+    await page.getByRole('button', { name: /e2e room/ }).first().click()
     await page.getByRole('combobox', { name: 'Message' }).waitFor()
     assert.equal(await hash(), `#/room/${enc(data.room)}`)
   })
@@ -63,7 +63,7 @@ describe('url routing', () => {
   })
 
   it('copies a link to a message and that link scrolls to it', async () => {
-    await page.getByRole('button', { name: /e2e room/ }).click()
+    await page.getByRole('button', { name: /e2e room/ }).first().click()
     const row = page.locator('article', { hasText: 'first message from bob' })
     await row.waitFor({ timeout: 15_000 }).catch(async () => {
       // older than the first window: load it by scrolling up

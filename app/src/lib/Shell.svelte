@@ -9,6 +9,7 @@
   import Settings from './Settings.svelte'
   import NewRoom from './NewRoom.svelte'
   import Verification from './Verification.svelte'
+  import RoomMenu from './RoomMenu.svelte'
 
   let palette = $state(false)
   const unread = $derived(chat.rooms.reduce((n, r) => n + (r.isSpace || r.invited ? 0 : r.unread), 0))
@@ -34,6 +35,7 @@
 {#if ui.modal === 'settings'}<Settings />{/if}
 {#if ui.modal === 'new'}<NewRoom />{/if}
 <Verification />
+{#if ui.roomMenu}<RoomMenu />{/if}
 
 <style>
   .shell { height: 100%; display: grid; grid-template-rows: minmax(0, 1fr); overflow: hidden; grid-template-columns: 320px 1fr; } .shell.with-details { grid-template-columns: 320px 1fr 300px; }

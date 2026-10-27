@@ -51,6 +51,11 @@ class Ui {
     this.modal = 'new'
   }
   details = $state(false)
+  /** The room menu (right-click or the more button), anchored where it was opened. */
+  roomMenu = $state<{ id: string; x: number; y: number; opener: HTMLElement | null } | null>(null)
+  openRoomMenu(id: string, x: number, y: number, opener: HTMLElement | null) {
+    this.roomMenu = { id, x, y, opener }
+  }
   theme = $state<ThemeId>(readTheme())
   setTheme(t: ThemeId) {
     this.theme = t

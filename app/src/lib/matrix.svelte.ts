@@ -641,6 +641,16 @@ class Chat {
    * Per-room notification level as ordinary push rules, so other clients agree:
    * mentions = room rule with no actions; mute = override rule matching the room (beats mention rules).
    */
+  /** Mark everything in a room as read, for me and for the unread badge on other devices. */
+  async markRead(roomId: string) {
+    const room = this.client?.getRoom(roomId)
+    const last = room?.getLiveTimeline().getEvents().at(-1)
+    if (!room || !last) return
+    await this.client!.sendReadReceipt(last)
+    await this.client!.setRoomReadMarkers(roomId, last.getId()!, last).catch(() => {})
+    this.refreshRooms()
+  }
+
   async setFavourite(roomId: string, on: boolean) {
     if (on) await this.client!.setRoomTag(roomId, 'm.favourite', { order: 0.5 })
     else await this.client!.deleteRoomTag(roomId, 'm.favourite')
