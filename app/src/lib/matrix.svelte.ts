@@ -1,6 +1,6 @@
 import * as sdk from 'matrix-js-sdk'
 
-const SESSION_KEY = 'mychat.session'
+const SESSION_KEY = 'tessera.session'
 
 export interface Session {
   baseUrl: string

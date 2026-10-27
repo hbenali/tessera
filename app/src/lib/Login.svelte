@@ -1,6 +1,6 @@
 <script lang="ts">
   import { chat } from './matrix.svelte'
-  let server = $state(localStorage.getItem('mychat.server') ?? 'http://localhost:8008')
+  let server = $state(localStorage.getItem('tessera.server') ?? 'http://localhost:8008')
   let user = $state('')
   let password = $state('')
   let busy = $state(false)
@@ -8,7 +8,7 @@
   async function submit(e: Event) {
     e.preventDefault()
     busy = true
-    localStorage.setItem('mychat.server', server)
+    localStorage.setItem('tessera.server', server)
     await chat.login(server, user, password)
     busy = false
   }
@@ -16,8 +16,8 @@
 
 <main>
   <form onsubmit={submit}>
-    <div class="logo">M</div>
-    <h1>Welcome to MyChat</h1>
+    <div class="logo">T</div>
+    <h1>Welcome to Tessera</h1>
     <p>Sign in with your Matrix account.</p>
     <label>Server<input bind:value={server} placeholder="matrix.example.org" required /></label>
     <label>Username<input bind:value={user} autocomplete="username" required /></label>

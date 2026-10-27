@@ -1,4 +1,4 @@
-# MyChat
+# Tessera
 
 A fast, modern Matrix client for Synapse. Svelte 5 + Vite + TypeScript on `matrix-js-sdk`.
 
