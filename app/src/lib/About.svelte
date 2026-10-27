@@ -3,6 +3,7 @@
   import { install } from './install.svelte'
 
   const REPO = 'https://github.com/hbenali/tessera'
+  const SITE = 'https://www.hbenali.ovh'
   let serverSpec = $state('')
   let rustCrypto = $state('')
   let deviceKey = $state('')
@@ -56,11 +57,12 @@
   <img src="/icon-192.png" alt="" width="56" height="56" />
   <div>
     <h3>Tessera <span class="ver mono">{__APP_VERSION__}</span></h3>
-    <p class="hint">A fast, private Matrix chat client. Build <span class="mono">{__BUILD_COMMIT__}</span>, {built}.</p>
+    <p class="hint">A fast, private Matrix chat client by Houssem Ben Ali. Build <span class="mono">{__BUILD_COMMIT__}</span>, {built}.</p>
   </div>
 </div>
 
 <p class="links">
+  <a href={SITE} target="_blank" rel="noopener noreferrer">www.hbenali.ovh</a>
   <a href={REPO} target="_blank" rel="noopener noreferrer">Source code</a>
   <a href="{REPO}/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Licence (MIT)</a>
   <a href="{REPO}/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">Report a vulnerability</a>
