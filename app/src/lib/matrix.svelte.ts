@@ -179,6 +179,7 @@ class Chat {
       deviceId: s.deviceId,
       store,
       cryptoCallbacks: security.callbacks,
+      verificationMethods: ['m.sas.v1', 'm.qr_code.scan.v1', 'm.qr_code.show.v1', 'm.reciprocate.v1'],
     })
     this.client = client
     await store.startup()

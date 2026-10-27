@@ -25,6 +25,11 @@ class Security {
   request = $state<VerificationRequest | null>(null)
   phase = $state<VerificationPhase>(VerificationPhase.Unsent)
   sas = $state<SasState | null>(null)
+  /** The code the other device scans, once the request is ready and this device can show one. */
+  qr = $state<Uint8ClampedArray | null>(null)
+  /** The other device scanned our code: ask the person to confirm it says so. */
+  reciprocate = $state<{ confirm: () => void; cancel: () => void } | null>(null)
+  scanError = $state('')
 
   private client!: sdk.MatrixClient
   private password = ''
@@ -121,16 +126,27 @@ class Security {
     this.request = req
     this.phase = req.phase
     this.sas = null
+    this.qr = null
+    this.reciprocate = null
+    this.scanError = ''
+    let qrAsked = false
     const onChange = () => {
       this.phase = req.phase
       if (req.phase === VerificationPhase.Requested && !req.initiatedByMe) return
-      if (req.phase === VerificationPhase.Ready && req.initiatedByMe && !req.verifier) {
-        req.startVerification('m.sas.v1').then((v) => this.watch(v)).catch((e) => (this.message = String(e)))
+      // Ready is reported several times, and the SDK moves the request on each time it makes a code, so ask once.
+      if (req.phase === VerificationPhase.Ready && !req.verifier && !qrAsked) {
+        qrAsked = true
+        // Offer a QR code to scan; the person can still choose emoji instead.
+        req.generateQRCode().then((q) => { if (this.request === req && req.phase === VerificationPhase.Ready) this.qr = q ?? null }, () => {})
       }
+      if (req.phase !== VerificationPhase.Ready) this.qr = null
       if (req.verifier && !this.sas) this.watch(req.verifier)
       if (req.phase === VerificationPhase.Done || req.phase === VerificationPhase.Cancelled) {
         this.sas = null
+        this.reciprocate = null
+        // The new trust arrives with the next key query, a moment after Done; look again a few times.
         this.refresh()
+        for (const ms of [800, 2500, 7000]) setTimeout(() => this.refresh(), ms)
       }
     }
     req.on(VerificationRequestEvent.Change, onChange)
@@ -145,8 +161,29 @@ class Security {
       this.sas = { emoji: (s.sas.emoji ?? []) as [string, string][], confirm: () => s.confirm(), mismatch: () => s.mismatch() }
     }
     v.on(VerifierEvent.ShowSas, show)
+    const reciprocate = (c: { confirm: () => void; cancel: () => void }) => {
+      this.reciprocate = { confirm: () => { this.reciprocate = null; c.confirm() }, cancel: () => { this.reciprocate = null; c.cancel() } }
+    }
+    v.on(VerifierEvent.ShowReciprocateQr, reciprocate)
+    const waiting = v.getReciprocateQrCodeCallbacks()
+    if (waiting) reciprocate(waiting)
     if (v.getShowSasCallbacks()) show(v.getShowSasCallbacks()!)
     v.verify().catch(() => {})
+  }
+
+  /** Compare emoji instead of scanning. */
+  startEmoji() {
+    this.request?.startVerification('m.sas.v1').then((v) => this.watch(v)).catch((e) => (this.scanError = String(e instanceof Error ? e.message : e)))
+  }
+
+  /** Bytes read from the other device's QR code, by camera or from an image. */
+  async scan(bytes: Uint8ClampedArray) {
+    this.scanError = ''
+    try {
+      this.watch(await this.request!.scanQRCode(bytes))
+    } catch (e) {
+      this.scanError = e instanceof Error ? e.message : String(e)
+    }
   }
 
   accept() {
@@ -156,10 +193,14 @@ class Security {
     this.request?.cancel().catch(() => {})
     this.request = null
     this.sas = null
+    this.qr = null
+    this.reciprocate = null
   }
   dismiss() {
     this.request = null
     this.sas = null
+    this.qr = null
+    this.reciprocate = null
     this.generatedKey = ''
   }
 }

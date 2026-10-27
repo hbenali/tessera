@@ -24,6 +24,8 @@
     "vitest": "^5.0.5"
   },
   "dependencies": {
-    "matrix-js-sdk": "^44.0.0"
+    "jsqr": "^1.4.0",
+    "matrix-js-sdk": "^44.0.0",
+    "qrcode-generator": "^2.0.4"
   }
 }
