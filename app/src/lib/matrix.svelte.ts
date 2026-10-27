@@ -5,6 +5,7 @@ import * as sdk from 'matrix-js-sdk'
 import { security } from './security.svelte'
 import { discover } from './discover'
 import { setThumbLoader } from './media'
+import { format, parse, type Route } from './route'
 
 const SESSION_KEY = 'tessera.session'
 
@@ -97,6 +98,9 @@ class Chat {
   rooms = $state<RoomItem[]>([])
   activeSpace = $state<string | null>(null)
   activeRoom = $state<string | null>(null)
+  /** A room named in the URL that this account has not joined; the timeline offers to join it. */
+  routeMissing = $state<string | null>(null)
+  private routed = false
   messages = $state<Msg[]>([])
   typing = $state<string[]>([])
   /** Presence of people we have seen, kept reactive because the SDK's User objects are not. */
@@ -186,11 +190,13 @@ class Chat {
       this.refreshMessages()
       this.maybeNotify(ev)
     })
+    window.addEventListener('popstate', () => this.applyRoute())
     client.on(sdk.ClientEvent.Sync, (state) => {
       if (state === 'PREPARED' || state === 'SYNCING') {
         this.ready = true
         this.refreshRooms()
         this.refreshMessages()
+        if (!this.routed) { this.routed = true; this.applyRoute() }
       } else if (state === 'ERROR') {
         this.error = 'Connection lost, retrying…'
       }
@@ -303,8 +309,45 @@ class Chat {
     return this.rooms.find((r) => r.id === this.activeRoom)
   }
 
-  async openRoom(id: string) {
+  /** Put the open room in the address bar so it can be bookmarked, shared and reached with Back. */
+  private pushRoute(r: Route) {
+    const h = format(r)
+    if (location.hash === h || (!h && !location.hash)) return
+    history.pushState(null, '', h || location.pathname + location.search)
+  }
+
+  /** Open whatever the address bar names. */
+  applyRoute() {
+    const r = parse(location.hash)
+    this.routeMissing = null
+    if (!r.room) {
+      this.activeRoom = null
+      return
+    }
+    const room = r.room.startsWith('#') ? this.client?.getRooms().find((x) => x.getCanonicalAlias() === r.room || x.getAltAliases().includes(r.room!)) : this.client?.getRoom(r.room)
+    if (room?.getMyMembership() === 'join') {
+      this.openRoom(room.roomId, false).then(() => { if (r.event) this.focusEvent = r.event })
+    } else {
+      this.activeRoom = null
+      this.routeMissing = r.room
+    }
+  }
+
+  closeRoom() {
+    this.activeRoom = null
+    this.routeMissing = null
+    this.pushRoute({})
+  }
+
+  /** A link to a room, or to one message in it, that works when pasted into this app's address bar. */
+  permalink(roomId: string, eventId?: string): string {
+    return location.origin + location.pathname + format({ room: roomId, event: eventId })
+  }
+
+  async openRoom(id: string, push = true) {
     this.activeRoom = id
+    this.routeMissing = null
+    if (push) this.pushRoute({ room: id })
     this.closeThread()
     this.messages = []
     this.refreshMessages()
@@ -755,7 +798,7 @@ class Chat {
 
   async leaveRoom(id: string) {
     await this.client!.leave(id)
-    if (this.activeRoom === id) this.activeRoom = null
+    if (this.activeRoom === id) this.closeRoom()
     this.refreshRooms()
   }
 

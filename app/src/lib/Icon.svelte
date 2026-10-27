@@ -1,5 +1,5 @@
 <script lang="ts">
-  type Name = 'pin' | 'hash' | 'lock' | 'send' | 'clip' | 'search' | 'plus' | 'smile' | 'reply' | 'edit' | 'chevron' | 'x' | 'users' | 'info' | 'back' | 'shield' | 'sliders' | 'check' | 'logout' | 'trash' | 'clock' | 'checks' | 'alert' | 'qr' | 'bell' | 'thread'
+  type Name = 'pin' | 'hash' | 'lock' | 'send' | 'clip' | 'search' | 'plus' | 'smile' | 'reply' | 'edit' | 'chevron' | 'x' | 'users' | 'info' | 'back' | 'shield' | 'sliders' | 'check' | 'logout' | 'trash' | 'clock' | 'checks' | 'alert' | 'qr' | 'link' | 'bell' | 'thread'
   let { name, size = 18 }: { name: Name; size?: number } = $props()
   const paths: Record<Name, string[]> = {
     pin: ['M12 17v5', 'M9 3h6l-1 6 3 3v2H7v-2l3-3z'],
@@ -26,6 +26,7 @@
     clock: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M12 6v6l4 2'],
     checks: ['m2 12 5 5L17 7', 'm12 15 2 2L22 7'],
     alert: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M12 8v5', 'M12 16h.01'],
+    link: ['M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7', 'M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'],
     qr: ['M3 3h7v7H3z', 'M14 3h7v7h-7z', 'M3 14h7v7H3z', 'M14 14h3v3h-3z', 'M20 14v3', 'M14 20h3', 'M20 20h1'],
     logout: ['M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4', 'm16 17 5-5-5-5', 'M21 12H9'],
   }

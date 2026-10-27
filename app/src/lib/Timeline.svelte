@@ -186,6 +186,16 @@
       typingTimer = setTimeout(() => chat.setTyping(false), 4000)
     }
   }
+  let toast = $state('')
+  async function copyLink(m: Msg) {
+    try {
+      await navigator.clipboard.writeText(chat.permalink(chat.activeRoom!, m.id))
+      toast = 'Link copied'
+    } catch {
+      toast = 'Could not copy the link'
+    }
+    setTimeout(() => (toast = ''), 1800)
+  }
   function paste(e: ClipboardEvent) {
     const file = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/'))
     if (!file) return
@@ -214,11 +224,16 @@
 {/snippet}
 
 <main class="main" ondragover={(e) => e.preventDefault()} ondrop={drop}>
-  {#if !chat.active}
+  {#if !chat.active && chat.routeMissing}
+    <div class="empty"><Icon name="lock" size={40} /><h1>You are not in this room</h1><p class="mono">{chat.routeMissing}</p>
+      <button class="btn" onclick={() => chat.joinRoom(chat.routeMissing!).catch((e) => (notice = String(e.message ?? e)))}>Join room</button>
+      {#if notice}<p class="err" role="alert">{notice}</p>{/if}
+    </div>
+  {:else if !chat.active}
     <div class="empty"><Icon name="hash" size={40} /><h1>Select a conversation</h1><p>Choose a room on the left, or press <kbd class="mono">Ctrl K</kbd> to jump.</p></div>
   {:else}
     <header>
-      <button class="icon-btn back" onclick={() => (chat.activeRoom = null)} aria-label="Back to rooms"><Icon name="back" /></button>
+      <button class="icon-btn back" onclick={() => chat.closeRoom()} aria-label="Back to rooms"><Icon name="back" /></button>
       <Avatar name={chat.active.name} size={32} round={chat.active.isDM} src={chat.active.avatar} presence={chat.active.dmUser ? (chat.presenceOf(chat.active.dmUser) ?? 'offline') : undefined} />
       <div class="title"><h1>{chat.active.name}</h1>{#if chat.active.dmUser}<span class="topic">{({ online: 'Online', unavailable: 'Away', offline: 'Offline' })[chat.presenceOf(chat.active.dmUser) ?? 'offline']}</span>{:else if chat.active.topic}<span class="topic">{chat.active.topic}</span>{:else}<span class="topic">{chat.active.memberCount} {chat.active.memberCount === 1 ? 'member' : 'members'}</span>{/if}</div>
       {#if chat.active.encrypted}<span class="enc" title="End-to-end encrypted"><Icon name="lock" size={13} /> Encrypted</span>{/if}
@@ -270,6 +285,7 @@
               {#if picker === m.id}<EmojiPicker onpick={(e) => chat.react(m.id, e)} onclose={() => (picker = null)} />{/if}</span>
             <button class="icon-btn" onclick={() => { replyTo = m; editing = null }} aria-label="Reply"><Icon name="reply" size={16} /></button>
             {#if chat.canPin}<button class="icon-btn" onclick={() => chat.togglePin(m.id)} aria-label={m.pinned ? 'Unpin message' : 'Pin message'} aria-pressed={m.pinned}><Icon name="pin" size={16} /></button>{/if}
+            <button class="icon-btn" onclick={() => copyLink(m)} aria-label="Copy link to message"><Icon name="link" size={16} /></button>
             <button class="icon-btn" onclick={() => chat.openThread(m.id)} aria-label="Reply in thread"><Icon name="thread" size={16} /></button>
             {#if m.mine && !m.undecryptable}<button class="icon-btn" onclick={() => { editing = m; replyTo = null; text = m.body }} aria-label="Edit"><Icon name="edit" size={16} /></button>{/if}
             {#if m.mine}<button class="icon-btn" onclick={() => chat.deleteMessage(m.id)} aria-label="Delete message"><Icon name="trash" size={16} /></button>{/if}
@@ -278,6 +294,7 @@
       {/each}
     </div>
 
+    {#if toast}<div class="toast" role="status">{toast}</div>{/if}
     <div class="typing" aria-live="polite">{#if chat.typing.length}<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>{chat.typing.length > 2 ? 'Several people are' : `${chat.typing.join(' and ')} ${chat.typing.length > 1 ? 'are' : 'is'}`} typing{/if}</div>
     <footer>
       {#if notice}<div class="ctx err" role="alert">{notice}</div>{/if}
@@ -344,6 +361,7 @@
   .tick { display: inline-flex; flex: none; margin-bottom: 3px; color: var(--muted); } .tick.st-seen { color: var(--accent); } .tick.st-failed { color: var(--danger); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .dots { display: inline-flex; gap: 3px; margin-right: 6px; vertical-align: 1px; } .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: blip 1.2s infinite; } .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; } @keyframes blip { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } } @media (prefers-reduced-motion: reduce) { .dots i { animation: none; } }
+  .toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); padding: 8px 14px; border-radius: 8px; background: var(--text); color: var(--bg); font-size: 13px; z-index: 6; box-shadow: var(--shadow); }
   .typing { height: 22px; padding: 0 20px; font-size: 12px; color: var(--muted); flex: none; }
   footer { padding: 0 16px 10px; flex: none; }
   .composer { background: var(--tile); border: 1px solid var(--line); border-radius: 12px; } .composer:focus-within { border-color: var(--accent); }
