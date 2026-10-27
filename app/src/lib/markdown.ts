@@ -1,4 +1,5 @@
 import { MENTION_ID } from './mentions'
+import { tone } from './ui.svelte'
 
 /** Tiny, dependency-free renderer for the Markdown subset chat needs. Escapes first, so output is safe for {@html}. */
 const esc = (s: string) =>
@@ -25,7 +26,8 @@ export function render(src: string, opts: RenderOptions = {}): string {
     })
     .replace(MENTION_ID, (_, pre, id) => {
       const label = esc(opts.name?.(id) ?? id)
-      blocks.push(`<span class="mention${id === opts.me ? ' me' : ''}" title="${id}">@${label.replace(/^@/, '')}</span>`)
+      // The dot is the colour of the person's avatar tile; click or Enter opens their card (wired up by the timeline).
+      blocks.push(`<span class="mention${id === opts.me ? ' me' : ''}" data-user="${id}" role="button" tabindex="0" aria-haspopup="dialog" title="${id}"><i style="background:var(--t${tone(label)})"></i>@${label.replace(/^@/, '')}</span>`)
       return `${pre}\u0000${blocks.length - 1}\u0000`
     })
     .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')

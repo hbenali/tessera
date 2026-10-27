@@ -88,8 +88,24 @@ export interface MessageHit {
   roomName: string
   eventId: string
   sender: string
+  /** The sender's Matrix id, for filtering by person. */
+  senderId?: string
   snippet: string
   ts: number
+  /** What kind of message it is, and whether it has a web link or mentions me: used by the advanced filters. */
+  kind?: 'text' | 'image' | 'file'
+  link?: boolean
+  mentionsMe?: boolean
+}
+
+/** Facts about a message used to filter search results. */
+export function hitFacts(content: Record<string, unknown>, me: string, myName?: string | null): Pick<MessageHit, 'kind' | 'link' | 'mentionsMe'> {
+  const type = content.msgtype
+  return {
+    kind: type === 'm.image' ? 'image' : type === 'm.file' || type === 'm.video' || type === 'm.audio' ? 'file' : 'text',
+    link: typeof content.body === 'string' && /https?:\/\//i.test(content.body),
+    mentionsMe: mentionsUser(content, me, myName ?? undefined),
+  }
 }
 
 export interface Member {
@@ -827,6 +843,27 @@ class Chat {
     } as never)
   }
 
+  private pendingEvent(id: string) {
+    const room = this.activeRoom ? this.client?.getRoom(this.activeRoom) : null
+    // Local echoes live in the timeline itself in this mode (getPendingEvents is only for the detached mode).
+    const ev = room?.getLiveTimeline().getEvents().find((e) => e.status !== null && (e.getId() ?? e.getTxnId()) === id)
+    return room && ev ? { room, ev } : null
+  }
+
+  /** Send a message that failed again. */
+  async retrySend(id: string) {
+    const p = this.pendingEvent(id)
+    if (p) await this.client!.resendEvent(p.ev, p.room)
+    this.refreshMessages()
+  }
+
+  /** Give up on a message that failed to send. */
+  discardUnsent(id: string) {
+    const p = this.pendingEvent(id)
+    if (p) this.client!.cancelPendingEvent(p.ev)
+    this.refreshMessages()
+  }
+
   /** React with an emoji, or take my own reaction back if I already used it. */
   async react(id: string, key: string) {
     if (!this.activeRoom) return
@@ -942,6 +979,18 @@ class Chat {
   }
 
   presenceOf = (id: string): Presence | undefined => this.presence[id] ?? (this.client?.getUser(id)?.presence as Presence | undefined)
+
+  private profiles = new Map<string, Promise<{ name: string; avatar?: string }>>()
+  /** Name and avatar of anyone, from the homeserver, for people who are not in the open room. Cached. */
+  profileOf(id: string): Promise<{ name: string; avatar?: string }> {
+    let p = this.profiles.get(id)
+    if (!p) {
+      p = this.client!.getProfileInfo(id).then((r) => ({ name: r.displayname || id, avatar: r.avatar_url }))
+      p.catch(() => this.profiles.delete(id))
+      this.profiles.set(id, p)
+    }
+    return p
+  }
 
   /** Load my own display name and avatar; the sidebar shows them. */
   async loadProfile() {
@@ -1100,13 +1149,13 @@ class Chat {
   }
 
   /** Search messages already loaded on this device. Works in encrypted rooms because it reads decrypted events locally. */
-  searchMessages(term: string, limit = 20): MessageHit[] {
+  searchMessages(term: string, limit = 20, onlyRoom?: string): MessageHit[] {
     const q = term.trim().toLowerCase()
     const c = this.client
     if (q.length < 2 || !c) return []
     const hits: MessageHit[] = []
     for (const room of c.getRooms()) {
-      if (room.getMyMembership() !== 'join') continue
+      if (room.getMyMembership() !== 'join' || (onlyRoom && room.roomId !== onlyRoom)) continue
       for (const ev of room.getLiveTimeline().getEvents()) {
         if (ev.getType() !== 'm.room.message' || ev.isRedacted()) continue
         const content = ev.getContent()
@@ -1119,8 +1168,10 @@ class Chat {
           roomName: room.name,
           eventId: ev.getId() ?? '',
           sender: room.getMember(ev.getSender() ?? '')?.name ?? ev.getSender() ?? '',
+          senderId: ev.getSender() ?? undefined,
           snippet: (i > 30 ? '…' : '') + body.slice(Math.max(0, i - 30), i + 70),
           ts: ev.getTs(),
+          ...hitFacts(content, this.userId, c.getUser(this.userId)?.displayName),
         })
       }
     }
@@ -1129,17 +1180,27 @@ class Chat {
 
   /** Search the homeserver's index. It cannot see inside encrypted rooms, which searchMessages covers on this device. */
   async searchServer(term: string, limit = 20): Promise<MessageHit[]> {
+    return (await this.serverSearch(term, limit)).hits
+  }
+
+  /** One room's search: the homeserver's index plus a token for the next page. Not available for encrypted rooms. */
+  searchRoom(roomId: string, term: string, nextBatch?: string, opts: { sender?: string; media?: boolean } = {}, limit = 25) {
+    return this.serverSearch(term, limit, roomId, nextBatch, opts)
+  }
+
+  private async serverSearch(term: string, limit: number, roomId?: string, nextBatch?: string, opts: { sender?: string; media?: boolean } = {}): Promise<{ hits: MessageHit[]; next?: string }> {
     const q = term.trim()
     const c = this.client
-    if (q.length < 2 || !c) return []
+    if (q.length < 2 || !c) return { hits: [] }
     const r = await c.search({
+      next_batch: nextBatch,
       body: {
         search_categories: {
           room_events: {
             search_term: q,
             keys: ['content.body'],
             order_by: 'recent',
-            filter: { limit },
+            filter: { limit, ...(roomId ? { rooms: [roomId] } : {}), ...(opts.sender ? { senders: [opts.sender] } : {}), ...(opts.media ? { contains_url: true } : {}) },
             event_context: { before_limit: 0, after_limit: 0, include_profile: true },
           },
         },
@@ -1159,11 +1220,13 @@ class Chat {
         roomName: room?.name ?? e.room_id,
         eventId: e.event_id,
         sender: x.context?.profile_info?.[e.sender]?.displayname ?? room?.getMember(e.sender)?.name ?? e.sender,
+        senderId: e.sender,
         snippet: (i > 30 ? '…' : '') + body.slice(Math.max(0, i - 30), i + 70),
         ts: e.origin_server_ts,
+        ...hitFacts(content as Record<string, unknown>, this.userId, c.getUser(this.userId)?.displayName),
       })
     }
-    return out
+    return { hits: out, next: r.search_categories?.room_events?.next_batch }
   }
 
   async openMessage(hit: MessageHit) {

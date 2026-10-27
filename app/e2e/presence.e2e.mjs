@@ -42,7 +42,7 @@ describe('presence, delivery and typing', () => {
     await tick.waitFor({ timeout: 10_000 })
     assert.match(await tick.getAttribute('title'), /Sent|Seen/)
     b = await open(data.bob) // opening the room sends bob's read receipt
-    await a.page.waitForFunction(() => document.querySelector('article:last-of-type .tick')?.title === 'Seen', null, { timeout: 20_000 })
+    await a.page.waitForFunction(() => document.querySelector('article:last-of-type .tick')?.title?.startsWith('Seen'), null, { timeout: 20_000 })
     assert.ok(await a.page.locator('.seen').count())
   })
 

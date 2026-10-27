@@ -54,4 +54,28 @@ describe('the page itself never scrolls', () => {
     assert.equal(m.doc, m.view)
     assert.ok(await page.getByRole('combobox', { name: 'Message' }).isVisible())
   })
+
+  // Regression: a message that follows another from the same sender shows its time in the margin on hover. That
+  // time took more height than a line of text, so the row grew 3px and every message below it jumped.
+  it('does not move the messages below when you hover a message', async () => {
+    for (const t of ['one', 'two', 'three']) await send(data.alice, data.room, { msgtype: 'm.text', body: `follow-up ${t}` })
+    await page.getByRole('navigation', { name: 'Rooms' }).getByRole('button', { name: /e2e room/ }).first().click()
+    await page.getByRole('combobox', { name: 'Message' }).waitFor()
+    await page.getByText('follow-up three', { exact: true }).waitFor({ timeout: 15_000 })
+    await page.waitForFunction(() => !document.querySelector('.sentinel')?.textContent?.trim())
+    const rows = page.locator('.scroll article.cont')
+    assert.ok((await rows.count()) >= 2, 'the test needs continuation rows')
+    for (let i = 0; i < Math.min(await rows.count(), 4); i++) {
+      const row = rows.nth(i)
+      await row.scrollIntoViewIfNeeded()
+      await page.mouse.move(5, 5)
+      await page.waitForTimeout(150)
+      // Gaps between neighbouring rows are independent of scrolling, so any change is a layout shift.
+      const gaps = () => page.evaluate(() => { const t = [...document.querySelectorAll('.scroll article')].map((a) => a.getBoundingClientRect().top); return t.slice(1).map((v, i) => Math.round((v - t[i]) * 10) / 10) })
+      const before = await gaps()
+      await row.hover()
+      await page.waitForTimeout(250)
+      assert.deepEqual(await gaps(), before, `hovering continuation row ${i} moved the rows around it`)
+    }
+  })
 })

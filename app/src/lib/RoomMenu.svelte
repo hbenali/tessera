@@ -82,6 +82,7 @@
       <button role="menuitem" onclick={() => run(() => chat.setFavourite(room.id, !room.favourite))}><Icon name="star" size={15} />{room.favourite ? 'Remove from favourites' : 'Add to favourites'}</button>
       <hr />
       <button role="menuitem" onclick={copy}><Icon name="link" size={15} />Copy link</button>
+      <button role="menuitem" onclick={async () => { ui.roomMenu = null; await chat.openRoom(at.id); chat.closeThread(); ui.roomSearch = true }}><Icon name="search" size={15} />Search in room</button>
       <button role="menuitem" onclick={details}><Icon name="info" size={15} />Room details</button>
       <hr />
       <button role="menuitem" class="danger" onclick={() => (leaving = true)}><Icon name="logout" size={15} />Leave room</button>

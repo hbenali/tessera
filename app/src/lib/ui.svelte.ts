@@ -51,6 +51,15 @@ class Ui {
     this.modal = 'new'
   }
   details = $state(false)
+  /** The in-room search panel; it takes the side panel's place, like details and threads. */
+  roomSearch = $state(false)
+  /** A person's card, opened from a mention or a sender's name. */
+  userCard = $state<{ id: string; x: number; y: number; opener: HTMLElement | null } | null>(null)
+  openUserCard(id: string, x: number, y: number, opener: HTMLElement | null) {
+    this.userCard = { id, x, y, opener }
+  }
+  /** A person to mention in the composer, requested from their card. */
+  mentionRequest = $state<string | null>(null)
   /** The room menu (right-click or the more button), anchored where it was opened. */
   roomMenu = $state<{ id: string; x: number; y: number; opener: HTMLElement | null } | null>(null)
   openRoomMenu(id: string, x: number, y: number, opener: HTMLElement | null) {
