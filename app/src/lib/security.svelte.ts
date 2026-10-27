@@ -137,7 +137,7 @@ class Security {
       if (req.phase === VerificationPhase.Ready && !req.verifier && !qrAsked) {
         qrAsked = true
         // Offer a QR code to scan; the person can still choose emoji instead.
-        req.generateQRCode().then((q) => { if (this.request === req && req.phase === VerificationPhase.Ready) this.qr = q ?? null }, () => {})
+        this.qrPending = req.generateQRCode().then((q) => { if (this.request === req && req.phase === VerificationPhase.Ready) this.qr = q ?? null }, () => {})
       }
       if (req.phase !== VerificationPhase.Ready) this.qr = null
       if (req.verifier && !this.sas) this.watch(req.verifier)
@@ -153,6 +153,8 @@ class Security {
     onChange()
   }
 
+  /** The QR code being made; starting emoji verification waits for it, or the two fight over the request. */
+  private qrPending: Promise<void> = Promise.resolve()
   private watched = new WeakSet<object>()
   private watch(v: NonNullable<VerificationRequest['verifier']>) {
     if (this.watched.has(v)) return
@@ -173,7 +175,10 @@ class Security {
 
   /** Compare emoji instead of scanning. */
   startEmoji() {
-    this.request?.startVerification('m.sas.v1').then((v) => this.watch(v)).catch((e) => (this.scanError = String(e instanceof Error ? e.message : e)))
+    this.qrPending
+      .then(() => this.request?.startVerification('m.sas.v1'))
+      .then((v) => v && this.watch(v))
+      .catch((e) => (this.scanError = String(e instanceof Error ? e.message : e)))
   }
 
   /** Bytes read from the other device's QR code, by camera or from an image. */
