@@ -400,6 +400,9 @@ class Chat {
   async send(body: string, replyTo?: string) {
     if (!this.activeRoom || !body.trim()) return
     const content: Record<string, unknown> = { msgtype: 'm.text', body }
+    // Structured mentions so the right people are notified even if display names change.
+    const ids = this.members.map((m) => m.id).filter((id) => id !== this.userId && body.includes(id))
+    if (ids.length) content['m.mentions'] = { user_ids: ids }
     if (replyTo) content['m.relates_to'] = { 'm.in_reply_to': { event_id: replyTo } }
     await this.client!.sendMessage(this.activeRoom, content as never)
   }
@@ -496,6 +499,10 @@ class Chat {
     }
     this.refreshRooms()
   }
+
+  /** Display name for a user id, if the room or the client knows it. */
+  nameOf = (id: string): string | undefined =>
+    this.members.find((m) => m.id === id)?.name ?? this.client?.getUser(id)?.displayName ?? undefined
 
   private otherMember(room: sdk.Room) {
     return room.getJoinedMembers().find((m) => m.userId !== this.userId)

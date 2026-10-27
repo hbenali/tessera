@@ -31,7 +31,7 @@
         <Avatar name={m.senderName} size={30} round />
         <div class="body">
           <div class="head"><b>{m.senderName}</b><time>{fmt(m.ts)}</time></div>
-          <div class="text" class:utd={m.undecryptable}>{@html render(m.body)}</div>
+          <div class="text" class:utd={m.undecryptable}>{@html render(m.body, { name: chat.nameOf, me: chat.userId })}</div>
         </div>
       </article>
       {#if i === 0 && chat.threadMessages.length > 1}<div class="sep"><span>{replies} {replies === 1 ? 'reply' : 'replies'}</span></div>{/if}

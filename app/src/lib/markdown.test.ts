@@ -32,3 +32,17 @@ describe('markdown render', () => {
     expect(render('**b** *i* ~~s~~')).toBe('<strong>b</strong> <em>i</em> <del>s</del>')
   })
 })
+
+describe('mentions', () => {
+  const names = { name: (id: string) => (id === '@alice:localhost' ? 'Alice' : undefined), me: '@alice:localhost' }
+  it('renders a user id as a pill with the display name and flags me', () => {
+    const out = render('hi @alice:localhost and @bob:localhost', names)
+    expect(out).toContain('<span class="mention me" title="@alice:localhost">@Alice</span>')
+    expect(out).toContain('<span class="mention" title="@bob:localhost">@bob:localhost</span>')
+  })
+  it('escapes display names and leaves code and links alone', () => {
+    expect(render('@x:y', { name: () => '<img src=x onerror=1>' })).not.toContain('<img')
+    expect(render('`@alice:localhost`', names)).toBe('<code>@alice:localhost</code>')
+    expect(render('https://e.com/@alice:localhost', names)).not.toContain('class="mention"')
+  })
+})
