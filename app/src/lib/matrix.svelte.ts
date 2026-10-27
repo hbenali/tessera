@@ -37,6 +37,14 @@ export interface RoomItem {
   isDM: boolean
   encrypted: boolean
   invited: boolean
+  preview: string
+  topic: string
+  memberCount: number
+}
+
+export interface Member {
+  id: string
+  name: string
 }
 
 class Chat {
@@ -50,6 +58,7 @@ class Chat {
   messages = $state<Msg[]>([])
   typing = $state<string[]>([])
   loadingOlder = $state(false)
+  members = $state<Member[]>([])
 
   loadSession(): Session | null {
     try {
@@ -154,6 +163,19 @@ class Chat {
     return new Set(Object.values(direct).flat() as string[])
   }
 
+  private previewOf(room: sdk.Room): string {
+    const ev = room
+      .getLiveTimeline()
+      .getEvents()
+      .findLast((e) => ['m.room.message', 'm.room.encrypted'].includes(e.getType()) && !e.isRedacted())
+    if (!ev) return ''
+    const c = ev.getContent()
+    if (ev.getType() === 'm.room.encrypted' || c.msgtype === 'm.bad.encrypted') return 'Encrypted message'
+    const who = ev.getSender() === this.userId ? 'You' : (room.getMember(ev.getSender() ?? '')?.name ?? '')
+    const what = c.msgtype === 'm.image' ? 'Photo' : c.msgtype === 'm.file' ? 'File' : (c.body ?? '')
+    return `${who}: ${what}`
+  }
+
   refreshRooms() {
     const c = this.client
     if (!c) return
@@ -177,6 +199,9 @@ class Chat {
         isDM: dms.has(room.roomId),
         encrypted: c.isRoomEncrypted(room.roomId),
         invited: membership === 'invite',
+        preview: this.previewOf(room),
+        topic: room.currentState.getStateEvents('m.room.topic', '')?.getContent().topic ?? '',
+        memberCount: room.getJoinedMemberCount(),
       })
     }
     items.sort((a, b) => b.lastTs - a.lastTs)
@@ -281,6 +306,10 @@ class Chat {
       })
     }
     this.messages = out
+    this.members = room
+      .getJoinedMembers()
+      .map((m) => ({ id: m.userId, name: m.name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
   }
 
   async loadOlder() {
@@ -343,6 +372,12 @@ class Chat {
         : [],
     })
     this.openRoom(r.room_id)
+  }
+
+  async leaveRoom(id: string) {
+    await this.client!.leave(id)
+    if (this.activeRoom === id) this.activeRoom = null
+    this.refreshRooms()
   }
 
   async invite(userId: string) {

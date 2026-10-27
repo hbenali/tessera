@@ -5,6 +5,21 @@ export const tone = (s: string) => {
   for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 997
   return h % 6
 }
+export const initials = (n: string) => n.replace(/^[#@!]/, '').trim().slice(0, 2).toUpperCase()
+export const dayLabel = (ts: number) => {
+  const d = new Date(ts)
+  const today = new Date()
+  const days = Math.round((new Date(today.toDateString()).getTime() - new Date(d.toDateString()).getTime()) / 86_400_000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  return d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric' })
+}
+export const shortTime = (ts: number) => {
+  const d = new Date(ts)
+  return d.toDateString() === new Date().toDateString()
+    ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+}
 export const tileBg = (n: string) => `background:var(--t${tone(n)})`
 
 export const THEMES = [
@@ -30,6 +45,7 @@ function readTheme(): ThemeId {
 
 class Ui {
   modal = $state<null | 'settings' | 'new-room' | 'join-room'>(null)
+  details = $state(false)
   theme = $state<ThemeId>(readTheme())
   setTheme(t: ThemeId) {
     this.theme = t
