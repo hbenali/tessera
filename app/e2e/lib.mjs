@@ -91,8 +91,11 @@ async function reachable(url) {
 export async function app() {
   if (process.env.TESSERA_URL) return { url: process.env.TESSERA_URL, stop() {} }
   const url = 'http://localhost:4173'
+  // The previous suite's server may still be shutting down: give it a moment before calling the port taken.
+  for (let i = 0; i < 50 && (await reachable(url)); i++) await new Promise((r) => setTimeout(r, 200))
   if (await reachable(url)) throw new Error('port 4173 is already in use; set TESSERA_URL instead')
-  const p = spawn('npx', ['vite', 'preview', '--port', '4173', '--strictPort'], { cwd: `${here}..`, stdio: 'ignore' })
+  // Run vite itself, not through npx: killing the npx wrapper would leave the server running.
+  const p = spawn(process.execPath, [`${here}../node_modules/vite/bin/vite.js`, 'preview', '--port', '4173', '--strictPort'], { cwd: `${here}..`, stdio: 'ignore' })
   for (let i = 0; i < 50 && !(await reachable(url)); i++) await new Promise((r) => setTimeout(r, 200))
   if (!(await reachable(url))) { p.kill(); throw new Error('vite preview did not start (run npm run build first)') }
   return { url, stop: () => p.kill() }
