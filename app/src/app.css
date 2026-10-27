@@ -17,13 +17,20 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
     --bg: #f1f2f5; --panel: #ffffff; --tile: #e8eaf0; --line: #d9dce6;
-    --text: #10131a; --muted: #636a7e; --accent-ink: #12141a; --ok: #12875a; color-scheme: light;
+    --text: #10131a; --muted: #565d72; --accent-ink: #12141a; --ok: #12875a; color-scheme: light;
   }
 }
 :root[data-theme='light'] {
   --bg: #f1f2f5; --panel: #ffffff; --tile: #e8eaf0; --line: #d9dce6;
-  --text: #10131a; --muted: #636a7e; --accent-ink: #12141a; --ok: #12875a; color-scheme: light;
+  --text: #10131a; --muted: #565d72; --accent-ink: #12141a; --ok: #12875a; color-scheme: light;
 }
+/* Extra themes. Each keeps text/background contrast at WCAG AA or better. */
+:root[data-theme='midnight'] { --bg: #000; --panel: #0a0a0a; --tile: #161616; --line: #2a2a2a; --text: #f5f5f5; --muted: #9c9c9c; --accent: #ffd23f; --accent-ink: #12141a; --danger: #ff6b4a; --ok: #3ddc97; color-scheme: dark; }
+:root[data-theme='sand'] { --bg: #ece4d3; --panel: #f8f3e7; --tile: #e4dac3; --line: #cfc2a3; --text: #2b2417; --muted: #5c523b; --accent: #2b2417; --accent-ink: #f8f3e7; --danger: #b3321a; --ok: #2f6b2a; color-scheme: light; }
+:root[data-theme='forest'] { --bg: #0b130f; --panel: #111c16; --tile: #1a2a21; --line: #27392e; --text: #e8f1ea; --muted: #94aa9c; --accent: #9be564; --accent-ink: #0b130f; --danger: #ff8a5c; --ok: #9be564; color-scheme: dark; }
+:root[data-theme='ocean'] { --bg: #070f1c; --panel: #0d1829; --tile: #152540; --line: #223557; --text: #e6f0ff; --muted: #93abcd; --accent: #4fd1ff; --accent-ink: #07111d; --danger: #ff7a7a; --ok: #5fe3a1; color-scheme: dark; }
+:root[data-theme='contrast'] { --bg: #000; --panel: #000; --tile: #1a1a1a; --line: #fff; --text: #fff; --muted: #d4d4d4; --accent: #ffeb00; --accent-ink: #000; --danger: #ff8a70; --ok: #6dff9c; color-scheme: dark; }
+:root[data-theme='contrast'] .room { outline: 2px solid #fff; outline-offset: -2px; }
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased; }

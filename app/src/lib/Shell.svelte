@@ -34,6 +34,6 @@
   @media (max-width: 720px) {
     .shell { grid-template-columns: 1fr; }
     .shell.has-room :global(aside) { display: none; }
-    .shell:not(.has-room) :global(section.main) { display: none; }
+    .shell:not(.has-room) :global(main.main) { display: none; }
   }
 </style>

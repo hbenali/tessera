@@ -78,9 +78,9 @@
   }
 </script>
 
-<section class="main" aria-label="Conversation" ondragover={(e) => e.preventDefault()} ondrop={drop}>
+<main class="main" ondragover={(e) => e.preventDefault()} ondrop={drop}>
   {#if !chat.active}
-    <div class="empty"><p class="big">Nothing open.</p><p>Pick a room from the index, or press <span class="mono">Ctrl K</span>.</p></div>
+    <div class="empty"><h1 class="big">Nothing open.</h1><p>Pick a room from the index, or press <span class="mono">Ctrl K</span>.</p></div>
   {:else}
     <header>
       <button class="back link" onclick={() => (chat.activeRoom = null)}>Rooms</button>
@@ -120,10 +120,10 @@
       </div>
     </footer>
   {/if}
-</section>
+</main>
 
 <style>
-  section { display: flex; flex-direction: column; min-width: 0; height: 100%; background: var(--bg); }
+  main { display: flex; flex-direction: column; min-width: 0; height: 100%; background: var(--bg); }
   .empty { margin: auto; padding: 0 24px; color: var(--muted); } .big { font: 800 48px/1 var(--display); letter-spacing: -.04em; color: var(--text); margin: 0 0 8px; }
   header { display: flex; gap: 12px; align-items: center; padding: 14px 24px; background: var(--panel); }
   .mk { width: 18px; height: 18px; border-radius: 4px; }
