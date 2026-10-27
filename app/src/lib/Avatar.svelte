@@ -1,6 +1,6 @@
 <script lang="ts">
   import { initials, tone } from './ui.svelte'
-  import { chat } from './matrix.svelte'
+  import { thumb } from './media'
   let { name, size = 36, round = false, src }: { name: string; size?: number; round?: boolean; src?: string } = $props()
   let url = $state<string>()
   $effect(() => {
@@ -8,7 +8,7 @@
     url = undefined
     if (!mxc) return
     let live = true
-    chat.thumb(mxc, size).then((u) => { if (live) url = u }, () => {})
+    thumb(mxc, size).then((u) => { if (live) url = u }, () => {})
     return () => { live = false }
   })
 </script>

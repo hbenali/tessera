@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { chat } from './matrix.svelte'
+  import { thumb } from './media'
   let { mxc, alt }: { mxc: string; alt: string } = $props()
   let url = $state<string>()
   let failed = $state(false)
@@ -8,7 +8,7 @@
     url = undefined
     failed = false
     let live = true
-    chat.thumb(m, 320, 'scale').then((u) => { if (live) url = u }, () => { if (live) failed = true })
+    thumb(m, 320, 'scale').then((u) => { if (live) url = u }, () => { if (live) failed = true })
     return () => { live = false }
   })
 </script>

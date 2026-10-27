@@ -2,6 +2,7 @@ import { mentionsUser } from './mentions'
 import * as sdk from 'matrix-js-sdk'
 import { security } from './security.svelte'
 import { discover } from './discover'
+import { setThumbLoader } from './media'
 
 const SESSION_KEY = 'tessera.session'
 
@@ -149,6 +150,7 @@ class Chat {
     await store.startup()
     await client.initRustCrypto({ cryptoDatabasePrefix: `tessera-crypto-${s.userId}` })
     security.attach(client)
+    setThumbLoader((m, s, method) => this.thumb(m, s, method))
     security.refresh()
     client.on(sdk.MatrixEventEvent.Decrypted, (ev) => {
       this.refreshMessages()
