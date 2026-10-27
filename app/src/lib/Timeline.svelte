@@ -163,7 +163,8 @@
   .scroll { flex: 1; overflow-y: auto; padding: 8px 0 4px; }
   .note { text-align: center; color: var(--muted); font-size: 12px; padding: 8px; }
   .day { display: flex; align-items: center; gap: 12px; margin: 16px 20px 6px; color: var(--muted); font-size: 12px; font-weight: 600; } .day::before, .day::after { content: ''; flex: 1; height: 1px; background: var(--line); }
-  article { position: relative; display: flex; gap: 12px; padding: 2px 20px; margin-top: 10px; } article.cont { margin-top: 0; } article.pending { opacity: .55; } article:hover { background: color-mix(in srgb, var(--tile) 55%, transparent); }
+  /* Off-screen messages skip layout and paint, which keeps long rooms fast. */
+  article { position: relative; display: flex; gap: 12px; padding: 2px 20px; margin-top: 10px; content-visibility: auto; contain-intrinsic-size: auto 44px; } article.cont { margin-top: 0; } article.pending { opacity: .55; } article:hover { background: color-mix(in srgb, var(--tile) 55%, transparent); }
   .gutter { flex: none; width: 36px; padding-top: 2px; } .gutter time { display: none; font-size: 10px; color: var(--muted); text-align: right; line-height: 22px; } article:hover .gutter time { display: block; }
   .body { min-width: 0; flex: 1; }
   .head { display: flex; align-items: baseline; gap: 8px; } .head b { font-weight: 650; } .head time { color: var(--muted); font-size: 11px; }

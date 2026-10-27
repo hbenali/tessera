@@ -86,6 +86,45 @@ class Chat {
     return `https://${s}`
   }
 
+  /** What the homeserver offers: password login and/or single sign-on providers. */
+  async loginOptions(server: string): Promise<{ password: boolean; sso: { id: string; name: string }[]; baseUrl: string }> {
+    const baseUrl = await this.discover(server)
+    const flows = (await sdk.createClient({ baseUrl }).loginFlows()).flows
+    const sso = flows.find((f) => f.type === 'm.login.sso') as { identity_providers?: { id: string; name: string }[] } | undefined
+    return {
+      baseUrl,
+      password: flows.some((f) => f.type === 'm.login.password'),
+      sso: sso ? (sso.identity_providers?.length ? sso.identity_providers : [{ id: '', name: 'Single sign-on' }]) : [],
+    }
+  }
+
+  /** Redirect to the identity provider; we come back with ?loginToken=. */
+  startSso(baseUrl: string, idpId: string) {
+    sessionStorage.setItem('tessera.sso.baseUrl', baseUrl)
+    const back = location.origin + location.pathname
+    location.href = sdk.createClient({ baseUrl }).getSsoLoginUrl(back, 'sso', idpId || undefined)
+  }
+
+  /** Finish an SSO redirect if the URL carries a login token. Returns true when handled. */
+  async finishSso(): Promise<boolean> {
+    const url = new URL(location.href)
+    const token = url.searchParams.get('loginToken')
+    const baseUrl = sessionStorage.getItem('tessera.sso.baseUrl')
+    if (!token || !baseUrl) return false
+    url.searchParams.delete('loginToken')
+    history.replaceState(null, '', url.pathname + url.search)
+    sessionStorage.removeItem('tessera.sso.baseUrl')
+    try {
+      const r = await sdk.createClient({ baseUrl }).loginWithToken(token)
+      const session: Session = { baseUrl, accessToken: r.access_token, userId: r.user_id, deviceId: r.device_id }
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+      await this.start(session)
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e)
+    }
+    return true
+  }
+
   async login(server: string, user: string, password: string) {
     this.error = ''
     try {
