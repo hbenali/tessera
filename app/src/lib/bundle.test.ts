@@ -1,26 +1,35 @@
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-/** Static imports reachable from a file (relative ones are followed). */
+const sources = import.meta.glob<string>('/src/**/*.{ts,svelte}', { query: '?raw', import: 'default', eager: true })
+
+const dir = (p: string) => p.slice(0, p.lastIndexOf('/'))
+function resolvePath(from: string, spec: string): string | undefined {
+  const parts = dir(from).split('/')
+  for (const seg of spec.split('/')) {
+    if (seg === '..') parts.pop()
+    else if (seg !== '.') parts.push(seg)
+  }
+  const base = parts.join('/')
+  return ['', '.ts', '.svelte', '.svelte.ts'].map((e) => base + e).find((p) => p in sources)
+}
+
+/** Everything statically imported from a file, following relative imports. */
 function reach(file: string, seen = new Set<string>()): Set<string> {
   if (seen.has(file)) return seen
   seen.add(file)
-  const src = readFileSync(file, 'utf8')
-  for (const m of src.matchAll(/^\s*import\s+(?!type\b)[^'"\n]*?from\s+['"]([^'"]+)['"]/gm)) {
+  for (const m of sources[file].matchAll(/^\s*import\s+(?!type\b)[^'"\n]*?from\s+['"]([^'"]+)['"]/gm)) {
     const spec = m[1]
-    if (!spec.startsWith('.')) { seen.add(spec); continue }
-    const base = resolve(dirname(file), spec)
-    for (const ext of ['', '.ts', '.svelte', '.svelte.ts']) {
-      try { if (readFileSync(base + ext, 'utf8')) { reach(base + ext, seen); break } } catch { /* try next */ }
-    }
+    const next = spec.startsWith('.') ? resolvePath(file, spec) : undefined
+    if (next) reach(next, seen)
+    else seen.add(spec)
   }
   return seen
 }
 
 describe('login bundle', () => {
   it('does not statically import the Matrix SDK', () => {
-    const login = [...reach(resolve(__dirname, '../main.ts'))]
-    expect(login.filter((f) => /matrix-js-sdk|matrix\.svelte|security\.svelte|Shell\.svelte/.test(f))).toEqual([])
+    const files = [...reach('/src/main.ts')]
+    expect(files.some((f) => f.endsWith('App.svelte'))).toBe(true) // the walk really reached the app
+    expect(files.filter((f) => /matrix-js-sdk|matrix\.svelte|security\.svelte|Shell\.svelte/.test(f))).toEqual([])
   })
 })

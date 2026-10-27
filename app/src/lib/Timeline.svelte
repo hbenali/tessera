@@ -156,7 +156,7 @@
       {#if chat.loadingOlder}<div class="note">Loading earlier messages…</div>{/if}
       {#each rows as { m, newDay, cont } (m.id)}
         {#if newDay}<div class="day" role="separator"><span>{dayLabel(m.ts)}</span></div>{/if}
-        <article class:cont class:pending={m.pending} class:mention={m.mentionsMe} data-id={m.id}>
+        <article class:cont class:pending={m.pending} class:active={picker === m.id} class:mention={m.mentionsMe} data-id={m.id}>
           <div class="gutter">
             {#if !cont}<Avatar name={m.senderName} size={36} round src={m.senderAvatar} />{:else}<time>{fmt(m.ts)}</time>{/if}
           </div>
@@ -233,7 +233,9 @@
   .thread-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 2px 8px; border-radius: 6px; color: var(--accent); font-size: 12px; font-weight: 600; } .thread-link:hover { background: var(--tile); }
   .reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; } .reacts button { display: inline-flex; flex: none; gap: 5px; align-items: center; white-space: nowrap; line-height: 20px; min-height: 24px; padding: 1px 9px; font-variant-numeric: tabular-nums; border-radius: 999px; background: var(--tile); border: 1px solid var(--line); font-size: 12px; font-weight: 600; } .reacts button span { font-size: 14px; line-height: 20px; } .reacts button:hover { border-color: var(--accent); }
   .tools { display: none; position: absolute; top: -16px; right: 20px; z-index: 2; gap: 0; padding: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
-  article:hover .tools, article:focus-within .tools { display: flex; } .tools .icon-btn { width: 30px; height: 28px; font-size: 15px; } .pw { position: relative; }
+  /* content-visibility clips overflow; the toolbar and emoji picker hang outside the row, so lift it while the row is in use. */
+  article:hover, article:focus-within, article.active { content-visibility: visible; }
+  article:hover .tools, article:focus-within .tools, article.active .tools { display: flex; } .tools .icon-btn { width: 30px; height: 28px; font-size: 15px; } .pw { position: relative; }
   .typing { height: 22px; padding: 0 20px; font-size: 12px; color: var(--muted); flex: none; }
   footer { padding: 0 16px 10px; flex: none; }
   .composer { background: var(--tile); border: 1px solid var(--line); border-radius: 12px; } .composer:focus-within { border-color: var(--accent); }
