@@ -59,9 +59,9 @@
 <style>
   .tabs { display: flex; gap: 20px; margin-bottom: 18px; } .tabs button { color: var(--muted); padding-bottom: 3px; border-bottom: 2px solid transparent; } .tabs .on { color: var(--text); border-bottom-color: var(--accent); }
   h3 { margin: 22px 0 8px; font-weight: 400; }
-  .row { display: flex; gap: 10px; } .opt { padding: 6px 14px; border: 1px solid var(--line); text-transform: capitalize; } .opt.on { border-color: var(--text); background: var(--text); color: var(--bg); }
-  .status { margin: 0; padding: 10px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; color: var(--accent); } .status.ok { color: var(--ok); } .status .mono { color: var(--muted); }
+  .row { display: flex; gap: 10px; } .opt { padding: 6px 14px; border: 1px solid var(--line); border-radius: 6px; text-transform: capitalize; } .opt.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+  .status { margin: 0; padding: 10px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; color: var(--danger); } .status.ok { color: var(--ok); } .status .mono { color: var(--muted); }
   form { display: flex; gap: 12px; align-items: end; }
   .key { padding: 14px 0; } code { display: block; word-break: break-all; margin: 10px 0 14px; padding: 12px; background: var(--tile); font-family: var(--mono); font-size: 13px; }
-  .err { color: var(--accent); font-size: 13px; margin-top: 12px; }
+  .err { color: var(--danger); font-size: 13px; margin-top: 12px; }
 </style>

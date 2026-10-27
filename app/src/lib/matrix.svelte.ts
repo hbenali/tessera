@@ -36,6 +36,7 @@ export interface RoomItem {
   parents: string[]
   isDM: boolean
   encrypted: boolean
+  invited: boolean
 }
 
 class Chat {
@@ -159,7 +160,8 @@ class Chat {
     const dms = this.dmRoomIds()
     const items: RoomItem[] = []
     for (const room of c.getRooms()) {
-      if (room.getMyMembership() !== 'join') continue
+      const membership = room.getMyMembership()
+      if (membership !== 'join' && membership !== 'invite') continue
       const create = room.currentState.getStateEvents('m.room.create', '')
       const parents = room.currentState
         .getStateEvents('m.space.parent')
@@ -174,6 +176,7 @@ class Chat {
         parents,
         isDM: dms.has(room.roomId),
         encrypted: c.isRoomEncrypted(room.roomId),
+        invited: membership === 'invite',
       })
     }
     items.sort((a, b) => b.lastTs - a.lastTs)
@@ -338,6 +341,19 @@ class Chat {
         : [],
     })
     this.openRoom(r.room_id)
+  }
+
+  async invite(userId: string) {
+    if (this.activeRoom) await this.client!.invite(this.activeRoom, userId)
+  }
+
+  async acceptInvite(id: string) {
+    await this.client!.joinRoom(id)
+    this.openRoom(id)
+  }
+
+  async declineInvite(id: string) {
+    await this.client!.leave(id)
   }
 
   async joinRoom(alias: string) {

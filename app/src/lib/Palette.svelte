@@ -26,8 +26,8 @@
 
 <style>
   .scrim { position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 80%, transparent); display: grid; place-items: start center; padding-top: 14vh; z-index: 10; }
-  .box { width: min(520px, 92vw); background: var(--bg); border: 1px solid var(--text); padding: 6px 18px 10px; }
+  .box { width: min(520px, 92vw); background: var(--panel); border-radius: 10px; padding: 6px 18px 10px; }
   input { font-size: 18px; padding: 14px 0; margin-bottom: 6px; }
-  button { display: block; width: 100%; text-align: left; padding: 7px 8px; margin-left: -8px; } .sel { background: var(--text); color: var(--bg); }
+  button { display: block; width: 100%; text-align: left; padding: 7px 8px; margin-left: -8px; } .sel { background: var(--accent); color: var(--accent-ink); border-radius: 4px; }
   .mono { opacity: .6; }
 </style>

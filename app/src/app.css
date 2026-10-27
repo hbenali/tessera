@@ -1,30 +1,28 @@
 /*
- * Tessera design language: a printed ledger, not a toy.
- * Flat paper and ink, hairline rules, square corners, one signal colour used
- * only for "needs your attention". No gradients, shadows, blur or emoji icons.
+ * Tessera design language: a mosaic. Every room is a flat colour tile.
+ * Heavy tight type, dark ink surfaces, saturated flat colour used as content
+ * (rooms, senders), never as decoration. No gradients, glow, glass or emoji icons.
  */
 :root {
-  --bg: #14130f; --panel: #14130f; --tile: #1d1b16; --line: #34312a;
-  --text: #ebe6d9; --muted: #968f7e; --accent: #ff5a24; --accent-ink: #14130f;
-  --danger: #ff5a24; --mine: #ebe6d9; --ok: #8fbf7a;
-  --ink-l: 68%;
-  --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
-  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --bg: #0d0f14; --panel: #151922; --tile: #1c2130; --line: #262c3d;
+  --text: #f3f4f8; --muted: #8d94a8; --accent: #ffd23f; --accent-ink: #12141a;
+  --danger: #ff6b4a; --ok: #3ddc97; --ink: #12141a;
+  --t0: #ff6b4a; --t1: #ffd23f; --t2: #2ec4b6; --t3: #7b8cff; --t4: #ff8fb8; --t5: #9be564;
+  --display: 'Inter Tight', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
   font-family: var(--sans);
   color-scheme: dark;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
-    --bg: #f3efe5; --panel: #f3efe5; --tile: #e9e4d6; --line: #cfc8b6;
-    --text: #1a1813; --muted: #6f6857; --accent: #d93a0a; --accent-ink: #f3efe5; --ok: #3d6b2a; --ink-l: 32%;
-    color-scheme: light;
+    --bg: #f1f2f5; --panel: #ffffff; --tile: #e8eaf0; --line: #d9dce6;
+    --text: #10131a; --muted: #636a7e; --accent-ink: #12141a; --ok: #12875a; color-scheme: light;
   }
 }
 :root[data-theme='light'] {
-  --bg: #f3efe5; --panel: #f3efe5; --tile: #e9e4d6; --line: #cfc8b6;
-  --text: #1a1813; --muted: #6f6857; --accent: #d93a0a; --accent-ink: #f3efe5; --ok: #3d6b2a; --ink-l: 32%;
-  color-scheme: light;
+  --bg: #f1f2f5; --panel: #ffffff; --tile: #e8eaf0; --line: #d9dce6;
+  --text: #10131a; --muted: #636a7e; --accent-ink: #12141a; --ok: #12875a; color-scheme: light;
 }
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
@@ -32,15 +30,15 @@ body { background: var(--bg); color: var(--text); font-size: 15px; line-height: 
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: 0; background: none; padding: 0; }
 input:not([type='checkbox']), textarea { background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 8px 0; outline: none; width: 100%; }
-input:not([type='checkbox']):focus { border-bottom-color: var(--text); }
+input:not([type='checkbox']):focus { border-bottom-color: var(--accent); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ::selection { background: var(--accent); color: var(--accent-ink); }
 ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-thumb { background: var(--line); }
 .mono { font-family: var(--mono); font-size: 12px; letter-spacing: .02em; }
 .label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
-/* Buttons: solid ink, or underlined text. */
-.btn { padding: 9px 16px; border: 1px solid var(--text); background: var(--text); color: var(--bg); font-weight: 600; }
-.btn:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+/* Buttons: solid colour blocks. */
+.btn { padding: 9px 16px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.btn:hover { filter: brightness(1.08); }
 .btn:disabled { opacity: .35; pointer-events: none; }
-.btn.ghost { background: none; color: var(--text); } .btn.ghost:hover { border-color: var(--accent); color: var(--accent); background: none; }
+.btn.ghost { background: var(--tile); color: var(--text); } .btn.ghost:hover { filter: none; background: var(--line); }
 .link { text-decoration: underline; text-underline-offset: 3px; } .link:hover { color: var(--accent); }

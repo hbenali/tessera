@@ -29,6 +29,6 @@
 </Modal>
 
 <style>
-  form { display: grid; gap: 16px; } label { display: flex; gap: 10px; align-items: center; font-size: 14px; } .err { color: var(--accent); font-size: 13px; }
+  form { display: grid; gap: 16px; } label { display: flex; gap: 10px; align-items: center; font-size: 14px; } .err { color: var(--danger); font-size: 13px; }
   input[type='checkbox'] { accent-color: var(--accent); width: 16px; height: 16px; }
 </style>

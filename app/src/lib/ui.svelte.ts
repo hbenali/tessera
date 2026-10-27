@@ -1,11 +1,11 @@
 /** Small shared UI helpers and state. */
-/** Deterministic ink colour per sender, so names are scannable without avatars. */
-const hue = (s: string) => {
-  let h = 0
-  for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360
-  return h
+/** Deterministic flat colour (0-5) per name: rooms and senders keep one tile colour. */
+export const tone = (s: string) => {
+  let h = 7
+  for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 997
+  return h % 6
 }
-export const ink = (n: string) => `color:hsl(${hue(n)} 45% var(--ink-l))`
+export const tileBg = (n: string) => `background:var(--t${tone(n)})`
 
 class Ui {
   modal = $state<null | 'settings' | 'new-room' | 'join-room'>(null)
