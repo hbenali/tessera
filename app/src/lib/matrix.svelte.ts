@@ -264,10 +264,12 @@ class Chat {
         senderName: room.getMember(sender)?.name ?? sender,
         body: encrypted
           ? ev.isDecryptionFailure()
-            ? 'Unable to decrypt this message'
+            ? 'Cannot decrypt this message. It was probably sent before this device had access to the room keys. Verify this session or restore your recovery key in Settings.'
             : 'Decrypting…'
-          : (edits.get(id) ?? content.body ?? ''),
-        undecryptable: encrypted && ev.isDecryptionFailure(),
+          : content.msgtype === 'm.bad.encrypted'
+            ? 'Cannot decrypt this message. It was probably sent before this device had access to the room keys. Verify this session or restore your recovery key in Settings.'
+            : (edits.get(id) ?? content.body ?? ''),
+        undecryptable: (encrypted && ev.isDecryptionFailure()) || content.msgtype === 'm.bad.encrypted',
         decrypting: encrypted && !ev.isDecryptionFailure(),
         ts: ev.getTs(),
         mine: sender === this.userId,
