@@ -204,14 +204,23 @@
   }
 </script>
 
+{#snippet delivery(m: Msg)}
+  {#if m.state}
+    <span class="tick st-{m.state}" title={({ sending: 'Sending', failed: 'Not sent', sent: 'Sent', seen: 'Seen' })[m.state]}>
+      <Icon name={m.state === 'sending' ? 'clock' : m.state === 'failed' ? 'alert' : m.state === 'seen' ? 'checks' : 'check'} size={13} />
+      <span class="sr">{({ sending: 'Sending', failed: 'Not sent', sent: 'Sent', seen: 'Seen' })[m.state]}</span>
+    </span>
+  {/if}
+{/snippet}
+
 <main class="main" ondragover={(e) => e.preventDefault()} ondrop={drop}>
   {#if !chat.active}
     <div class="empty"><Icon name="hash" size={40} /><h1>Select a conversation</h1><p>Choose a room on the left, or press <kbd class="mono">Ctrl K</kbd> to jump.</p></div>
   {:else}
     <header>
       <button class="icon-btn back" onclick={() => (chat.activeRoom = null)} aria-label="Back to rooms"><Icon name="back" /></button>
-      <Avatar name={chat.active.name} size={32} round={chat.active.isDM} src={chat.active.avatar} />
-      <div class="title"><h1>{chat.active.name}</h1>{#if chat.active.topic}<span class="topic">{chat.active.topic}</span>{:else}<span class="topic">{chat.active.memberCount} {chat.active.memberCount === 1 ? 'member' : 'members'}</span>{/if}</div>
+      <Avatar name={chat.active.name} size={32} round={chat.active.isDM} src={chat.active.avatar} presence={chat.active.dmUser ? (chat.presenceOf(chat.active.dmUser) ?? 'offline') : undefined} />
+      <div class="title"><h1>{chat.active.name}</h1>{#if chat.active.dmUser}<span class="topic">{({ online: 'Online', unavailable: 'Away', offline: 'Offline' })[chat.presenceOf(chat.active.dmUser) ?? 'offline']}</span>{:else if chat.active.topic}<span class="topic">{chat.active.topic}</span>{:else}<span class="topic">{chat.active.memberCount} {chat.active.memberCount === 1 ? 'member' : 'members'}</span>{/if}</div>
       {#if chat.active.encrypted}<span class="enc" title="End-to-end encrypted"><Icon name="lock" size={13} /> Encrypted</span>{/if}
       <button class="icon-btn" class:on={ui.details} onclick={() => (ui.details = !ui.details)} aria-label="Room details" aria-pressed={ui.details}><Icon name="info" /></button>
     </header>
@@ -243,12 +252,12 @@
         {#if newDay}<div class="day" role="separator"><span>{dayLabel(m.ts)}</span></div>{/if}
         <article class:cont class:pending={m.pending} class:active={picker === m.id} class:mention={m.mentionsMe} data-id={m.id}>
           <div class="gutter">
-            {#if !cont}<Avatar name={m.senderName} size={36} round src={m.senderAvatar} />{:else}<time>{fmt(m.ts)}</time>{/if}
+            {#if !cont}<Avatar name={m.senderName} size={36} round src={m.senderAvatar} presence={m.mine ? undefined : chat.presenceOf(m.sender)} />{:else}<time>{fmt(m.ts)}</time>{/if}
           </div>
           <div class="body">
             {#if !cont}<div class="head"><b>{m.senderName}</b><time>{fmt(m.ts)}</time>{#if m.pinned}<span class="pinned" title="Pinned"><Icon name="pin" size={12} /> Pinned</span>{/if}</div>{/if}
             {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {byId(m.replyTo)?.body ?? 'earlier message'}</div>{/if}
-            {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} />{:else}<div class="text" class:utd={m.undecryptable}>{@html render(m.body, { name: chat.nameOf, me: chat.userId })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{/if}
+            {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable}>{@html render(m.body, { name: chat.nameOf, me: chat.userId })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
             {#if m.seenBy?.length}<div class="seen" title="Seen by {m.seenBy.map((s) => s.name).join(', ')}">{#each m.seenBy.slice(0, 5) as s (s.name)}<Avatar name={s.name} size={14} round src={s.avatar} />{/each}<span>Seen{m.seenBy.length > 5 ? ` by ${m.seenBy.length}` : ''}</span></div>{/if}
             {#if Object.keys(m.reactions).length}
@@ -269,7 +278,7 @@
       {/each}
     </div>
 
-    <div class="typing" aria-live="polite">{chat.typing.length ? `${chat.typing.join(', ')} ${chat.typing.length > 1 ? 'are' : 'is'} typing…` : ''}</div>
+    <div class="typing" aria-live="polite">{#if chat.typing.length}<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>{chat.typing.length > 2 ? 'Several people are' : `${chat.typing.join(' and ')} ${chat.typing.length > 1 ? 'are' : 'is'}`} typing{/if}</div>
     <footer>
       {#if notice}<div class="ctx err" role="alert">{notice}</div>{/if}
       <div class="composer">
@@ -331,6 +340,10 @@
   /* content-visibility clips overflow; the toolbar and emoji picker hang outside the row, so lift it while the row is in use. */
   article:hover, article:focus-within, article.active { content-visibility: visible; }
   article:hover .tools, article:focus-within .tools, article.active .tools { display: flex; } .tools .icon-btn { width: 30px; height: 28px; font-size: 15px; } .pw { position: relative; }
+  .line { display: flex; align-items: flex-end; gap: 8px; } .line .text { flex: 1; min-width: 0; }
+  .tick { display: inline-flex; flex: none; margin-bottom: 3px; color: var(--muted); } .tick.st-seen { color: var(--accent); } .tick.st-failed { color: var(--danger); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .dots { display: inline-flex; gap: 3px; margin-right: 6px; vertical-align: 1px; } .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: blip 1.2s infinite; } .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; } @keyframes blip { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } } @media (prefers-reduced-motion: reduce) { .dots i { animation: none; } }
   .typing { height: 22px; padding: 0 20px; font-size: 12px; color: var(--muted); flex: none; }
   footer { padding: 0 16px 10px; flex: none; }
   .composer { background: var(--tile); border: 1px solid var(--line); border-radius: 12px; } .composer:focus-within { border-color: var(--accent); }

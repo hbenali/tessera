@@ -58,7 +58,7 @@
     <h4 class="label">{chat.members.length} {chat.members.length === 1 ? 'member' : 'members'}</h4>
     <ul>
       {#each chat.members as m (m.id)}
-        <li><Avatar name={m.name} size={28} round src={m.avatar} /><span class="n">{m.name}</span>{#if m.id === chat.userId}<span class="mono you">you</span>{/if}</li>
+        <li><Avatar name={m.name} size={28} round src={m.avatar} presence={m.id === chat.userId ? chat.myStatus : chat.presenceOf(m.id)} /><span class="n">{m.name}</span>{#if m.id === chat.userId}<span class="mono you">you</span>{/if}</li>
       {/each}
     </ul>
     <div class="actions">

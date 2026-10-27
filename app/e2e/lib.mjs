@@ -8,7 +8,7 @@ export const SYNAPSE = process.env.SYNAPSE_URL ?? 'http://localhost:8008'
 export const PASSWORD = 'e2e-pass-1234!'
 const here = new URL('.', import.meta.url).pathname
 
-async function api(token, method, path, body, type = 'application/json') {
+export async function api(token, method, path, body, type = 'application/json') {
   const res = await fetch(`${SYNAPSE}${path}`, {
     method,
     headers: { 'Content-Type': type, ...(token ? { Authorization: `Bearer ${token}` } : {}) },

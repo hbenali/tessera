@@ -7,6 +7,9 @@
 
   let filter = $state<'all' | 'unread' | 'people'>('all')
   let switcher = $state(false)
+  let status = $state(false)
+  const STATUSES = [['online', 'Online'], ['unavailable', 'Away'], ['offline', 'Invisible']] as const
+  const setStatus = (p: (typeof STATUSES)[number][0]) => { chat.setStatus(p); status = false }
 
   const invites = $derived(chat.rooms.filter((r) => r.invited))
   const current = $derived(chat.spaces.find((s) => s.id === chat.activeSpace))
@@ -59,7 +62,7 @@
     {/each}
     {#each rooms as r (r.id)}
       <button class="row" class:active={chat.activeRoom === r.id} class:unread={r.unread > 0} onclick={() => chat.openRoom(r.id)}>
-        <Avatar name={r.name} size={38} round={r.isDM} src={r.avatar} />
+        <Avatar name={r.name} size={38} round={r.isDM} src={r.avatar} presence={r.dmUser ? (chat.presenceOf(r.dmUser) ?? 'offline') : undefined} />
         <span class="body">
           <span class="top">
             <span class="name">{r.name}</span>
@@ -67,7 +70,7 @@
             <span class="time">{r.lastTs ? shortTime(r.lastTs) : ''}</span>
           </span>
           <span class="bottom">
-            <span class="preview">{r.preview || (r.topic ? r.topic : 'No messages yet')}</span>
+            {#if r.typing}<span class="preview typing" aria-live="polite">typing<i></i><i></i><i></i></span>{:else}<span class="preview">{r.preview || (r.topic ? r.topic : 'No messages yet')}</span>{/if}
             {#if r.unread}<span class="badge" class:hl={r.highlight > 0}>{r.unread}</span>{/if}
           </span>
         </span>
@@ -79,7 +82,19 @@
   </nav>
 
   <footer>
-    <button class="me" onclick={() => (ui.modal = 'settings')}><Avatar name={chat.userId.replace('@', '')} size={28} round /><span>{chat.userId}</span></button>
+    <div class="mewrap">
+      <button class="me" title="Change your status" onclick={() => (status = !status)} aria-expanded={status} aria-haspopup="menu">
+        <Avatar name={chat.me.name || chat.userId.replace('@', '')} size={28} round src={chat.me.avatar} presence={chat.myStatus} /><span>{chat.me.name || chat.userId}</span>
+      </button>
+      {#if status}
+        <div class="menu up" role="menu">
+          {#each STATUSES as [v, t] (v)}
+            <button role="menuitemradio" aria-checked={chat.myStatus === v} onclick={() => setStatus(v)}><span class="pip {v}"></span>{t}{#if chat.myStatus === v}<Icon name="check" size={14} />{/if}</button>
+          {/each}
+          <button role="menuitem" onclick={() => { status = false; ui.modal = 'settings' }}><Icon name="sliders" size={14} />Profile and settings</button>
+        </div>
+      {/if}
+    </div>
     <button class="icon-btn" onclick={() => ui.open('join')} aria-label="Join a room by address" title="Join a room"><Icon name="hash" /></button>
     <button class="icon-btn" onclick={() => (ui.modal = 'settings')} aria-label="Settings" title="Settings"><Icon name="sliders" /></button>
   </footer>
@@ -108,5 +123,7 @@
   .invite { display: flex; align-items: center; gap: 10px; padding: 8px; margin: 0 0 4px; border-radius: 10px; border: 1px dashed var(--accent); } .invite .meta { flex: 1; display: grid; min-width: 0; } .invite .meta span { color: var(--muted); font-size: 12px; } .invite .btn { padding: 5px 12px; }
   .empty { padding: 24px 12px; color: var(--muted); text-align: center; }
   footer { display: flex; align-items: center; gap: 2px; padding: 8px 10px; border-top: 1px solid var(--line); }
-  .me { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: 8px; text-align: left; color: var(--muted); } .me:hover { background: var(--tile); color: var(--text); } .me span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .mewrap { position: relative; flex: 1; min-width: 0; } .menu.up { top: auto; bottom: calc(100% + 6px); min-width: 200px; } .pip { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); } .pip.online { background: var(--ok); } .pip.unavailable { background: #e0a100; } .pip.offline { background: transparent; border: 2px solid var(--muted); box-sizing: border-box; }
+  .typing { color: var(--accent); } .typing i { display: inline-block; width: 3px; height: 3px; margin-left: 2px; border-radius: 50%; background: currentColor; animation: blip 1.2s infinite; } .typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; } @keyframes blip { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } } @media (prefers-reduced-motion: reduce) { .typing i { animation: none; } }
+  .me { flex: 1;width: 100%; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: 8px; text-align: left; color: var(--muted); } .me:hover { background: var(--tile); color: var(--text); } .me span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 </style>

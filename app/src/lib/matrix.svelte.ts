@@ -37,6 +37,8 @@ export interface Msg {
   mentionsMe: boolean
   pinned: boolean
   seenBy?: { name: string; avatar?: string }[]
+  /** Delivery of my own messages: sending, failed, sent to the server, or read by someone. */
+  state?: 'sending' | 'failed' | 'sent' | 'seen'
   senderAvatar?: string
 }
 
@@ -55,6 +57,21 @@ export interface RoomItem {
   topic: string
   memberCount: number
   avatar?: string
+  /** The other person in a direct chat. */
+  dmUser?: string
+  /** Someone else is typing here right now. */
+  typing: boolean
+}
+
+export type Presence = 'online' | 'unavailable' | 'offline'
+const PRESENCE_KEY = 'tessera.presence'
+const readPresence = (): Presence => {
+  try {
+    const v = localStorage.getItem(PRESENCE_KEY)
+    return v === 'unavailable' || v === 'offline' ? v : 'online'
+  } catch {
+    return 'online'
+  }
 }
 
 export interface MessageHit {
@@ -82,6 +99,10 @@ class Chat {
   activeRoom = $state<string | null>(null)
   messages = $state<Msg[]>([])
   typing = $state<string[]>([])
+  /** Presence of people we have seen, kept reactive because the SDK's User objects are not. */
+  presence = $state<Record<string, Presence>>({})
+  myStatus = $state<Presence>(readPresence())
+  me = $state<{ name: string; avatar?: string }>({ name: '' })
   loadingOlder = $state(false)
   focusEvent = $state<string | null>(null)
   pinnedIds = $state<string[]>([])
@@ -183,10 +204,13 @@ class Chat {
     client.on(sdk.ThreadEvent.Update as never, (() => this.scheduleRefresh()) as never)
     client.on(sdk.ThreadEvent.NewReply as never, (() => this.scheduleRefresh()) as never)
     client.on('Thread.new' as never, (() => this.scheduleRefresh()) as never)
-    client.on(sdk.RoomMemberEvent.Typing, () => this.refreshTyping())
+    client.on(sdk.RoomMemberEvent.Typing, () => { this.refreshTyping(); this.refreshRooms() })
+    client.on(sdk.UserEvent.Presence, (_e, u) => { this.presence[u.userId] = u.presence as Presence })
     client.on(sdk.RoomEvent.LocalEchoUpdated, () => this.refreshMessages())
     client.on(sdk.RoomStateEvent.Events, () => this.refreshRooms())
     await client.startClient({ initialSyncLimit: 30, lazyLoadMembers: true, threadSupport: true })
+    this.loadProfile()
+    this.setStatus(this.myStatus)
   }
 
   async logout() {
@@ -246,6 +270,8 @@ class Chat {
         preview: this.previewOf(room),
         topic: room.currentState.getStateEvents('m.room.topic', '')?.getContent().topic ?? '',
         memberCount: room.getJoinedMemberCount(),
+        dmUser: dms.has(room.roomId) ? this.otherMember(room)?.userId : undefined,
+        typing: room.getMembers().some((m) => m.typing && m.userId !== this.userId),
         avatar: room.getMxcAvatarUrl() ?? (dms.has(room.roomId) ? this.otherMember(room)?.getMxcAvatarUrl() : undefined) ?? undefined,
       })
     }
@@ -349,13 +375,33 @@ class Chat {
         mentionsMe: sender !== this.userId && mentionsUser(content, this.userId, this.client?.getUser(this.userId)?.displayName),
       })
     }
-    // Who has read up to my latest message.
-    const mine = out.findLast((m) => m.mine && !m.pending)
-    const ev = mine && events.find((e) => e.getId() === mine.id)
-    if (mine && ev) {
-      const seen = room.getUsersReadUpTo(ev).filter((u) => u !== this.userId)
-      mine.seenBy = seen.map((u) => ({ name: room.getMember(u)?.name ?? u, avatar: room.getMember(u)?.getMxcAvatarUrl() ?? undefined }))
+    // Delivery of my messages. A read receipt on a later event covers the earlier ones, so walk back from the
+    // newest until someone has read, and mark everything before that as seen.
+    const byId = new Map(events.map((e) => [e.getId() ?? e.getTxnId(), e]))
+    // Where each other member has read up to, as an index into this event list. A receipt often sits on an event
+    // that is not shown (a reaction, a join), so compare positions instead of asking per message.
+    const pos = new Map(events.map((e, i) => [e.getId(), i]))
+    const readers = room
+      .getJoinedMembers()
+      .filter((m) => m.userId !== this.userId)
+      .map((m) => ({ m, at: pos.get(room.getEventReadUpTo(m.userId) ?? '') ?? -1 }))
+    let seenFrom = -1
+    for (let i = out.length - 1; i >= 0; i--) {
+      const m = out[i]
+      if (!m.mine || m.pending) continue
+      const at = pos.get(m.id) ?? Infinity
+      const seen = readers.filter((r) => r.at >= at)
+      if (seen.length) {
+        m.seenBy = seen.map(({ m: u }) => ({ name: u.name, avatar: u.getMxcAvatarUrl() ?? undefined }))
+        seenFrom = i
+        break
+      }
     }
+    out.forEach((m, i) => {
+      if (!m.mine) return
+      const st = byId.get(m.id)?.status
+      m.state = st === 'not_sent' ? 'failed' : m.pending ? 'sending' : i <= seenFrom ? 'seen' : 'sent'
+    })
     return out
   }
 
@@ -562,6 +608,44 @@ class Chat {
       await drop('override')
     }
     this.refreshRooms()
+  }
+
+  presenceOf = (id: string): Presence | undefined => this.presence[id] ?? (this.client?.getUser(id)?.presence as Presence | undefined)
+
+  /** Load my own display name and avatar; the sidebar shows them. */
+  async loadProfile() {
+    try {
+      const p = await this.client!.getProfileInfo(this.userId)
+      this.me = { name: p.displayname || this.userId, avatar: p.avatar_url }
+    } catch {
+      this.me = { name: this.userId }
+    }
+  }
+
+  async setMyAvatar(file: File) {
+    const { content_uri } = await this.client!.uploadContent(file, { name: file.name })
+    await this.client!.setAvatarUrl(content_uri)
+    await this.loadProfile()
+  }
+
+  async setMyName(name: string) {
+    await this.client!.setDisplayName(name.trim())
+    await this.loadProfile()
+  }
+
+  /** Change my status. It is also sent with every sync, otherwise the next sync would put it back to online. */
+  async setStatus(p: Presence) {
+    this.myStatus = p
+    try {
+      localStorage.setItem(PRESENCE_KEY, p)
+    } catch {
+      /* not persisted in private mode */
+    }
+    const c = this.client
+    if (!c) return
+    await c.setSyncPresence(p as never).catch(() => {})
+    await c.setPresence({ presence: p as never }).catch(() => {})
+    this.presence[this.userId] = p
   }
 
   /** Display name for a user id, if the room or the client knows it. */

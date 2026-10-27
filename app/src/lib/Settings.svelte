@@ -3,11 +3,27 @@
   import { chat } from './matrix.svelte'
   import { security } from './security.svelte'
   import { THEMES, ui } from './ui.svelte'
+  import Avatar from './Avatar.svelte'
 
   let tab = $state<'look' | 'security' | 'notify' | 'account'>('security')
   let perm = $state(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
   async function enableNotifications() {
     perm = await Notification.requestPermission()
+  }
+  let photo: HTMLInputElement | undefined = $state()
+  let name = $state('')
+  let profileErr = $state('')
+  async function pickPhoto() {
+    const f = photo?.files?.[0]
+    if (!f) return
+    profileErr = ''
+    if (!f.type.startsWith('image/')) { profileErr = 'Choose an image file'; return }
+    try { await chat.setMyAvatar(f) } catch (x) { profileErr = x instanceof Error ? x.message : 'Could not upload' }
+  }
+  async function saveName(e: Event) {
+    e.preventDefault()
+    profileErr = ''
+    try { await chat.setMyName(name); name = '' } catch (x) { profileErr = x instanceof Error ? x.message : 'Could not save' }
   }
   let password = $state('')
   let recovery = $state('')
@@ -71,7 +87,25 @@
     {/if}
     <p class="hint">Message text is shown in the notification for unencrypted rooms and, once decrypted on this device, for encrypted ones. Notifications follow your Matrix push rules.</p>
   {:else}
-    <p>Signed in as <b>{chat.userId}</b></p>
+    <div class="me">
+      <Avatar name={chat.me.name || chat.userId} size={64} round src={chat.me.avatar} presence={chat.myStatus} />
+      <div><b>{chat.me.name || chat.userId}</b><div class="hint mono">{chat.userId}</div></div>
+    </div>
+    <input type="file" accept="image/*" hidden bind:this={photo} onchange={pickPhoto} />
+    <button class="btn ghost" onclick={() => photo?.click()}>Change photo</button>
+    <form onsubmit={saveName}>
+      <label class="grow">Display name<input bind:value={name} maxlength="80" placeholder={chat.me.name} /></label>
+      <button class="btn" disabled={!name.trim() || name.trim() === chat.me.name}>Save</button>
+    </form>
+    {#if profileErr}<div class="err" role="alert">{profileErr}</div>{/if}
+    <h3 class="label">Status</h3>
+    <div class="seg" role="radiogroup" aria-label="Status">
+      {#each [['online', 'Online'], ['unavailable', 'Away'], ['offline', 'Invisible']] as [v, t] (v)}
+        <button role="radio" aria-checked={chat.myStatus === v} class:on={chat.myStatus === v} onclick={() => chat.setStatus(v as 'online')}>{t}</button>
+      {/each}
+    </div>
+    <p class="hint">Invisible shows you as offline. Presence must be enabled on your homeserver for others to see it.</p>
+    <h3 class="label">Session</h3>
     <button class="btn" onclick={() => chat.logout()}>Sign out</button>
   {/if}
 </Modal>
@@ -84,6 +118,8 @@
   .theme { display: grid; gap: 6px; text-align: left; font-size: 13px; padding: 6px; border-radius: 8px; border: 2px solid transparent; } .theme.on { border-color: var(--accent); }
   .swatch { display: flex; align-items: center; justify-content: space-between; padding: 10px; border-radius: 6px; border: 1px solid var(--line); } .swatch i { width: 14px; height: 14px; border-radius: 3px; } .swatch b { font-size: 18px; }
   .row { display: flex; gap: 10px; }
+  .me { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; } .grow { flex: 1; display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; border-radius: 8px; background: var(--tile); } .seg button { padding: 6px 0; border-radius: 6px; color: var(--muted); } .seg button.on { background: var(--bg); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
   .status { margin: 0; padding: 10px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; color: var(--danger); } .status.ok { color: var(--ok); } .status .mono { color: var(--muted); }
   form { display: flex; gap: 12px; align-items: end; }
   .key { padding: 14px 0; } code { display: block; word-break: break-all; margin: 10px 0 14px; padding: 12px; background: var(--tile); font-family: var(--mono); font-size: 13px; }
