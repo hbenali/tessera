@@ -1,11 +1,14 @@
 <script lang="ts">
-  import { chat } from './matrix.svelte'
   import Avatar from './Avatar.svelte'
+  import { loginOptions, startSso, type LoginOptions } from './discover'
+  type Mod = typeof import('./matrix.svelte')
+  let { load }: { load: () => Promise<Mod> } = $props()
+  let error = $state('')
   let server = $state(localStorage.getItem('tessera.server') ?? 'http://localhost:8008')
   let user = $state('')
   let password = $state('')
   let busy = $state(false)
-  let options = $state<{ password: boolean; sso: { id: string; name: string }[]; baseUrl: string } | null>(null)
+  let options = $state<LoginOptions | null>(null)
   let probing: ReturnType<typeof setTimeout> | undefined
 
   // Ask the homeserver how people can sign in, once the address stops changing.
@@ -14,7 +17,7 @@
     options = null
     if (server.trim().length < 4) return
     probing = setTimeout(async () => {
-      try { options = await chat.loginOptions(server) } catch { options = null }
+      try { options = await loginOptions(server) } catch { options = null }
     }, 500)
   }
   probe()
@@ -23,7 +26,9 @@
     e.preventDefault()
     busy = true
     localStorage.setItem('tessera.server', server)
+    const { chat } = await load()
     await chat.login(server, user, password)
+    error = chat.error
     busy = false
   }
 </script>
@@ -35,7 +40,7 @@
     <p class="lede">Use your Matrix account on any homeserver.</p>
     {#if options?.sso.length}
       <div class="sso">
-        {#each options.sso as p (p.id)}<button type="button" class="btn ghost" onclick={() => chat.startSso(options!.baseUrl, p.id)}>Continue with {p.name}</button>{/each}
+        {#each options.sso as p (p.id)}<button type="button" class="btn ghost" onclick={() => startSso(options!.baseUrl, p.id)}>Continue with {p.name}</button>{/each}
       </div>
       {#if options.password}<div class="or"><span>or use a password</span></div>{/if}
     {/if}
@@ -44,7 +49,7 @@
       <label>Homeserver<input bind:value={server} oninput={probe} placeholder="matrix.example.org" required /></label>
       <label>Username<input bind:value={user} autocomplete="username" required /></label>
       <label>Password<input type="password" bind:value={password} autocomplete="current-password" required /></label>
-      {#if chat.error}<div class="err" role="alert">{chat.error}</div>{/if}
+      {#if error}<div class="err" role="alert">{error}</div>{/if}
       <button class="btn" disabled={busy}>{busy ? 'Signing in…' : 'Continue'}</button>
     </form>
     {/if}

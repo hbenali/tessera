@@ -1,7 +1,12 @@
 import * as sdk from 'matrix-js-sdk'
 import { security } from './security.svelte'
+import { discover } from './discover'
 
 const SESSION_KEY = 'tessera.session'
+
+/** Strip SDK noise ("MatrixError: [403] ... (url)") so people see the server's own message. */
+export const friendlyError = (e: unknown): string =>
+  (e instanceof Error ? e.message : String(e)).replace(/^\w*Error:\s*(\[\d+\]\s*)?/, '').replace(/\s*\(https?:[^)]*\)\s*$/, '') || 'Something went wrong'
 
 export interface Session {
   baseUrl: string
@@ -81,43 +86,6 @@ class Chat {
     }
   }
 
-  /** Resolve a bare domain ("example.org") to a homeserver URL via .well-known. */
-  async discover(server: string): Promise<string> {
-    const s = server.trim().replace(/\/+$/, '')
-    // A full URL is used as typed; only a bare domain goes through .well-known.
-    if (/^https?:\/\//.test(s)) return s
-    try {
-      const r = await Promise.race([
-        sdk.AutoDiscovery.findClientConfig(s),
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000)),
-      ])
-      const url = r['m.homeserver']?.base_url
-      if (url) return url
-    } catch {
-      /* fall through to the domain itself */
-    }
-    return `https://${s}`
-  }
-
-  /** What the homeserver offers: password login and/or single sign-on providers. */
-  async loginOptions(server: string): Promise<{ password: boolean; sso: { id: string; name: string }[]; baseUrl: string }> {
-    const baseUrl = await this.discover(server)
-    const flows = (await sdk.createClient({ baseUrl }).loginFlows()).flows
-    const sso = flows.find((f) => f.type === 'm.login.sso') as { identity_providers?: { id: string; name: string }[] } | undefined
-    return {
-      baseUrl,
-      password: flows.some((f) => f.type === 'm.login.password'),
-      sso: sso ? (sso.identity_providers?.length ? sso.identity_providers : [{ id: '', name: 'Single sign-on' }]) : [],
-    }
-  }
-
-  /** Redirect to the identity provider; we come back with ?loginToken=. */
-  startSso(baseUrl: string, idpId: string) {
-    sessionStorage.setItem('tessera.sso.baseUrl', baseUrl)
-    const back = location.origin + location.pathname
-    location.href = sdk.createClient({ baseUrl }).getSsoLoginUrl(back, 'sso', idpId || undefined)
-  }
-
   /** Finish an SSO redirect if the URL carries a login token. Returns true when handled. */
   async finishSso(): Promise<boolean> {
     const url = new URL(location.href)
@@ -141,7 +109,7 @@ class Chat {
   async login(server: string, user: string, password: string) {
     this.error = ''
     try {
-      const baseUrl = await this.discover(server)
+      const baseUrl = await discover(server)
       const tmp = sdk.createClient({ baseUrl })
       const r = await tmp.loginWithPassword(user, password)
       const session: Session = {
@@ -153,7 +121,7 @@ class Chat {
       localStorage.setItem(SESSION_KEY, JSON.stringify(session))
       await this.start(session)
     } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e)
+      this.error = friendlyError(e)
     }
   }
 
