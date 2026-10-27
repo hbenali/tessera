@@ -48,11 +48,18 @@
   const pick = (id: string) => { chat.activeSpace = id; view = 'all'; switcher = false }
 </script>
 
-<aside aria-label="Conversations">
+<aside class="sidebar" aria-label="Conversations">
   <header>
     <div class="ws">
       <button class="switch" onclick={() => (switcher = !switcher)} aria-expanded={switcher} aria-haspopup="listbox">
-        <Avatar name={current?.name ?? 'Tessera'} size={26} />
+        {#if current}
+          <Avatar name={current.name} size={28} src={current.avatar} />
+        {:else if view === 'all'}
+          <!-- the Tessera mark: four tiles in the same colours as the avatar tiles -->
+          <svg class="mark" viewBox="0 0 512 512" width="28" height="28" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#0f1115" /><rect x="112" y="112" width="140" height="140" rx="26" fill="#f08a72" /><rect x="268" y="112" width="140" height="140" rx="26" fill="#8f9dff" /><rect x="112" y="268" width="140" height="140" rx="26" fill="#52c2b2" /><rect x="268" y="268" width="140" height="140" rx="26" fill="#efc352" /></svg>
+        {:else}
+          <span class="viewicon" aria-hidden="true"><Icon name={VIEWS.find((v) => v[0] === view)![2]} size={16} /></span>
+        {/if}
         <span class="wsname">{title}</span>
         <Icon name="chevron" size={14} />
       </button>
@@ -150,7 +157,10 @@
   aside { display: flex; flex-direction: column; min-width: 0; height: 100%; background: var(--panel); border-right: 1px solid var(--line); }
   header { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 8px; }
   .ws { position: relative; min-width: 0; }
-  .switch { display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 4px; border-radius: 8px; max-width: 100%; } .switch:hover { background: var(--tile); }
+  .switch { display: flex; align-items: center; gap: 9px; padding: 4px 8px 4px 4px; border-radius: 10px; max-width: 100%; } .switch:hover, .switch[aria-expanded=true] { background: var(--tile); }
+  .mark { flex: none; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); transition: transform .15s; } .switch:hover .mark { transform: rotate(-6deg) scale(1.05); }
+  .viewicon { flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 18%, var(--tile)); color: var(--accent); }
+  @media (prefers-reduced-motion: reduce) { .mark { transition: none; } .switch:hover .mark { transform: none; } }
   .wsname { font-weight: 700; font-size: 15px; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .menu { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; min-width: 220px; padding: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
   .menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border-radius: 6px; text-align: left; } .menu button:hover { background: var(--tile); } .menu :global(svg:last-child) { margin-left: auto; color: var(--accent); }

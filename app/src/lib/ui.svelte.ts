@@ -53,6 +53,10 @@ class Ui {
   details = $state(false)
   /** The in-room search panel; it takes the side panel's place, like details and threads. */
   roomSearch = $state(false)
+  /** The last room search, kept so reopening the panel (it closes after a pick on a phone) shows it again. */
+  lastSearch = $state<{ room: string; term: string }>({ room: '', term: '' })
+  /** The image viewer: the id of the message whose image is shown. */
+  viewer = $state<{ id: string; opener: HTMLElement | null } | null>(null)
   /** A person's card, opened from a mention or a sender's name. */
   userCard = $state<{ id: string; x: number; y: number; opener: HTMLElement | null } | null>(null)
   openUserCard(id: string, x: number, y: number, opener: HTMLElement | null) {

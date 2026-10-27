@@ -78,4 +78,30 @@ describe('the page itself never scrolls', () => {
       assert.deepEqual(await gaps(), before, `hovering continuation row ${i} moved the rows around it`)
     }
   })
+
+  // Regression: on a phone the CSS hid every <aside> once a room was open, which included the search, details and
+  // thread panels, and the room itself is hidden behind a panel, so opening one left a blank white screen.
+  it('shows the side panels on a phone, and returns to the room after picking a search result', async () => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 800 }, hasTouch: true, isMobile: true })
+    const phone = await ctx.newPage()
+    await signIn(phone, server.url, data.alice)
+    await phone.getByRole('navigation', { name: 'Rooms' }).getByRole('button', { name: /e2e room/ }).first().tap()
+    await phone.getByRole('combobox', { name: 'Message' }).waitFor()
+
+    await phone.getByRole('button', { name: 'Search in this room' }).tap()
+    const panel = phone.locator('aside[aria-label^="Search in"]')
+    await panel.waitFor({ state: 'visible', timeout: 5000 })
+    await phone.getByRole('textbox', { name: /Search messages in/ }).fill('older message 7')
+    const hit = phone.locator('.results .hit').first()
+    await hit.waitFor({ timeout: 15_000 })
+    await hit.tap()
+    await phone.locator('main.main').waitFor({ state: 'visible' })
+    assert.equal(await panel.count(), 0, 'the panel should close so the message is visible')
+
+    await phone.getByRole('button', { name: 'Room details' }).tap()
+    await phone.locator('aside[aria-label="Room details"]').waitFor({ state: 'visible', timeout: 5000 })
+    await phone.getByRole('button', { name: 'Close details' }).tap()
+    await phone.locator('main.main').waitFor({ state: 'visible' })
+    await ctx.close()
+  })
 })

@@ -6,7 +6,7 @@
   import Icon from './Icon.svelte'
 
   const room = $derived(chat.active)
-  let q = $state('')
+  let q = $state(ui.lastSearch.room === chat.activeRoom ? ui.lastSearch.term : '')
   let remote = $state<MessageHit[]>([])
   let next = $state<string | undefined>()
   let searching = $state(false)
@@ -76,7 +76,15 @@
     }, 300)
     return () => clearTimeout(timer)
   })
-  $effect(() => { room?.id; q = ''; reset() })
+  // Another room starts with a clean box, but reopening this room's panel restores what was searched.
+  let seenRoom: string | undefined
+  let first = true
+  $effect(() => {
+    const id = room?.id
+    if (first) { first = false; seenRoom = id; return } // the first run keeps what was restored
+    if (id !== seenRoom) { seenRoom = id; q = ''; reset() }
+  })
+  $effect(() => { if (room) ui.lastSearch = { room: room.id, term: q } })
 
   async function loadMore() {
     if (!room || !next || more) return
@@ -97,6 +105,12 @@
     return d.toDateString() === new Date().toDateString()
       ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' })
+  }
+  // On a phone the panel covers the room, so picking a result closes it to show the message; on a wide screen it stays
+  // open beside the room so you can step through the results.
+  function pick(h: MessageHit) {
+    chat.openMessage(h)
+    if (matchMedia('(max-width: 720px)').matches) ui.roomSearch = false
   }
   const focus = (n: HTMLElement) => n.focus()
 </script>
@@ -140,7 +154,7 @@
     <div class="results" role="list" aria-label="Results">
       {#each hits as h (h.eventId)}
         <div role="listitem">
-          <button class="hit" onclick={() => chat.openMessage(h)}>
+          <button class="hit" onclick={() => pick(h)}>
             <Avatar name={h.sender} size={26} round />
             <span class="body">
               <span class="top"><b>{h.sender}</b><time>{when(h.ts)}</time></span>

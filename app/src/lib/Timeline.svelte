@@ -28,6 +28,7 @@
   })
   $effect(() => { chat.activeRoom; seenFor = null })
   let scroller: HTMLElement | undefined = $state()
+  let rowsEl: HTMLElement | undefined = $state()
   let fileInput: HTMLInputElement | undefined = $state()
   let stick = true
   let pins = $state(false) // pinned list open
@@ -129,6 +130,16 @@
     el.addEventListener('wheel', wheel, { passive: true })
     el.addEventListener('touchmove', touch, { passive: true })
     return () => { el.removeEventListener('wheel', wheel); el.removeEventListener('touchmove', touch) }
+  })
+
+  // Anything that changes the height of the message list (an image or font finishing, a reaction row, an edit) while you are
+  // at the bottom keeps you at the bottom. The image load handler alone missed some late layout changes.
+  $effect(() => {
+    const el = rowsEl
+    if (!el || !scroller) return
+    const ro = new ResizeObserver(() => { if (stick) scroller?.scrollTo({ top: scroller.scrollHeight }) })
+    ro.observe(el)
+    return () => ro.disconnect()
   })
 
   function onscroll() {
@@ -318,6 +329,7 @@
       {:else if rows.length}
         <p class="start">This is the beginning of the conversation.</p>
       {/if}
+      <div class="rows" bind:this={rowsEl}>
       {#each rows as { m, newDay, cont } (m.id)}
         {#if newDay}<div class="day" role="separator"><span>{dayLabel(m.ts)}</span></div>{/if}
         <article class:cont class:pending={m.pending} class:active={picker === m.id || seenFor === m.id} class:mention={m.mentionsMe} data-id={m.id}>
@@ -327,7 +339,7 @@
           <div class="body">
             {#if !cont}<div class="head"><button class="who" onclick={(e) => card(m.sender, e)} aria-haspopup="dialog"><b>{m.senderName}</b></button><time>{fmt(m.ts)}</time>{#if m.pinned}<span class="pinned" title="Pinned"><Icon name="pin" size={12} /> Pinned</span>{/if}</div>{/if}
             {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {byId(m.replyTo)?.body ?? 'earlier message'}</div>{/if}
-            {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} use:pills>{@html render(m.body, { name: chat.nameOf, me: chat.userId })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
+            {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} onopen={(opener) => (ui.viewer = { id: m.id, opener })} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} use:pills>{@html render(m.body, { name: chat.nameOf, me: chat.userId })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
             {#if m.seenBy?.length}
               {@const who = m.seenBy}
@@ -355,7 +367,7 @@
             {/if}
           </div>
           <div class="tools">
-            {#each QUICK as e (e)}<button class="icon-btn" onclick={() => chat.react(m.id, e)} aria-label="React {e}">{e}</button>{/each}
+            {#each QUICK as e (e)}<button class="icon-btn quick" onclick={() => chat.react(m.id, e)} aria-label="React {e}">{e}</button>{/each}
             <span class="pw"><button class="icon-btn" onclick={() => (picker = picker === m.id ? null : m.id)} aria-label="More reactions"><Icon name="smile" size={16} /></button>
               {#if picker === m.id}<EmojiPicker onpick={(e) => chat.react(m.id, e)} onclose={() => (picker = null)} />{/if}</span>
             <button class="icon-btn" onclick={() => { replyTo = m; editing = null }} aria-label="Reply"><Icon name="reply" size={16} /></button>
@@ -367,6 +379,7 @@
           </div>
         </article>
       {/each}
+      </div>
     </div>
 
     {#if toast}<div class="toast" role="status">{toast}</div>{/if}
@@ -404,7 +417,7 @@
   .back { display: none; } @media (max-width: 720px) { .back { display: grid; } }
   .title { min-width: 0; display: grid; line-height: 1.25; } h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; } .topic { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .enc { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ok); padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--ok) 14%, transparent); }
-  .scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; padding: 8px 0 4px; }
+  .scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 8px 0 4px; }
   .note { text-align: center; color: var(--muted); font-size: 12px; padding: 8px; }
   .day { display: flex; align-items: center; gap: 12px; margin: 16px 20px 6px; color: var(--muted); font-size: 12px; font-weight: 600; } .day::before, .day::after { content: ''; flex: 1; height: 1px; background: var(--line); }
   /* Off-screen messages skip layout and paint, which keeps long rooms fast. */
@@ -441,13 +454,15 @@
   .seen-list.up { top: auto; bottom: calc(100% + 4px); }
   .seen-list li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; } .seen-list .who { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .seen-list time { color: var(--muted); font-size: 11px; }
   .reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; } .reacts button { display: inline-flex; flex: none; gap: 5px; align-items: center; white-space: nowrap; line-height: 20px; min-height: 24px; padding: 1px 9px; font-variant-numeric: tabular-nums; border-radius: 999px; background: var(--tile); border: 1px solid var(--line); font-size: 12px; font-weight: 600; } .reacts button span { font-size: 14px; line-height: 20px; } .reacts button:hover { border-color: var(--accent); } .reacts button { position: relative; } .reacts button.mine { background: color-mix(in srgb, var(--accent) 18%, var(--tile)); border-color: var(--accent); }
-  .reacts button::after { content: attr(data-who); position: absolute; left: 0; bottom: calc(100% + 6px); max-width: 240px; width: max-content; padding: 5px 9px; border-radius: 7px; background: var(--text); color: var(--bg); font-size: 12px; font-weight: 500; white-space: normal; line-height: 1.35; opacity: 0; pointer-events: none; transition: opacity .12s; z-index: 7; } .reacts button:hover::after, .reacts button:focus-visible::after { opacity: 1; } @media (prefers-reduced-motion: reduce) { .reacts button::after { transition: none; } }
+  .reacts button::after { content: attr(data-who); position: absolute; left: 0; bottom: calc(100% + 6px); max-width: min(240px, 72vw); width: max-content; padding: 5px 9px; border-radius: 7px; background: var(--text); color: var(--bg); font-size: 12px; font-weight: 500; white-space: normal; line-height: 1.35; display: none; pointer-events: none; z-index: 7; } .reacts button:hover::after, .reacts button:focus-visible::after { display: block; } @media (prefers-reduced-motion: reduce) { .reacts button::after { transition: none; } }
   .tools { display: none; position: absolute; top: -16px; right: 20px; z-index: 2; gap: 0; padding: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
   /* content-visibility clips overflow; the toolbar and emoji picker hang outside the row, so lift it while the row is in use. */
   article:hover, article:focus-within, article.active { content-visibility: visible; }
   article:hover .tools, article:focus-within .tools, article.active .tools { display: flex; }
   /* Each action shows its name under the toolbar on hover or keyboard focus. The text is the button's own accessible name. */
   .tools .icon-btn { position: relative; }
+  /* On a phone the toolbar must fit the screen: keep the two commonest quick reactions, the rest is behind the smiley. */
+  @media (max-width: 720px) { .tools { right: 8px; max-width: calc(100vw - 16px); } .tools .quick:nth-of-type(n+3) { display: none; } }
   .tools .icon-btn::after { content: attr(aria-label); position: absolute; top: calc(100% + 8px); right: 0; width: max-content; max-width: 220px; padding: 4px 9px; border-radius: 7px; background: var(--text); color: var(--bg); font: 500 12px/1.3 var(--sans); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .12s .35s; z-index: 8; }
   .tools .icon-btn:hover::after, .tools .icon-btn:focus-visible::after { opacity: 1; }
   @media (prefers-reduced-motion: reduce) { .tools .icon-btn::after { transition: none; } } .tools .icon-btn { width: 30px; height: 28px; font-size: 15px; } .pw { position: relative; }

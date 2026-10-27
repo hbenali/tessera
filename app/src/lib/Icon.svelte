@@ -1,5 +1,5 @@
 <script lang="ts">
-  type Name = 'pin' | 'hash' | 'lock' | 'send' | 'clip' | 'search' | 'plus' | 'smile' | 'reply' | 'edit' | 'chevron' | 'x' | 'users' | 'info' | 'back' | 'shield' | 'sliders' | 'check' | 'logout' | 'trash' | 'clock' | 'checks' | 'alert' | 'qr' | 'link' | 'bellOff' | 'star' | 'at' | 'users2' | 'more' | 'eyeOff' | 'moon' | 'bell' | 'thread'
+  type Name = 'pin' | 'hash' | 'lock' | 'send' | 'clip' | 'search' | 'plus' | 'smile' | 'reply' | 'edit' | 'chevron' | 'x' | 'users' | 'info' | 'back' | 'shield' | 'sliders' | 'check' | 'logout' | 'trash' | 'clock' | 'checks' | 'alert' | 'qr' | 'link' | 'bellOff' | 'star' | 'at' | 'users2' | 'more' | 'eyeOff' | 'moon' | 'zoomIn' | 'zoomOut' | 'download' | 'bell' | 'thread'
   let { name, size = 18 }: { name: Name; size?: number } = $props()
   const paths: Record<Name, string[]> = {
     pin: ['M12 17v5', 'M9 3h6l-1 6 3 3v2H7v-2l3-3z'],
@@ -31,6 +31,9 @@
     star: ['m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.3-6.2 3.3L8 14.2 3 9.3l6.9-1z'],
     at: ['M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z', 'M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.9 7.9'],
     users2: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z'],
+    zoomIn: ['M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z', 'm21 21-4.3-4.3', 'M11 8v6', 'M8 11h6'],
+    zoomOut: ['M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z', 'm21 21-4.3-4.3', 'M8 11h6'],
+    download: ['M12 3v12', 'm7 10 5 5 5-5', 'M5 21h14'],
     moon: ['M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'],
     eyeOff: ['M9.9 4.2A10 10 0 0 1 12 4c6 0 10 8 10 8a17 17 0 0 1-2.2 3.2', 'M6.6 6.6A17 17 0 0 0 2 12s4 8 10 8a10 10 0 0 0 5.4-1.6', 'M9.9 9.9a3 3 0 0 0 4.2 4.2', 'm2 2 20 20'],
     more: ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'],

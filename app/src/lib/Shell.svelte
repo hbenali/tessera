@@ -12,6 +12,7 @@
   import Verification from './Verification.svelte'
   import RoomMenu from './RoomMenu.svelte'
   import UserCard from './UserCard.svelte'
+  import ImageViewer from './ImageViewer.svelte'
 
   let palette = $state(false)
   const unread = $derived(chat.rooms.reduce((n, r) => n + (r.isSpace || r.invited ? 0 : r.unread), 0))
@@ -44,6 +45,7 @@
 <Verification />
 {#if ui.roomMenu}<RoomMenu />{/if}
 {#if ui.userCard}<UserCard />{/if}
+{#if ui.viewer}<ImageViewer />{/if}
 
 <style>
   /* The app fills the window and scrolls inside its own panes; the page itself must never scroll. */
@@ -52,7 +54,8 @@
   @media (max-width: 720px) {
     .shell, .shell.with-details { grid-template-columns: 1fr; }
     .shell.with-details :global(main.main) { display: none; }
-    .shell.has-room :global(aside) { display: none; }
+    /* Only the conversation list gives way to an open room; the side panels (search, details, thread) must stay. */
+    .shell.has-room :global(aside.sidebar) { display: none; }
     .shell:not(.has-room) :global(main.main) { display: none; }
   }
 </style>

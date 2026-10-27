@@ -4,7 +4,7 @@ import { toggled } from './pins'
 import * as sdk from 'matrix-js-sdk'
 import { security } from './security.svelte'
 import { discover } from './discover'
-import { setThumbLoader } from './media'
+import { setOriginalLoader, setThumbLoader } from './media'
 import { format, parse, type Route } from './route'
 import { PUSH_APP_ID, currentSubscription, storePushSession, storeWorkerDnd, subscribe, unsubscribe, type PushConfig } from './push'
 import { DEFAULT_REPLY, DEFAULT_SCHEDULE, inSchedule, parseAutoReply, parseSchedule, replyText, scheduleEnd, type AutoReply, type Schedule } from './dnd'
@@ -217,6 +217,7 @@ class Chat {
     await client.initRustCrypto({ cryptoDatabasePrefix: `tessera-crypto-${s.userId}` })
     security.attach(client)
     setThumbLoader((m, s, method) => this.thumb(m, s, method))
+    setOriginalLoader((m) => this.original(m))
     security.refresh()
     client.on(sdk.MatrixEventEvent.Decrypted, (ev) => {
       this.refreshMessages()
@@ -667,6 +668,28 @@ class Chat {
         edits.set(rel.event_id as string, ev.getContent()['m.new_content'].body)
       }
     }
+    // Reactions that arrive in the first sync window while their message is older never sit next to it in the list above,
+    // so also ask the SDK, which attaches every reaction to its message whatever order things were loaded in.
+    const counted = new Set([...reactors.values()].flatMap((r) => Object.values(r).flat().map((u) => u.eventId)))
+    for (const ev of events) {
+      const id = ev.getId()
+      if (!id) continue
+      const sorted = room.relations.getChildEventsForEvent(id, sdk.RelationType.Annotation, 'm.reaction')?.getSortedAnnotationsByKey()
+      for (const [key, set] of sorted ?? []) {
+        for (const re of set) {
+          const rid = re.getId()
+          if (re.isRedacted() || (rid && counted.has(rid))) continue
+          if (rid) counted.add(rid)
+          const r = reactions.get(id) ?? {}
+          r[key] = (r[key] ?? 0) + 1
+          reactions.set(id, r)
+          const who = reactors.get(id) ?? {}
+          const from = re.getSender() ?? ''
+          ;(who[key] ??= []).push({ id: from, name: room.getMember(from)?.name ?? from, eventId: rid ?? undefined })
+          reactors.set(id, who)
+        }
+      }
+    }
     const out: Msg[] = []
     for (const ev of events) {
       const encrypted = ev.getType() === 'm.room.encrypted'
@@ -1101,6 +1124,26 @@ class Chat {
         : Promise.reject(new Error('no url'))
       hit.catch(() => this.media.delete(key))
       this.media.set(key, hit)
+    }
+    return hit
+  }
+
+  private originals = new Map<string, Promise<Blob>>()
+
+  /** The full-size file, for the image viewer and downloads. Kept for the session so paging back and forth is instant. */
+  original(mxc: string): Promise<Blob> {
+    let hit = this.originals.get(mxc)
+    if (!hit) {
+      const c = this.client!
+      const url = c.mxcUrlToHttp(mxc, undefined, undefined, undefined, false, true, true)
+      hit = url
+        ? fetch(url, { headers: { Authorization: `Bearer ${c.getAccessToken()}` } }).then((r) => {
+            if (!r.ok) throw new Error(String(r.status))
+            return r.blob()
+          })
+        : Promise.reject(new Error('no url'))
+      hit.catch(() => this.originals.delete(mxc))
+      this.originals.set(mxc, hit)
     }
     return hit
   }
