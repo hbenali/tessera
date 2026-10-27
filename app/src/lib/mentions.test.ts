@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mentionsUser } from './mentions'
+import { mentionsUser, plainMentions } from './mentions'
 
 const me = '@alice:localhost'
 describe('mentionsUser', () => {
@@ -15,5 +15,15 @@ describe('mentionsUser', () => {
   })
   it('does not treat regex characters in a display name as a pattern', () => {
     expect(mentionsUser({ body: 'anything' }, me, '.*+')).toBe(false)
+  })
+})
+
+describe('plainMentions', () => {
+  const name = (id: string) => (id === '@bob:localhost' ? 'Bob' : undefined)
+  it('swaps known ids for display names and keeps unknown ones readable', () => {
+    expect(plainMentions('thanks @bob:localhost and @eve:other.org!', name)).toBe('thanks @Bob and @eve:other.org!')
+  })
+  it('leaves ids inside URLs alone', () => {
+    expect(plainMentions('see https://x.org/@bob:localhost', name)).toBe('see https://x.org/@bob:localhost')
   })
 })

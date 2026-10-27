@@ -1,3 +1,5 @@
+import { MENTION_ID } from './mentions'
+
 /** Tiny, dependency-free renderer for the Markdown subset chat needs. Escapes first, so output is safe for {@html}. */
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -8,7 +10,6 @@ export interface RenderOptions {
   me?: string
 }
 
-const MENTION = /(^|[\s(])(@[a-z0-9._=\-/+]+:[a-z0-9.\-]+(?::\d+)?)/gi
 
 export function render(src: string, opts: RenderOptions = {}): string {
   const blocks: string[] = []
@@ -22,7 +23,7 @@ export function render(src: string, opts: RenderOptions = {}): string {
       blocks.push(`<code>${code}</code>`)
       return `\u0000${blocks.length - 1}\u0000`
     })
-    .replace(MENTION, (_, pre, id) => {
+    .replace(MENTION_ID, (_, pre, id) => {
       const label = esc(opts.name?.(id) ?? id)
       blocks.push(`<span class="mention${id === opts.me ? ' me' : ''}" title="${id}">@${label.replace(/^@/, '')}</span>`)
       return `${pre}\u0000${blocks.length - 1}\u0000`

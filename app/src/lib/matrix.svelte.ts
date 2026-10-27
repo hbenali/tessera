@@ -1,4 +1,4 @@
-import { mentionsUser } from './mentions'
+import { mentionsUser, plainMentions } from './mentions'
 import * as sdk from 'matrix-js-sdk'
 import { security } from './security.svelte'
 import { discover } from './discover'
@@ -206,7 +206,7 @@ class Chat {
     const c = ev.getContent()
     if (ev.getType() === 'm.room.encrypted' || c.msgtype === 'm.bad.encrypted') return 'Encrypted message'
     const who = ev.getSender() === this.userId ? 'You' : (room.getMember(ev.getSender() ?? '')?.name ?? '')
-    const what = c.msgtype === 'm.image' ? 'Photo' : c.msgtype === 'm.file' ? 'File' : (c.body ?? '')
+    const what = c.msgtype === 'm.image' ? 'Photo' : c.msgtype === 'm.file' ? 'File' : plainMentions(c.body ?? '', (id) => room.getMember(id)?.name)
     return `${who}: ${what}`
   }
 
@@ -467,7 +467,7 @@ class Chat {
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
     this.notified.add(id)
     const room = c.getRoom(ev.getRoomId())
-    const body = ev.getContent().msgtype === 'm.text' ? ev.getContent().body : 'Sent an attachment'
+    const body = ev.getContent().msgtype === 'm.text' ? plainMentions(ev.getContent().body, (id) => room?.getMember(id)?.name) : 'Sent an attachment'
     const n = new Notification(room?.name ?? 'Tessera', { body: `${room?.getMember(ev.getSender() ?? '')?.name ?? ''}: ${body}`, tag: ev.getRoomId() ?? undefined })
     n.onclick = () => { window.focus(); if (ev.getRoomId()) this.openRoom(ev.getRoomId()!) }
   }
