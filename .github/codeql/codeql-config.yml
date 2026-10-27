@@ -9,6 +9,8 @@ paths-ignore:
   # not our code
   - node_modules
   - vendor
+  # browser-test harness: throwaway local users and the SHA-1 HMAC that Synapse's admin API requires
+  - app/e2e
   # test inputs, sample content and docs
   - test/fixtures
   - testdata

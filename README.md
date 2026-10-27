@@ -20,7 +20,7 @@ A fast, private, workspace-style [Matrix](https://matrix.org) client for Synapse
 
 - **Sign in:** password, or single sign-on when the homeserver offers it. Bare domains resolve through `.well-known`; the form starts on `matrix.org`.
 - **Conversations:** room list with avatars, previews, times, unread badges and All/Unread/People filters; spaces; invitations; direct messages with user-directory search; join by address; leave; edit a room's name, topic and photo.
-- **Messages:** Markdown subset (escaped first, so safe by construction), replies, edits, deletes, reactions with an emoji picker, image and file upload (also by paste or drag and drop), typing indicators, day dividers, history on scroll, "Seen" receipts, per-room drafts that survive a reload.
+- **Messages:** Markdown subset (escaped first, so safe by construction), replies, edits, deletes, reactions with an emoji picker, image and file upload (also by paste or drag and drop), typing indicators, day dividers, history on scroll, "Seen" receipts, per-room drafts (kept across a reload only in unencrypted rooms, never written to disk for encrypted ones).
 - **Mentions:** `@` autocomplete, mention pills, highlighted messages, and structured `m.mentions` so people are notified reliably.
 - **Threads, pins and search:** reply in a thread with live updates; pin and unpin messages with a pin bar; Ctrl K searches rooms and the messages already loaded on the device, including inside encrypted rooms.
 - **End-to-end encryption:** encrypted rooms and DMs, cross-signing, secret storage and key backup, restore from a recovery key, emoji (SAS) verification.

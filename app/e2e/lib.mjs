@@ -1,6 +1,6 @@
 // Shared helpers for the browser tests: a throwaway Synapse account pair, a static server and Chrome.
 import { spawn } from 'node:child_process'
-import { createHmac } from 'node:crypto'
+import { createHmac, randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { chromium } from 'playwright-core'
 
@@ -48,7 +48,7 @@ export const send = (u, room, content, txn = Math.random().toString(36).slice(2)
 
 /** alice and bob share an unencrypted room with a mention, an image, a reaction and a thread reply. */
 export async function seed() {
-  const tag = Math.random().toString(36).slice(2, 8)
+  const tag = randomBytes(4).toString('hex')
   const alice = await register(`alice_${tag}`)
   const bob = await register(`bob_${tag}`)
   const icon = `${here}../public/icon-512.png`

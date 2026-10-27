@@ -1,3 +1,4 @@
+import { clearDrafts } from './drafts'
 import { mentionsUser, plainMentions } from './mentions'
 import { toggled } from './pins'
 import * as sdk from 'matrix-js-sdk'
@@ -196,6 +197,7 @@ class Chat {
     this.client?.stopClient()
     await this.client?.clearStores().catch(() => {})
     localStorage.removeItem(SESSION_KEY)
+    clearDrafts()
     location.reload()
   }
 

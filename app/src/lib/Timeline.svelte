@@ -65,7 +65,7 @@
   })
   $effect(() => {
     const t = text
-    if (textRoom && textRoom === chat.activeRoom && !editing) setDraft(textRoom, t)
+    if (textRoom && textRoom === chat.activeRoom && !editing) setDraft(textRoom, t, !chat.active?.encrypted)
   })
 
   function onscroll() {
