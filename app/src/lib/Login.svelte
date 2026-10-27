@@ -4,7 +4,10 @@
   type Mod = typeof import('./matrix.svelte')
   let { load }: { load: () => Promise<Mod> } = $props()
   let error = $state('')
-  let server = $state(localStorage.getItem('tessera.server') ?? 'http://localhost:8008')
+  // The public homeserver most people have an account on; remembered once you sign in somewhere else.
+  const DEFAULT_SERVER = 'matrix.org'
+  const remembered = (() => { try { return localStorage.getItem('tessera.server') } catch { return null } })()
+  let server = $state(remembered || DEFAULT_SERVER)
   let user = $state('')
   let password = $state('')
   let busy = $state(false)

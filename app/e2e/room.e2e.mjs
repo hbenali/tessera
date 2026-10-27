@@ -41,6 +41,7 @@ describe('tessera e2e', () => {
       page.on('response', (r) => r.url().endsWith('.js') || r.url().endsWith('.wasm') ? files.push(r.url()) : 0)
       await page.goto(server.url)
       await page.getByRole('heading', { name: 'Sign in' }).waitFor()
+    assert.equal(await page.getByLabel('Homeserver').inputValue(), 'matrix.org', 'a fresh visitor starts on the public homeserver')
       assert.deepEqual(files.filter((f) => /indexeddb-crypto|wasm/.test(f)), [])
       await ctx.close()
     })

@@ -18,7 +18,7 @@ A fast, private, workspace-style [Matrix](https://matrix.org) client for Synapse
 
 ## What works
 
-- **Sign in:** password, or single sign-on when the homeserver offers it. Bare domains resolve through `.well-known`.
+- **Sign in:** password, or single sign-on when the homeserver offers it. Bare domains resolve through `.well-known`; the form starts on `matrix.org`.
 - **Conversations:** room list with avatars, previews, times, unread badges and All/Unread/People filters; spaces; invitations; direct messages with user-directory search; join by address; leave; edit a room's name, topic and photo.
 - **Messages:** Markdown subset (escaped first, so safe by construction), replies, edits, deletes, reactions with an emoji picker, image and file upload (also by paste or drag and drop), typing indicators, day dividers, history on scroll, "Seen" receipts, per-room drafts that survive a reload.
 - **Mentions:** `@` autocomplete, mention pills, highlighted messages, and structured `m.mentions` so people are notified reliably.
