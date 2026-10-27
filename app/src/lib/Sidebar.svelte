@@ -12,6 +12,15 @@
   let switcher = $state(false)
   let status = $state(false)
   const STATUSES = [['online', 'Online'], ['unavailable', 'Away'], ['offline', 'Invisible']] as const
+  const untilLabel = (t: number) => new Date(t).toLocaleString([], new Date(t).toDateString() === new Date().toDateString() ? { hour: '2-digit', minute: '2-digit' } : { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+  const tomorrow8 = () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d.getTime() }
+  const DND_CHOICES: [string, () => number | null][] = [
+    ['For 30 minutes', () => Date.now() + 30 * 60_000],
+    ['For 1 hour', () => Date.now() + 3600_000],
+    ['For 8 hours', () => Date.now() + 8 * 3600_000],
+    ['Until tomorrow 08:00', tomorrow8],
+    ['Until I turn it off', () => null],
+  ]
   const setStatus = (p: (typeof STATUSES)[number][0]) => { chat.setStatus(p); status = false }
 
   const invites = $derived(chat.rooms.filter((r) => r.invited))
@@ -110,13 +119,24 @@
   <footer>
     <div class="mewrap">
       <button class="me" title="Change your status" onclick={() => (status = !status)} aria-expanded={status} aria-haspopup="menu">
-        <Avatar name={chat.me.name || chat.userId.replace('@', '')} size={28} round src={chat.me.avatar} presence={chat.myStatus} /><span>{chat.me.name || chat.userId}</span>
+        <Avatar name={chat.me.name || chat.userId.replace('@', '')} size={28} round src={chat.me.avatar} presence={chat.myStatus} /><span>{chat.me.name || chat.userId}</span>{#if chat.dndActive}<span class="dnd" title={chat.manualDnd ? 'Do not disturb is on' : 'Quiet hours are on'}><Icon name="moon" size={14} /><span class="sr">{chat.manualDnd ? 'Do not disturb is on' : 'Quiet hours are on'}</span></span>{/if}
       </button>
       {#if status}
         <div class="menu up" role="menu">
           {#each STATUSES as [v, t] (v)}
             <button role="menuitemradio" aria-checked={chat.myStatus === v} onclick={() => setStatus(v)}><span class="pip {v}"></span>{t}{#if chat.myStatus === v}<Icon name="check" size={14} />{/if}</button>
           {/each}
+          <h3 class="grp">Do not disturb</h3>
+          {#if chat.quietNow && !chat.manualDnd}<p class="dndnow" role="status">Quiet hours are on until {chat.schedule.to}</p>{/if}
+          {#if chat.manualDnd}
+            <p class="dndnow" role="status">On {chat.dnd?.until ? `until ${untilLabel(chat.dnd.until)}` : 'until you turn it off'}</p>
+            <button role="menuitem" onclick={() => { chat.endDnd(); status = false }}><Icon name="bell" size={14} />Turn off</button>
+          {:else}
+            {#each DND_CHOICES as [label, until] (label)}
+              <button role="menuitem" onclick={() => { chat.setDnd(until()); status = false }}><Icon name="moon" size={14} />{label}</button>
+            {/each}
+          {/if}
+          <hr />
           <button role="menuitem" onclick={() => { status = false; ui.modal = 'settings' }}><Icon name="sliders" size={14} />Profile and settings</button>
         </div>
       {/if}
@@ -148,6 +168,7 @@
   .invite { display: flex; align-items: center; gap: 10px; padding: 8px; margin: 0 0 4px; border-radius: 10px; border: 1px dashed var(--accent); } .invite .meta { flex: 1; display: grid; min-width: 0; } .invite .meta span { color: var(--muted); font-size: 12px; } .invite .btn { padding: 5px 12px; }
   .muted .name, .muted .preview { opacity: .6; } .badge.quiet { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--muted); } .fav { color: var(--accent); }
   .grp { margin: 8px 8px 2px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .dnd { margin-left: auto; display: inline-flex; color: var(--accent); flex: none; } .dndnow { margin: 2px 10px 6px; font-size: 12px; color: var(--muted); } .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
   .n { margin-left: auto; color: var(--muted); font-size: 12px; } .menu .n + :global(svg) { margin-left: 8px; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .empty { padding: 24px 12px; color: var(--muted); text-align: center; }

@@ -6,7 +6,8 @@ import { security } from './security.svelte'
 import { discover } from './discover'
 import { setThumbLoader } from './media'
 import { format, parse, type Route } from './route'
-import { PUSH_APP_ID, currentSubscription, storePushSession, subscribe, unsubscribe, type PushConfig } from './push'
+import { PUSH_APP_ID, currentSubscription, storePushSession, storeWorkerDnd, subscribe, unsubscribe, type PushConfig } from './push'
+import { DEFAULT_REPLY, DEFAULT_SCHEDULE, inSchedule, parseAutoReply, parseSchedule, replyText, scheduleEnd, type AutoReply, type Schedule } from './dnd'
 
 const SESSION_KEY = 'tessera.session'
 
@@ -204,6 +205,7 @@ class Chat {
     client.on(sdk.MatrixEventEvent.Decrypted, (ev) => {
       this.refreshMessages()
       this.maybeNotify(ev)
+      this.maybeAutoReply(ev)
     })
     window.addEventListener('popstate', () => this.routed && this.applyRoute())
     client.on(sdk.ClientEvent.Sync, (state) => {
@@ -219,7 +221,10 @@ class Chat {
     client.on(sdk.RoomEvent.Timeline, (ev, _room, toStart, _removed, data) => {
       this.refreshRooms()
       this.refreshMessages()
-      if (!toStart && data?.liveEvent && ev.getType() === 'm.room.message') this.maybeNotify(ev)
+      if (!toStart && data?.liveEvent && ev.getType() === 'm.room.message') {
+        this.maybeNotify(ev)
+        this.maybeAutoReply(ev)
+      }
     })
     client.on(sdk.RoomEvent.Receipt, () => { this.refreshRooms(); this.scheduleRefresh() })
     client.on(sdk.ThreadEvent.Update as never, (() => this.scheduleRefresh()) as never)
@@ -229,6 +234,10 @@ class Chat {
     client.on(sdk.ClientEvent.AccountData, (ev) => {
       if (ev.getType() === 'm.push_rules') this.refreshRooms()
       if (ev.getType() === Chat.QUIET) this.loadQuiet()
+      if (ev.getType() === Chat.PRIVACY) this.loadPrivacy()
+      if (ev.getType() === Chat.DND) this.loadDnd()
+      if (ev.getType() === Chat.SCHEDULE) this.loadSchedule()
+      if (ev.getType() === Chat.AUTO_REPLY) this.loadAutoReply()
     })
     client.on(sdk.RoomEvent.Tags, () => this.refreshRooms())
     client.on(sdk.RoomMemberEvent.Typing, () => { this.refreshTyping(); this.refreshRooms() })
@@ -240,6 +249,11 @@ class Chat {
     this.setStatus(this.myStatus)
     this.refreshPush()
     this.loadQuiet()
+    this.loadPrivacy()
+    this.loadDnd()
+    this.loadSchedule()
+    this.loadAutoReply()
+    setInterval(() => this.clock++, 30_000)
   }
 
   async logout() {
@@ -412,6 +426,170 @@ class Chat {
     }
   }
 
+  /**
+   * Do not disturb. While on, there are no desktop notifications here. If background push is on, Matrix's master
+   * push rule (.m.rule.master) is also switched on, because that is the only way to stop the homeserver pushing; the
+   * cost is that the server then does not count new messages as unread. Without background push nothing server-side
+   * changes, so unread counts stay right. `until` is a time in ms, or null for "until I turn it off". `master`
+   * records that this feature switched the rule on, so ending it never turns off a master rule I set myself.
+   */
+  dnd = $state<{ until: number | null; master: boolean } | null>(null)
+  private static DND = 'ovh.hbenali.tessera.dnd'
+  private dndTimer: ReturnType<typeof setTimeout> | undefined
+  /** Recurring quiet hours, evaluated here and (for background push) by the service worker. */
+  schedule = $state<Schedule>({ ...DEFAULT_SCHEDULE })
+  private static SCHEDULE = 'ovh.hbenali.tessera.dnd_schedule'
+  /** Bumped every so often so the getters below, which read the clock, are re-read. */
+  private clock = $state(0)
+  get manualDnd() {
+    this.clock
+    return !!this.dnd && (this.dnd.until === null || this.dnd.until > Date.now())
+  }
+  get quietNow() {
+    this.clock
+    return inSchedule(this.schedule, new Date())
+  }
+  get dndActive() {
+    return this.manualDnd || this.quietNow
+  }
+
+  /**
+   * Automatic reply while do-not-disturb or quiet hours are on. Matrix has no server-side auto-responder, so this runs
+   * only while Tessera is open in some browser. It answers a mention (and optionally a direct message) with an m.notice,
+   * the type bots use, which nobody's auto-reply answers, so two people cannot start a loop.
+   */
+  autoReply = $state<AutoReply>({ ...DEFAULT_REPLY })
+  private static AUTO_REPLY = 'ovh.hbenali.tessera.dnd_reply'
+  private static AUTO_FLAG = 'ovh.hbenali.tessera.auto_reply'
+  private replySent: number[] = []
+
+  private loadAutoReply() {
+    this.autoReply = parseAutoReply(this.client?.getAccountData(Chat.AUTO_REPLY as never)?.getContent())
+  }
+
+  async setAutoReply(patch: Partial<AutoReply>) {
+    this.autoReply = parseAutoReply({ ...this.autoReply, ...patch })
+    await this.client!.setAccountData(Chat.AUTO_REPLY as never, { ...this.autoReply } as never)
+  }
+
+  /** When the current do-not-disturb ends, if it has an end. */
+  private dndEnd(): Date | null {
+    const manual = this.manualDnd && this.dnd?.until ? new Date(this.dnd.until) : null
+    const scheduled = this.quietNow ? scheduleEnd(this.schedule, new Date()) : null
+    if (manual && scheduled) return manual > scheduled ? manual : scheduled
+    return manual ?? scheduled
+  }
+
+  private maybeAutoReply(ev: sdk.MatrixEvent) {
+    const c = this.client
+    const id = ev.getId()
+    const roomId = ev.getRoomId()
+    if (!c || !this.ready || !id || !roomId || !this.autoReply.enabled || !this.dndActive) return
+    const sender = ev.getSender()
+    const content = ev.getContent()
+    if (!sender || sender === this.userId || ev.getType() !== 'm.room.message') return
+    if (content.msgtype === 'm.notice' || content[Chat.AUTO_FLAG]) return // another auto-reply: never answer, or we could loop
+    if (ev.getTs() < Date.now() - 60_000) return // history, not live
+    const room = c.getRoom(roomId)
+    if (!room || room.getMyMembership() !== 'join') return
+    const mentioned = mentionsUser(content, this.userId, c.getUser(this.userId)?.displayName)
+    if (!mentioned && !(this.autoReply.dms && this.dmRoomIds().has(roomId))) return
+    if (this.autoReplied.has(id)) return
+    // At most one reply per room every six hours; the timeline check also covers a reload or another open device.
+    const since = Date.now() - 6 * 3600_000
+    if (room.getLiveTimeline().getEvents().some((e) => e.getSender() === this.userId && e.getTs() > since && e.getContent()[Chat.AUTO_FLAG])) return
+    // And no more than 20 in an hour overall, so a flood of mentions cannot make this a flood of replies.
+    this.replySent = this.replySent.filter((t) => t > Date.now() - 3600_000)
+    if (this.replySent.length >= 20) return
+    this.replySent.push(Date.now())
+    this.autoReplied.add(id)
+    c.sendMessage(roomId, {
+      msgtype: 'm.notice',
+      body: replyText(this.autoReply.message, this.dndEnd()),
+      'm.relates_to': { 'm.in_reply_to': { event_id: id } },
+      'm.mentions': { user_ids: [sender] },
+      [Chat.AUTO_FLAG]: true,
+    } as never).catch(() => {})
+  }
+  private autoReplied = new Set<string>()
+
+  private loadSchedule() {
+    this.schedule = parseSchedule(this.client?.getAccountData(Chat.SCHEDULE as never)?.getContent())
+    this.syncWorkerDnd()
+  }
+
+  async setSchedule(patch: Partial<Schedule>) {
+    this.schedule = parseSchedule({ ...this.schedule, ...patch })
+    await this.client!.setAccountData(Chat.SCHEDULE as never, { ...this.schedule } as never)
+    this.syncWorkerDnd()
+  }
+
+  /** Give the service worker the do-not-disturb settings, only while background push is on. */
+  private syncWorkerDnd() {
+    if (!this.pushOn) return
+    // A plain copy: IndexedDB cannot store the reactive proxy objects that $state makes.
+    storeWorkerDnd({ manualUntil: this.dnd ? this.dnd.until : undefined, schedule: $state.snapshot(this.schedule) }).catch(() => {})
+  }
+
+  private masterOn() {
+    return !!this.client?.pushRules?.global?.override?.some((r) => r.rule_id === '.m.rule.master' && r.enabled)
+  }
+
+  private loadDnd() {
+    const c = this.client?.getAccountData(Chat.DND as never)?.getContent() as { until?: unknown; master?: unknown } | undefined
+    clearTimeout(this.dndTimer)
+    if (!c || (c.until !== null && typeof c.until !== 'number')) {
+      this.dnd = null
+      return
+    }
+    this.dnd = { until: c.until as number | null, master: c.master === true }
+    if (this.dnd.until === null) return
+    if (this.dnd.until <= Date.now()) {
+      this.endDnd().catch(() => {})
+    } else {
+      // setTimeout cannot wait longer than about 24 days; check again then.
+      this.dndTimer = setTimeout(() => this.loadDnd(), Math.min(this.dnd.until - Date.now(), 2 ** 31 - 1))
+    }
+  }
+
+  /** Turn do-not-disturb on until a time, or indefinitely with null. */
+  async setDnd(until: number | null) {
+    const c = this.client!
+    let master = this.dnd?.master === true // keep ownership when only changing the end time
+    if (this.pushOn && !this.masterOn()) {
+      await c.setPushRuleEnabled('global', sdk.PushRuleKind.Override, '.m.rule.master', true)
+      master = true
+    }
+    this.dnd = { until, master }
+    this.syncWorkerDnd()
+    await c.setAccountData(Chat.DND as never, { ...this.dnd } as never)
+    this.loadDnd()
+  }
+
+  async endDnd() {
+    const c = this.client!
+    const owned = this.dnd?.master
+    this.dnd = null
+    clearTimeout(this.dndTimer)
+    this.syncWorkerDnd()
+    await c.setAccountData(Chat.DND as never, {} as never)
+    if (owned && this.masterOn()) await c.setPushRuleEnabled('global', sdk.PushRuleKind.Override, '.m.rule.master', false)
+  }
+
+  /** What I let other people see about me, for every room. Stored as account data so it follows me between devices. */
+  privacy = $state({ typing: true, receipts: true })
+  private static PRIVACY = 'ovh.hbenali.tessera.privacy'
+
+  private loadPrivacy() {
+    const c = this.client?.getAccountData(Chat.PRIVACY as never)?.getContent() as { typing?: unknown; receipts?: unknown } | undefined
+    this.privacy = { typing: c?.typing !== false, receipts: c?.receipts !== false }
+  }
+
+  async setPrivacy(patch: Partial<{ typing: boolean; receipts: boolean }>) {
+    this.privacy = { ...this.privacy, ...patch }
+    await this.client!.setAccountData(Chat.PRIVACY as never, { ...this.privacy } as never)
+  }
+
   /** Rooms where I read quietly: my read state is kept, but other people are not shown that I have read. */
   quietRooms = $state<string[]>([])
   private static QUIET = 'ovh.hbenali.tessera.quiet_rooms'
@@ -435,7 +613,7 @@ class Chat {
    */
   private async sendRead(roomId: string, last: sdk.MatrixEvent) {
     const c = this.client!
-    if (this.isQuiet(roomId)) {
+    if (this.isQuiet(roomId) || !this.privacy.receipts) {
       await c.sendReadReceipt(last, sdk.ReceiptType.ReadPrivate).catch(() => {})
       await c.setRoomReadMarkers(roomId, last.getId()!, undefined, last).catch(() => {})
     } else {
@@ -675,6 +853,7 @@ class Chat {
   }
 
   setTyping(on: boolean) {
+    if (!this.privacy.typing) return // typing notifications are switched off
     if (this.activeRoom) this.client?.sendTyping(this.activeRoom, on, 5000).catch(() => {})
   }
 
@@ -693,6 +872,7 @@ class Chat {
 
   /** Desktop notification for a live message in a room you are not looking at. */
   private maybeNotify(ev: sdk.MatrixEvent) {
+    if (this.dndActive) return
     const c = this.client
     const id = ev.getId()
     if (!c || !this.ready || !id || this.notified.has(id)) return
@@ -805,7 +985,10 @@ class Chat {
       const sub = await currentSubscription()
       const { pushers } = await this.client!.getPushers()
       this.pushOn = !!sub && pushers.some((p) => p.app_id === PUSH_APP_ID && p.pushkey === sub.p256dh)
-      if (this.pushOn) await this.storeSession()
+      if (this.pushOn) {
+        await this.storeSession()
+        this.syncWorkerDnd()
+      }
     } catch {
       this.pushOn = false
     }
@@ -832,6 +1015,7 @@ class Chat {
       append: true,
     } as never)
     this.pushOn = true
+    this.syncWorkerDnd()
   }
 
   async disablePush() {
@@ -839,6 +1023,7 @@ class Chat {
     if (sub) await this.client?.setPusher({ kind: null, app_id: PUSH_APP_ID, pushkey: sub.p256dh } as never).catch(() => {})
     await unsubscribe().catch(() => {})
     await storePushSession(null).catch(() => {})
+    await storeWorkerDnd(null).catch(() => {})
     this.pushOn = false
   }
 

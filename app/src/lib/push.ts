@@ -1,4 +1,6 @@
 /** Web Push helpers. Kept free of the Matrix SDK; the pusher itself is registered by the Chat class. */
+import type { Schedule } from './dnd'
+
 export const PUSH_APP_ID = 'ovh.hbenali.tessera.web'
 
 export interface PushConfig {
@@ -97,14 +99,23 @@ export interface PushSession {
   userId: string
 }
 
-export async function storePushSession(s: PushSession | null): Promise<void> {
+async function kvSet(key: string, value: unknown | null): Promise<void> {
   const d = await db()
   await new Promise<void>((resolve, reject) => {
     const tx = d.transaction('kv', 'readwrite')
-    if (s) tx.objectStore('kv').put(s, 'session')
-    else tx.objectStore('kv').delete('session')
+    if (value) tx.objectStore('kv').put(value, key)
+    else tx.objectStore('kv').delete(key)
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error)
   })
   d.close()
 }
+
+export const storePushSession = (s: PushSession | null) => kvSet('session', s)
+
+/** What the worker needs to keep a push quiet: a manual do-not-disturb end time and the recurring schedule. */
+export interface WorkerDnd {
+  manualUntil: number | null | undefined // undefined: manual do-not-disturb is off; null: until turned off
+  schedule: Schedule
+}
+export const storeWorkerDnd = (d: WorkerDnd | null) => kvSet('dnd', d)

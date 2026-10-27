@@ -36,14 +36,15 @@ self.addEventListener('fetch', (e) => {
 // The homeserver sends only an event id through the push gateway. If background notifications are on, the app has
 // stored the session in IndexedDB (and removes it when they are turned off), so the text is fetched here, straight
 // from the homeserver. Encrypted rooms cannot be read in a worker and show a generic message.
-function storedSession() {
+const storedSession = () => stored('session')
+function stored(key) {
   return new Promise((resolve) => {
     const r = indexedDB.open('tessera-push', 1)
     r.onupgradeneeded = () => r.result.createObjectStore('kv')
     r.onerror = () => resolve(null)
     r.onsuccess = () => {
       try {
-        const get = r.result.transaction('kv').objectStore('kv').get('session')
+        const get = r.result.transaction('kv').objectStore('kv').get(key)
         get.onsuccess = () => resolve(get.result ?? null)
         get.onerror = () => resolve(null)
       } catch {
@@ -125,6 +126,26 @@ async function describePush(n) {
   return { title: room?.name ? `${who} in ${room.name}` : who, body, canLike: event.type === 'm.room.message', icon }
 }
 
+// Quiet hours (a copy of inSchedule in src/lib/dnd.ts: keep them in step). A browser requires every push to show a
+// notification, so during do-not-disturb the worker cannot hide it; it shows it silently, without sound or vibration.
+function inSchedule(s, when) {
+  const mins = (t) => { const m = /^(\d{1,2}):(\d{2})$/.exec(t ?? ''); return m ? Number(m[1]) * 60 + Number(m[2]) : NaN }
+  if (!s || !s.enabled || !Array.isArray(s.days) || !s.days.length) return false
+  const from = mins(s.from), to = mins(s.to)
+  if (Number.isNaN(from) || Number.isNaN(to)) return false
+  const now = when.getHours() * 60 + when.getMinutes()
+  const today = when.getDay(), yesterday = (today + 6) % 7
+  if (from === to) return s.days.includes(today)
+  if (from < to) return s.days.includes(today) && now >= from && now < to
+  return (s.days.includes(today) && now >= from) || (s.days.includes(yesterday) && now < to)
+}
+async function quietNow() {
+  const d = await stored('dnd')
+  if (!d) return false
+  const manual = d.manualUntil === null || (typeof d.manualUntil === 'number' && d.manualUntil > Date.now())
+  return manual || inSchedule(d.schedule, new Date())
+}
+
 self.addEventListener('push', (e) => {
   e.waitUntil(
     (async () => {
@@ -137,13 +158,14 @@ self.addEventListener('push', (e) => {
       // The window the person is looking at already shows the message.
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       if (wins.some((w) => w.visibilityState === 'visible' && w.focused)) return
-      const { title, body, canLike, icon } = await describePush(n)
+      const [{ title, body, canLike, icon }, quiet] = await Promise.all([describePush(n), quietNow()])
       await self.registration.showNotification(title, {
         body,
         icon: icon || '/icon-192.png',
         badge: '/icon-192.png',
         tag: n.room_id || 'tessera',
-        renotify: true,
+        renotify: !quiet,
+        silent: quiet,
         data: { room_id: n.room_id, event_id: n.event_id },
         actions: canLike ? [{ action: 'like', title: '👍 Like' }] : [],
       })
