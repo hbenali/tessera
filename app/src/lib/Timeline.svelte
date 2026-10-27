@@ -91,12 +91,32 @@
     chat.messages.length
     fill()
   })
+  // Load when the top of the list comes near the viewport. A scroll event is not enough: at scrollTop 0
+  // scrolling up changes nothing, so no event fires, but an observer still reports the top as visible.
+  let topEl: HTMLElement | undefined = $state()
   async function loadEarlier() {
-    const h = scroller?.scrollHeight ?? 0
+    if (!scroller || chat.loadingOlder || !chat.hasOlder()) return
+    const h = scroller.scrollHeight
     await chat.loadOlder()
     await tick()
-    if (scroller) scroller.scrollTop += scroller.scrollHeight - h
+    if (scroller) scroller.scrollTop += scroller.scrollHeight - h // keep the reader's place
   }
+  $effect(() => {
+    if (!topEl || !scroller) return
+    const io = new IntersectionObserver((e) => e.some((x) => x.isIntersecting) && loadEarlier(), { root: scroller, rootMargin: '300px 0px 0px 0px' })
+    io.observe(topEl)
+    return () => io.disconnect()
+  })
+  // Scrolling up while already at the top fires no scroll event; the wheel and touch-drag still do.
+  $effect(() => {
+    const el = scroller
+    if (!el) return
+    const wheel = (e: WheelEvent) => { if (e.deltaY < 0 && el.scrollTop < 40) loadEarlier() }
+    const touch = () => { if (el.scrollTop < 40) loadEarlier() }
+    el.addEventListener('wheel', wheel, { passive: true })
+    el.addEventListener('touchmove', touch, { passive: true })
+    return () => { el.removeEventListener('wheel', wheel); el.removeEventListener('touchmove', touch) }
+  })
 
   function onscroll() {
     if (!scroller) return
@@ -215,7 +235,7 @@
     <div class="scroll" bind:this={scroller} {onscroll} onloadcapture={() => stick && scroller?.scrollTo({ top: scroller.scrollHeight })}>
       {#if chat.loadingOlder}<div class="note">Loading earlier messages…</div>{/if}
       {#if chat.olderAvailable}
-        <button class="earlier" onclick={loadEarlier} disabled={chat.loadingOlder}>{chat.loadingOlder ? 'Loading…' : 'Load earlier messages'}</button>
+        <div class="sentinel" bind:this={topEl} role="status">{chat.loadingOlder ? 'Loading earlier messages…' : ''}</div>
       {:else if rows.length}
         <p class="start">This is the beginning of the conversation.</p>
       {/if}
@@ -287,7 +307,7 @@
   .note { text-align: center; color: var(--muted); font-size: 12px; padding: 8px; }
   .day { display: flex; align-items: center; gap: 12px; margin: 16px 20px 6px; color: var(--muted); font-size: 12px; font-weight: 600; } .day::before, .day::after { content: ''; flex: 1; height: 1px; background: var(--line); }
   /* Off-screen messages skip layout and paint, which keeps long rooms fast. */
-.earlier { display: block; margin: 6px auto 10px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; } .earlier:disabled { opacity: .6; cursor: default; }
+.sentinel { min-height: 24px; margin: 4px 0; text-align: center; color: var(--muted); font-size: 12px; }
   .start { margin: 8px 0 4px; text-align: center; color: var(--muted); font-size: 12px; }
   .latest { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 5; display: inline-flex; gap: 6px; align-items: center; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 12px; box-shadow: 0 6px 20px rgb(0 0 0 / .25); cursor: pointer; } .latest :global(svg) { transform: rotate(90deg); }
   article { position: relative; display: flex; gap: 12px; padding: 2px 20px; margin-top: 10px; content-visibility: auto; contain-intrinsic-size: auto 44px; } article.cont { margin-top: 0; } article.mention { background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset 3px 0 0 var(--accent); } article.pending { opacity: .55; } article:hover { background: color-mix(in srgb, var(--tile) 55%, transparent); }

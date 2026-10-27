@@ -259,6 +259,26 @@ describe('tessera e2e', () => {
     })
   })
 
+  describe('history on scroll', () => {
+    it('keeps loading as you scroll up (wheel only, already at the top) and shows no load button', async () => {
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } })
+      const page = await ctx.newPage()
+      await signIn(page, server.url, data.alice)
+      await page.getByRole('button', { name: /e2e room/ }).click()
+      await page.getByRole('combobox', { name: 'Message' }).waitFor()
+      const list = page.locator('.scroll')
+      await list.evaluate((s) => { s.scrollTop = 0 })
+      await page.mouse.move(700, 300)
+      for (let i = 0; i < 40 && !(await page.getByText('older message 1', { exact: true }).count()); i++) {
+        await page.mouse.wheel(0, -300) // at scrollTop 0 this changes nothing and fires no scroll event
+        await page.waitForTimeout(250)
+      }
+      assert.ok(await page.getByText('older message 1', { exact: true }).count(), 'the oldest message was loaded by scrolling alone')
+      assert.equal(await page.getByRole('button', { name: /load earlier/i }).count(), 0)
+      await ctx.close()
+    })
+  })
+
   describe('room view (phone)', () => {
     it('fits a 390x844 screen, composer included, with no sideways scroll', async () => {
       const r = await openRoom({ width: 390, height: 844 })
