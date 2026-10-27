@@ -27,7 +27,8 @@ A fast, private, workspace-style [Matrix](https://matrix.org) client for Synapse
 - **Links:** the open room is in the address bar (`#/room/<id>`), so reload, Back and Forward work and a message link opens at that message.
 - **End-to-end encryption:** encrypted rooms and DMs, cross-signing, secret storage and key backup, restore from a recovery key, verification by QR code (show, scan with the camera or from a screenshot) or by emoji.
 - **Notifications:** desktop notifications that follow your push rules, an unread count in the tab title, and a per-room level (all, mentions, mute) stored as standard push rules so other clients agree.
-- **Installable:** web app manifest and an offline-shell service worker.
+- **Installable:** web app manifest with a maskable icon, an offline-shell service worker, an Install button in Settings and a "new version ready" prompt.
+- **Background notifications:** optional web push through a Sygnal gateway you run, so you are notified with the app closed, with the sender's avatar and a 👍 Like button. See [docs/push.md](docs/push.md).
 
 ## Not yet
 

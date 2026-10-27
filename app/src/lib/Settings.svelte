@@ -4,11 +4,43 @@
   import { security } from './security.svelte'
   import { THEMES, ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
+  import { install } from './install.svelte'
+  import { loadPushConfig, pushSupported, type PushConfig } from './push'
 
   let tab = $state<'look' | 'security' | 'notify' | 'account'>('security')
   let perm = $state(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
   async function enableNotifications() {
     perm = await Notification.requestPermission()
+  }
+  // Background (web push) notifications need a push gateway named in this deployment's config.json.
+  let pushCfg = $state<PushConfig | null | undefined>(undefined) // undefined: still looking
+  let pushBusy = $state(false)
+  let pushErr = $state('')
+  let testSent = $state(false)
+  const canPush = pushSupported()
+  $effect(() => {
+    loadPushConfig().then((c) => (pushCfg = c))
+    chat.refreshPush()
+  })
+  async function togglePush() {
+    pushErr = ''
+    pushBusy = true
+    try {
+      if (chat.pushOn) await chat.disablePush()
+      else {
+        if (Notification.permission !== 'granted') perm = await Notification.requestPermission()
+        await chat.enablePush(pushCfg!)
+      }
+    } catch (e) {
+      pushErr = e instanceof Error ? e.message : 'Could not change background notifications'
+    } finally {
+      pushBusy = false
+    }
+  }
+  async function testNotification() {
+    testSent = true
+    const reg = await navigator.serviceWorker.ready
+    await reg.showNotification('Tessera', { body: 'Notifications are working.', icon: '/icon-192.png', tag: 'tessera-test' })
   }
   let photo: HTMLInputElement | undefined = $state()
   let name = $state('')
@@ -84,6 +116,33 @@
     {:else}
       <p class="hint">Get a notification when a message arrives in a room you are not looking at.</p>
       <button class="btn" onclick={enableNotifications}>Enable notifications</button>
+    {/if}
+    <h3 class="label">When Tessera is closed</h3>
+    {#if !canPush}
+      <p class="hint">This browser cannot receive background notifications.</p>
+    {:else if pushCfg === undefined}
+      <p class="hint">Checking…</p>
+    {:else if pushCfg === null}
+      <p class="hint">Background notifications need a push gateway, which this site has not set up. Notifications above still work while a Tessera tab is open. Whoever runs this site can follow docs/push.md.</p>
+    {:else}
+      <p class="status" class:ok={chat.pushOn}>{chat.pushOn ? 'On: you will be notified even when Tessera is closed.' : 'Off.'}</p>
+      <p class="hint">Only the event id goes through the push gateway. The text is fetched from your homeserver by this browser, and not for encrypted rooms. Turning it on keeps your session available to this browser's background worker until you turn it off or sign out.</p>
+      <div class="row">
+        <button class="btn" disabled={pushBusy || perm === 'denied'} onclick={togglePush}>{chat.pushOn ? 'Turn off' : 'Turn on'}</button>
+        {#if chat.pushOn}<button class="btn ghost" onclick={testNotification}>Send a test notification</button>{/if}
+      </div>
+      {#if perm === 'denied'}<p class="hint">Notifications are blocked in your browser settings for this site.</p>{/if}
+      {#if testSent}<p class="hint" role="status">Sent. If nothing appeared, check your system's notification settings.</p>{/if}
+      {#if pushErr}<div class="err" role="alert">{pushErr}</div>{/if}
+    {/if}
+    <h3 class="label">App</h3>
+    {#if install.canInstall}
+      <p class="hint">Install Tessera as an app with its own window and icon.</p>
+      <button class="btn" onclick={() => install.ask()}>Install Tessera</button>
+    {:else if install.installed}
+      <p class="status ok">Installed.</p>
+    {:else}
+      <p class="hint">Your browser offers installing from its menu or address bar when this is supported.</p>
     {/if}
     <p class="hint">Message text is shown in the notification for unencrypted rooms and, once decrypted on this device, for encrypted ones. Notifications follow your Matrix push rules.</p>
   {:else}

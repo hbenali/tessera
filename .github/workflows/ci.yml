@@ -71,9 +71,14 @@ jobs:
           rc_login: {address: {per_second: 1000, burst_count: 10000}, account: {per_second: 1000, burst_count: 10000}, failed_attempts: {per_second: 1000, burst_count: 10000}}
           rc_registration: {per_second: 1000, burst_count: 10000}
           rc_joins: {local: {per_second: 1000, burst_count: 10000}}
+          presence: {enabled: true}
+          # The push test runs a stand-in push gateway on the runner, which Synapse reaches over the Docker bridge.
+          ip_range_whitelist: ['172.17.0.0/16']
           EOF
           sudo chown -R 991:991 synapse
           docker run -d --name synapse -p 8008:8008 -v "$PWD/synapse:/data" "$SYNAPSE_IMAGE"
           for i in $(seq 1 60); do curl -fs localhost:8008/_matrix/client/versions >/dev/null && exit 0; sleep 2; done
           docker logs synapse; exit 1
       - run: npm run e2e
+        env:
+          PUSH_GATEWAY_TEST: '1'

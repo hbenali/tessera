@@ -6,6 +6,7 @@ import { security } from './security.svelte'
 import { discover } from './discover'
 import { setThumbLoader } from './media'
 import { format, parse, type Route } from './route'
+import { PUSH_APP_ID, currentSubscription, storePushSession, subscribe, unsubscribe, type PushConfig } from './push'
 
 const SESSION_KEY = 'tessera.session'
 
@@ -111,6 +112,8 @@ class Chat {
   /** Presence of people we have seen, kept reactive because the SDK's User objects are not. */
   presence = $state<Record<string, Presence>>({})
   myStatus = $state<Presence>(readPresence())
+  /** Background (web push) notifications are on for this browser and account. */
+  pushOn = $state(false)
   me = $state<{ name: string; avatar?: string }>({ name: '' })
   loadingOlder = $state(false)
   focusEvent = $state<string | null>(null)
@@ -172,6 +175,11 @@ class Chat {
 
   async start(s: Session) {
     this.userId = s.userId
+    // A tapped notification asks the open window to show its room. Listen from the very start: the room list can
+    // appear from the local cache well before the first sync, and the hash is read again when it completes.
+    navigator.serviceWorker?.addEventListener('message', (e) => {
+      if (e.data?.type === 'open' && typeof e.data.hash === 'string' && e.data.hash.startsWith('#/room/')) location.hash = e.data.hash
+    })
     const store = new sdk.IndexedDBStore({
       indexedDB: window.indexedDB,
       localStorage: window.localStorage,
@@ -196,7 +204,7 @@ class Chat {
       this.refreshMessages()
       this.maybeNotify(ev)
     })
-    window.addEventListener('popstate', () => this.applyRoute())
+    window.addEventListener('popstate', () => this.routed && this.applyRoute())
     client.on(sdk.ClientEvent.Sync, (state) => {
       if (state === 'PREPARED' || state === 'SYNCING') {
         this.ready = true
@@ -226,9 +234,11 @@ class Chat {
     await client.startClient({ initialSyncLimit: 30, lazyLoadMembers: true, threadSupport: true })
     this.loadProfile()
     this.setStatus(this.myStatus)
+    this.refreshPush()
   }
 
   async logout() {
+    await this.disablePush().catch(() => {})
     try {
       await this.client?.logout(true)
     } catch {
@@ -727,6 +737,49 @@ class Chat {
     await c.setSyncPresence(p as never).catch(() => {})
     await c.setPresence({ presence: p as never }).catch(() => {})
     this.presence[this.userId] = p
+  }
+
+  /** Is a pusher registered on the homeserver for this browser's subscription? Also keeps the service worker's session fresh. */
+  async refreshPush() {
+    try {
+      const sub = await currentSubscription()
+      const { pushers } = await this.client!.getPushers()
+      this.pushOn = !!sub && pushers.some((p) => p.app_id === PUSH_APP_ID && p.pushkey === sub.p256dh)
+      if (this.pushOn) await this.storeSession()
+    } catch {
+      this.pushOn = false
+    }
+  }
+
+  private storeSession() {
+    return storePushSession({ baseUrl: this.client!.getHomeserverUrl(), accessToken: this.client!.getAccessToken()!, userId: this.userId })
+  }
+
+  /** Subscribe this browser and tell the homeserver to send events to the push gateway. Needs notification permission. */
+  async enablePush(cfg: PushConfig) {
+    if (Notification.permission !== 'granted') throw new Error('Notifications are not allowed in this browser')
+    const sub = await subscribe(cfg)
+    await this.storeSession()
+    await this.client!.setPusher({
+      kind: 'http',
+      app_id: PUSH_APP_ID,
+      app_display_name: 'Tessera',
+      device_display_name: 'Tessera in a browser',
+      pushkey: sub.p256dh,
+      lang: navigator.language || 'en',
+      // Only the event id travels through the gateway; the service worker fetches the text itself.
+      data: { url: cfg.gateway, format: 'event_id_only', endpoint: sub.endpoint, auth: sub.auth, events_only: true, default_payload: { user_id: this.userId } },
+      append: true,
+    } as never)
+    this.pushOn = true
+  }
+
+  async disablePush() {
+    const sub = await currentSubscription().catch(() => null)
+    if (sub) await this.client?.setPusher({ kind: null, app_id: PUSH_APP_ID, pushkey: sub.p256dh } as never).catch(() => {})
+    await unsubscribe().catch(() => {})
+    await storePushSession(null).catch(() => {})
+    this.pushOn = false
   }
 
   /** Display name for a user id, if the room or the client knows it. */
