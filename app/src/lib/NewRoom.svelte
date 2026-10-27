@@ -24,12 +24,11 @@
     <input use:focus bind:value placeholder={join ? '#room:server or room ID' : 'Room name'} required />
     {#if !join}<label><input type="checkbox" bind:checked={encrypted} /> End-to-end encrypted</label>{/if}
     {#if error}<div class="err" role="alert">{error}</div>{/if}
-    <button class="primary">{join ? 'Join' : 'Create'}</button>
+    <button class="btn">{join ? 'Join' : 'Create'}</button>
   </form>
 </Modal>
 
 <style>
-  form { display: grid; gap: 12px; } input:not([type='checkbox']) { padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
-  label { font-size: 14px; display: flex; gap: 8px; align-items: center; } .err { color: var(--danger); font-size: 13px; }
-  .primary { padding: 10px; border-radius: 10px; background: var(--accent); color: #1a1208; font-weight: 600; }
+  form { display: grid; gap: 16px; } label { display: flex; gap: 10px; align-items: center; font-size: 14px; } .err { color: var(--accent); font-size: 13px; }
+  input[type='checkbox'] { accent-color: var(--accent); width: 16px; height: 16px; }
 </style>

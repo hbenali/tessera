@@ -1,25 +1,46 @@
-/* Tessera: warm, tiled surfaces floating on a canvas. */
+/*
+ * Tessera design language: a printed ledger, not a toy.
+ * Flat paper and ink, hairline rules, square corners, one signal colour used
+ * only for "needs your attention". No gradients, shadows, blur or emoji icons.
+ */
 :root {
-  --bg: #0c0d10; --panel: #15171c; --tile: #1f222a; --line: #2a2e38;
-  --text: #ecebe6; --muted: #8e93a1; --accent: #ff9a3c; --accent-2: #ffc457;
-  --danger: #ff5d6c; --mine: #3a2a17;
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --bg: #14130f; --panel: #14130f; --tile: #1d1b16; --line: #34312a;
+  --text: #ebe6d9; --muted: #968f7e; --accent: #ff5a24; --accent-ink: #14130f;
+  --danger: #ff5a24; --mine: #ebe6d9; --ok: #8fbf7a;
+  --ink-l: 68%;
+  --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+  font-family: var(--sans);
   color-scheme: dark;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
-    --bg: #e9e6df; --panel: #ffffff; --tile: #f3f1ec; --line: #e3dfd6;
-    --text: #1b1a17; --muted: #6d6a62; --mine: #ffe9d0; color-scheme: light;
+    --bg: #f3efe5; --panel: #f3efe5; --tile: #e9e4d6; --line: #cfc8b6;
+    --text: #1a1813; --muted: #6f6857; --accent: #d93a0a; --accent-ink: #f3efe5; --ok: #3d6b2a; --ink-l: 32%;
+    color-scheme: light;
   }
 }
 :root[data-theme='light'] {
-  --bg: #e9e6df; --panel: #ffffff; --tile: #f3f1ec; --line: #e3dfd6;
-  --text: #1b1a17; --muted: #6d6a62; --mine: #ffe9d0; color-scheme: light;
+  --bg: #f3efe5; --panel: #f3efe5; --tile: #e9e4d6; --line: #cfc8b6;
+  --text: #1a1813; --muted: #6f6857; --accent: #d93a0a; --accent-ink: #f3efe5; --ok: #3d6b2a; --ink-l: 32%;
+  color-scheme: light;
 }
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--text); font-size: 15px; }
+body { background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
 button, input, textarea { font: inherit; color: inherit; }
-button { cursor: pointer; border: 0; background: none; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 10px; }
+button { cursor: pointer; border: 0; background: none; padding: 0; }
+input:not([type='checkbox']), textarea { background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 8px 0; outline: none; width: 100%; }
+input:not([type='checkbox']):focus { border-bottom-color: var(--text); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+::selection { background: var(--accent); color: var(--accent-ink); }
+::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-thumb { background: var(--line); }
+.mono { font-family: var(--mono); font-size: 12px; letter-spacing: .02em; }
+.label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+/* Buttons: solid ink, or underlined text. */
+.btn { padding: 9px 16px; border: 1px solid var(--text); background: var(--text); color: var(--bg); font-weight: 600; }
+.btn:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn:disabled { opacity: .35; pointer-events: none; }
+.btn.ghost { background: none; color: var(--text); } .btn.ghost:hover { border-color: var(--accent); color: var(--accent); background: none; }
+.link { text-decoration: underline; text-underline-offset: 3px; } .link:hover { color: var(--accent); }

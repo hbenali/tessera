@@ -16,26 +16,24 @@
 
 <main>
   <form onsubmit={submit}>
-    <div class="logo">◆</div>
-    <h1>Welcome to Tessera</h1>
-    <p>Sign in with your Matrix account.</p>
-    <label>Server<input bind:value={server} placeholder="matrix.example.org" required /></label>
-    <label>Username<input bind:value={user} autocomplete="username" required /></label>
-    <label>Password<input type="password" bind:value={password} autocomplete="current-password" required /></label>
+    <div class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <h1>Tessera</h1>
+    <p class="lede">A quiet place for your Matrix conversations.</p>
+    <label><span class="label">Homeserver</span><input bind:value={server} placeholder="matrix.example.org" required /></label>
+    <label><span class="label">Username</span><input bind:value={user} autocomplete="username" required /></label>
+    <label><span class="label">Password</span><input type="password" bind:value={password} autocomplete="current-password" required /></label>
     {#if chat.error}<div class="err" role="alert">{chat.error}</div>{/if}
-    <button class="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+    <button class="btn" disabled={busy}>{busy ? 'Signing in' : 'Sign in'}</button>
   </form>
 </main>
 
 <style>
-  main { height: 100%; display: grid; place-items: center;
-    background: radial-gradient(900px 500px at 20% 10%, #ff9a3c33, transparent), radial-gradient(800px 500px at 90% 90%, #ffc45726, transparent), var(--bg); }
-  form { width: min(380px, 92vw); display: grid; gap: 14px; padding: 32px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 20px 60px #0006; }
-  .logo { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #1a1208; }
-  h1 { margin: 4px 0 0; font-size: 22px; } p { margin: 0 0 6px; color: var(--muted); }
-  label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
-  input { padding: 10px 12px; background: var(--tile); border: 1px solid var(--line); border-radius: 8px; color: var(--text); }
-  .primary { padding: 11px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #1a1208; font-weight: 600; }
-  .primary:disabled { opacity: .6; }
-  .err { color: var(--danger); font-size: 13px; }
+  main { min-height: 100%; display: grid; align-items: center; padding: 6vh 8vw; }
+  form { width: min(380px, 100%); display: grid; gap: 22px; }
+  .mark { display: grid; grid-template-columns: repeat(2, 14px); gap: 3px; }
+  .mark i { width: 14px; height: 14px; background: var(--text); } .mark i:nth-child(2) { background: var(--accent); } .mark i:nth-child(3) { background: none; border: 1px solid var(--text); }
+  h1 { margin: 0; font: 400 56px/1 var(--serif); letter-spacing: -.02em; }
+  .lede { margin: -10px 0 8px; color: var(--muted); font-family: var(--serif); font-size: 18px; }
+  label { display: grid; gap: 2px; }
+  .err { color: var(--accent); font-size: 13px; }
 </style>

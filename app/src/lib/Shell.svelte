@@ -30,11 +30,10 @@
 <Verification />
 
 <style>
-  .shell { height: 100%; display: grid; grid-template-columns: 320px 1fr; gap: 10px; padding: 10px; }
+  .shell { height: 100%; display: grid; grid-template-columns: 272px 1fr; }
   @media (max-width: 720px) {
-    .shell { grid-template-columns: 1fr; padding: 0; gap: 0; }
+    .shell { grid-template-columns: 1fr; }
     .shell.has-room :global(aside) { display: none; }
     .shell:not(.has-room) :global(section.main) { display: none; }
-    .shell :global(aside), .shell :global(section.main) { border-radius: 0 !important; }
   }
 </style>
