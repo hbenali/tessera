@@ -21,6 +21,8 @@ permissions:
 
 jobs:
   analyze:
+    # Code scanning needs a public repo or GitHub Advanced Security.
+    if: ${{ !github.event.repository.private }}
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
