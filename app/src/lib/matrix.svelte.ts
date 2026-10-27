@@ -1,3 +1,4 @@
+import { mentionsUser } from './mentions'
 import * as sdk from 'matrix-js-sdk'
 import { security } from './security.svelte'
 import { discover } from './discover'
@@ -30,6 +31,7 @@ export interface Msg {
   undecryptable?: boolean
   decrypting?: boolean
   threadReplies: number
+  mentionsMe: boolean
 }
 
 export interface RoomItem {
@@ -329,6 +331,7 @@ class Chat {
         reactions: reactions.get(id) ?? {},
         imageUrl,
         threadReplies: ev.isThreadRoot ? (ev.getThread()?.length ?? 0) : 0,
+        mentionsMe: sender !== this.userId && mentionsUser(content, this.userId, this.client?.getUser(this.userId)?.displayName),
       })
     }
     return out
@@ -490,6 +493,19 @@ class Chat {
       await drop('override')
     }
     this.refreshRooms()
+  }
+
+  async setRoomName(roomId: string, name: string) {
+    await this.client!.setRoomName(roomId, name.trim())
+  }
+
+  async setRoomTopic(roomId: string, topic: string) {
+    await this.client!.setRoomTopic(roomId, topic.trim())
+  }
+
+  canEditRoom(roomId: string): boolean {
+    const room = this.client?.getRoom(roomId)
+    return !!room?.currentState.maySendStateEvent('m.room.name', this.userId)
   }
 
   async deleteMessage(id: string) {

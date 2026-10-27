@@ -124,7 +124,7 @@
       {#if chat.loadingOlder}<div class="note">Loading earlier messages…</div>{/if}
       {#each rows as { m, newDay, cont } (m.id)}
         {#if newDay}<div class="day" role="separator"><span>{dayLabel(m.ts)}</span></div>{/if}
-        <article class:cont class:pending={m.pending} data-id={m.id}>
+        <article class:cont class:pending={m.pending} class:mention={m.mentionsMe} data-id={m.id}>
           <div class="gutter">
             {#if !cont}<Avatar name={m.senderName} size={36} round />{:else}<time>{fmt(m.ts)}</time>{/if}
           </div>
@@ -181,7 +181,7 @@
   .note { text-align: center; color: var(--muted); font-size: 12px; padding: 8px; }
   .day { display: flex; align-items: center; gap: 12px; margin: 16px 20px 6px; color: var(--muted); font-size: 12px; font-weight: 600; } .day::before, .day::after { content: ''; flex: 1; height: 1px; background: var(--line); }
   /* Off-screen messages skip layout and paint, which keeps long rooms fast. */
-  article { position: relative; display: flex; gap: 12px; padding: 2px 20px; margin-top: 10px; content-visibility: auto; contain-intrinsic-size: auto 44px; } article.cont { margin-top: 0; } article.pending { opacity: .55; } article:hover { background: color-mix(in srgb, var(--tile) 55%, transparent); }
+  article { position: relative; display: flex; gap: 12px; padding: 2px 20px; margin-top: 10px; content-visibility: auto; contain-intrinsic-size: auto 44px; } article.cont { margin-top: 0; } article.mention { background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset 3px 0 0 var(--accent); } article.pending { opacity: .55; } article:hover { background: color-mix(in srgb, var(--tile) 55%, transparent); }
   .gutter { flex: none; width: 36px; padding-top: 2px; } .gutter time { display: none; font-size: 10px; color: var(--muted); text-align: right; line-height: 22px; } article:hover .gutter time { display: block; }
   .body { min-width: 0; flex: 1; }
   .head { display: flex; align-items: baseline; gap: 8px; } .head b { font-weight: 650; } .head time { color: var(--muted); font-size: 11px; }
