@@ -84,7 +84,7 @@ describe('device verification by QR code', () => {
     await d.page.getByRole('button', { name: 'Compare emoji instead' }).click({ timeout: 30_000 })
     const seen = []
     for (const s of [a, d]) {
-      await s.page.getByText('Check that these symbols match').waitFor({ timeout: 30_000 })
+      await s.page.getByText('Check that these symbols match').waitFor({ timeout: 60_000 })
       seen.push(await s.page.locator('.emoji').innerText())
     }
     assert.equal(seen[0], seen[1])

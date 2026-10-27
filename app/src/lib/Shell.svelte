@@ -38,6 +38,8 @@
 {#if ui.roomMenu}<RoomMenu />{/if}
 
 <style>
+  /* The app fills the window and scrolls inside its own panes; the page itself must never scroll. */
+  :global(html), :global(body) { overflow: hidden; }
   .shell { height: 100%; display: grid; grid-template-rows: minmax(0, 1fr); overflow: hidden; grid-template-columns: 320px 1fr; } .shell.with-details { grid-template-columns: 320px 1fr 300px; }
   @media (max-width: 720px) {
     .shell, .shell.with-details { grid-template-columns: 1fr; }

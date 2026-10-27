@@ -335,7 +335,7 @@
   .back { display: none; } @media (max-width: 720px) { .back { display: grid; } }
   .title { min-width: 0; display: grid; line-height: 1.25; } h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; } .topic { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .enc { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ok); padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--ok) 14%, transparent); }
-  .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 0 4px; }
+  .scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; padding: 8px 0 4px; }
   .note { text-align: center; color: var(--muted); font-size: 12px; padding: 8px; }
   .day { display: flex; align-items: center; gap: 12px; margin: 16px 20px 6px; color: var(--muted); font-size: 12px; font-weight: 600; } .day::before, .day::after { content: ''; flex: 1; height: 1px; background: var(--line); }
   /* Off-screen messages skip layout and paint, which keeps long rooms fast. */

@@ -135,7 +135,7 @@
   .menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border-radius: 6px; text-align: left; } .menu button:hover { background: var(--tile); } .menu :global(svg:last-child) { margin-left: auto; color: var(--accent); }
   .search { display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 8px 10px; border-radius: 8px; background: var(--tile); color: var(--muted); } .search:hover { color: var(--text); }
   .search span { flex: 1; text-align: left; } kbd { font-size: 11px; }
-  .list { flex: 1; overflow-y: auto; padding: 0 6px 8px; }
+  .list { position: relative; flex: 1; overflow-y: auto; padding: 0 6px 8px; }
   .item { position: relative; } .more { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); opacity: 0; background: var(--panel); box-shadow: 0 0 0 1px var(--line); width: 28px; height: 28px; } .item:hover .more, .item:focus-within .more, .more:focus-visible { opacity: 1; } @media (hover: none) { .more { opacity: 1; width: 24px; height: 24px; right: 2px; top: 10px; transform: none; background: none; box-shadow: none; } }
   .row { display: flex; gap: 10px; width: 100%; padding: 8px; border-radius: 10px; text-align: left; align-items: center; } .row:hover { background: var(--tile); } .row.active { background: var(--tile); box-shadow: inset 2px 0 0 var(--accent); }
   .body { flex: 1; min-width: 0; display: grid; gap: 1px; }

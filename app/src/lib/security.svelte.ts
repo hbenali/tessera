@@ -131,6 +131,8 @@ class Security {
     this.scanError = ''
     let qrAsked = false
     const onChange = () => {
+      // A request that was replaced or cancelled can still report late; it must not touch the current one.
+      if (this.request !== req) return
       this.phase = req.phase
       if (req.phase === VerificationPhase.Requested && !req.initiatedByMe) return
       // Ready is reported several times, and the SDK moves the request on each time it makes a code, so ask once.
@@ -141,6 +143,7 @@ class Security {
       }
       if (req.phase !== VerificationPhase.Ready) this.qr = null
       if (req.verifier && !this.sas) this.watch(req.verifier)
+      else if (req.phase === VerificationPhase.Started && !req.verifier) this.awaitVerifier(req)
       if (req.phase === VerificationPhase.Done || req.phase === VerificationPhase.Cancelled) {
         this.sas = null
         this.reciprocate = null
@@ -155,6 +158,15 @@ class Security {
 
   /** The QR code being made; starting emoji verification waits for it, or the two fight over the request. */
   private qrPending: Promise<void> = Promise.resolve()
+  /** The verifier object can appear just after the Started change is announced, with no further event; look again. */
+  private awaitVerifier(req: VerificationRequest, tries = 50) {
+    setTimeout(() => {
+      if (this.request !== req || req.phase !== VerificationPhase.Started) return
+      if (req.verifier) this.watch(req.verifier)
+      else if (tries > 0) this.awaitVerifier(req, tries - 1)
+    }, 100)
+  }
+
   private watched = new WeakSet<object>()
   private watch(v: NonNullable<VerificationRequest['verifier']>) {
     if (this.watched.has(v)) return
