@@ -34,6 +34,21 @@
     chat.messages.length
     if (stick) tick().then(() => scroller?.scrollTo({ top: scroller.scrollHeight }))
   })
+  // Jump to a message chosen from search, and flash it so the eye can find it.
+  $effect(() => {
+    const id = chat.focusEvent
+    chat.messages.length
+    if (!id || !scroller) return
+    tick().then(() => {
+      const el = scroller?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`)
+      if (!el) return
+      stick = false
+      el.scrollIntoView({ block: 'center' })
+      el.classList.add('flash')
+      setTimeout(() => el.classList.remove('flash'), 1800)
+      chat.focusEvent = null
+    })
+  })
   $effect(() => {
     chat.activeRoom
     stick = true
@@ -109,7 +124,7 @@
       {#if chat.loadingOlder}<div class="note">Loading earlier messages…</div>{/if}
       {#each rows as { m, newDay, cont } (m.id)}
         {#if newDay}<div class="day" role="separator"><span>{dayLabel(m.ts)}</span></div>{/if}
-        <article class:cont class:pending={m.pending}>
+        <article class:cont class:pending={m.pending} data-id={m.id}>
           <div class="gutter">
             {#if !cont}<Avatar name={m.senderName} size={36} round />{:else}<time>{fmt(m.ts)}</time>{/if}
           </div>
@@ -117,8 +132,9 @@
             {#if !cont}<div class="head"><b>{m.senderName}</b><time>{fmt(m.ts)}</time></div>{/if}
             {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {byId(m.replyTo)?.body ?? 'earlier message'}</div>{/if}
             {#if m.imageUrl}<img src={m.imageUrl} alt={m.body} loading="lazy" />{:else}<div class="text" class:utd={m.undecryptable}>{@html render(m.body)}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{/if}
+            {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
             {#if Object.keys(m.reactions).length}
-              <div class="reacts">{#each Object.entries(m.reactions) as [k, n] (k)}<button onclick={() => chat.react(m.id, k)} aria-label="React {k}"><span>{k}</span> {n}</button>{/each}</div>
+              <div class="reacts">{#each Object.entries(m.reactions) as [k, n] (k)}<button onclick={() => chat.react(m.id, k)} aria-label="{k} {n}, add your reaction"><span>{k}</span> {n}</button>{/each}</div>
             {/if}
           </div>
           <div class="tools">
@@ -126,6 +142,7 @@
             <span class="pw"><button class="icon-btn" onclick={() => (picker = picker === m.id ? null : m.id)} aria-label="More reactions"><Icon name="smile" size={16} /></button>
               {#if picker === m.id}<EmojiPicker onpick={(e) => chat.react(m.id, e)} onclose={() => (picker = null)} />{/if}</span>
             <button class="icon-btn" onclick={() => { replyTo = m; editing = null }} aria-label="Reply"><Icon name="reply" size={16} /></button>
+            <button class="icon-btn" onclick={() => chat.openThread(m.id)} aria-label="Reply in thread"><Icon name="thread" size={16} /></button>
             {#if m.mine && !m.undecryptable}<button class="icon-btn" onclick={() => { editing = m; replyTo = null; text = m.body }} aria-label="Edit"><Icon name="edit" size={16} /></button>{/if}
             {#if m.mine}<button class="icon-btn" onclick={() => chat.deleteMessage(m.id)} aria-label="Delete message"><Icon name="trash" size={16} /></button>{/if}
           </div>
@@ -173,6 +190,7 @@
   .text :global(blockquote) { margin: 2px 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); } .text :global(a) { color: var(--accent); text-underline-offset: 3px; }
   .quote { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; margin: 2px 0 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-left: 8px; border-left: 2px solid var(--accent); }
   img { max-width: min(420px, 100%); max-height: 320px; display: block; margin-top: 4px; border-radius: 10px; border: 1px solid var(--line); }
+  .thread-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 2px 8px; border-radius: 6px; color: var(--accent); font-size: 12px; font-weight: 600; } .thread-link:hover { background: var(--tile); }
   .reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; } .reacts button { display: inline-flex; gap: 5px; align-items: center; padding: 1px 8px; border-radius: 999px; background: var(--tile); border: 1px solid var(--line); font-size: 12px; font-weight: 600; } .reacts button:hover { border-color: var(--accent); }
   .tools { display: none; position: absolute; top: -16px; right: 20px; z-index: 2; gap: 0; padding: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
   article:hover .tools, article:focus-within .tools { display: flex; } .tools .icon-btn { width: 30px; height: 28px; font-size: 15px; } .pw { position: relative; }

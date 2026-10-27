@@ -54,7 +54,12 @@ class Ui {
   theme = $state<ThemeId>(readTheme())
   setTheme(t: ThemeId) {
     this.theme = t
-    localStorage.setItem('tessera.theme', t)
+    try {
+      localStorage.setItem('tessera.theme', t)
+    } catch {
+      /* private mode or blocked storage: the theme just will not persist */
+    }
+    if (typeof document === 'undefined') return
     if (t === 'auto') document.documentElement.removeAttribute('data-theme')
     else document.documentElement.dataset.theme = t
   }

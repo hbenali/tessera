@@ -6,6 +6,7 @@ A fast, private Matrix client for Synapse and any Matrix homeserver. Svelte 5, V
 
 - **Sign in:** password, or single sign-on when the homeserver offers it. Bare domains resolve through `.well-known`.
 - **Conversations:** room list with previews, times, unread badges and All/Unread/People filters; spaces through a workspace switcher; invitations; direct messages with user-directory search; join by address; leave.
+- **Threads and search:** reply in a thread with a side panel and live updates; Ctrl K searches rooms and loaded messages, including inside encrypted rooms, and jumps to the message.
 - **Messages:** Markdown subset (safe by construction), replies, edits, deletes, reactions with an emoji picker, image and file upload, typing indicators, day dividers, history on scroll.
 - **End-to-end encryption:** Rust crypto with IndexedDB stores, encrypted rooms and DMs, cross-signing, secret storage and key backup setup, restore from a recovery key, emoji (SAS) verification.
 - **Notifications:** desktop notifications that follow your push rules, and an unread count in the tab title.
@@ -15,7 +16,7 @@ A fast, private Matrix client for Synapse and any Matrix homeserver. Svelte 5, V
 
 ## Not yet
 
-Threads, message search, voice and video calls, QR verification, a full timeline virtualiser (long rooms use CSS `content-visibility` for now), and per-room notification settings.
+Voice and video calls, QR verification, server-side search (search covers messages already loaded on the device), a full timeline virtualiser (long rooms use CSS `content-visibility` for now), and per-room notification settings.
 
 ## Develop
 

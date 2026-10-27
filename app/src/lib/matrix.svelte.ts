@@ -24,6 +24,7 @@ export interface Msg {
   imageUrl?: string
   undecryptable?: boolean
   decrypting?: boolean
+  threadReplies: number
 }
 
 export interface RoomItem {
@@ -42,6 +43,15 @@ export interface RoomItem {
   memberCount: number
 }
 
+export interface MessageHit {
+  roomId: string
+  roomName: string
+  eventId: string
+  sender: string
+  snippet: string
+  ts: number
+}
+
 export interface Member {
   id: string
   name: string
@@ -58,6 +68,9 @@ class Chat {
   messages = $state<Msg[]>([])
   typing = $state<string[]>([])
   loadingOlder = $state(false)
+  focusEvent = $state<string | null>(null)
+  threadRoot = $state<string | null>(null)
+  threadMessages = $state<Msg[]>([])
   members = $state<Member[]>([])
 
   loadSession(): Session | null {
@@ -183,10 +196,13 @@ class Chat {
       if (!toStart && data?.liveEvent && ev.getType() === 'm.room.message') this.maybeNotify(ev)
     })
     client.on(sdk.RoomEvent.Receipt, () => this.refreshRooms())
+    client.on(sdk.ThreadEvent.Update as never, (() => this.scheduleRefresh()) as never)
+    client.on(sdk.ThreadEvent.NewReply as never, (() => this.scheduleRefresh()) as never)
+    client.on('Thread.new' as never, (() => this.scheduleRefresh()) as never)
     client.on(sdk.RoomMemberEvent.Typing, () => this.refreshTyping())
     client.on(sdk.RoomEvent.LocalEchoUpdated, () => this.refreshMessages())
     client.on(sdk.RoomStateEvent.Events, () => this.refreshRooms())
-    await client.startClient({ initialSyncLimit: 30, lazyLoadMembers: true })
+    await client.startClient({ initialSyncLimit: 30, lazyLoadMembers: true, threadSupport: true })
   }
 
   async logout() {
@@ -277,6 +293,7 @@ class Chat {
 
   async openRoom(id: string) {
     this.activeRoom = id
+    this.closeThread()
     this.messages = []
     this.refreshMessages()
     this.refreshTyping()
@@ -297,11 +314,9 @@ class Chat {
       : []
   }
 
-  refreshMessages() {
-    const c = this.client
-    const room = this.activeRoom ? c?.getRoom(this.activeRoom) : null
-    if (!c || !room) return
-    const events = room.getLiveTimeline().getEvents()
+  /** Turn raw events (main timeline or a thread) into display messages, folding in edits and reactions. */
+  private build(events: sdk.MatrixEvent[], room: sdk.Room): Msg[] {
+    const c = this.client!
     const reactions = new Map<string, Record<string, number>>()
     const edits = new Map<string, string>()
     for (const ev of events) {
@@ -322,6 +337,7 @@ class Chat {
       if (content['m.relates_to']?.rel_type === 'm.replace') continue
       const id = ev.getId() ?? ev.getTxnId() ?? String(ev.getTs())
       const sender = ev.getSender() ?? ''
+      const bad = (encrypted && ev.isDecryptionFailure()) || content.msgtype === 'm.bad.encrypted'
       let imageUrl: string | undefined
       if (content.msgtype === 'm.image' && content.url) {
         imageUrl = c.mxcUrlToHttp(content.url, 480, 360, 'scale', false, true, true) ?? undefined
@@ -330,15 +346,13 @@ class Chat {
         id,
         sender,
         senderName: room.getMember(sender)?.name ?? sender,
-        body: encrypted
-          ? ev.isDecryptionFailure()
-            ? 'Cannot decrypt this message. It was probably sent before this device had access to the room keys. Verify this session or restore your recovery key in Settings.'
-            : 'Decrypting…'
-          : content.msgtype === 'm.bad.encrypted'
-            ? 'Cannot decrypt this message. It was probably sent before this device had access to the room keys. Verify this session or restore your recovery key in Settings.'
+        body: bad
+          ? 'Cannot decrypt this message. It was probably sent before this device had access to the room keys. Verify this session or restore your recovery key in Settings.'
+          : encrypted
+            ? 'Decrypting…'
             : (edits.get(id) ?? content.body ?? ''),
-        undecryptable: (encrypted && ev.isDecryptionFailure()) || content.msgtype === 'm.bad.encrypted',
-        decrypting: encrypted && !ev.isDecryptionFailure(),
+        undecryptable: bad,
+        decrypting: encrypted && !bad,
         ts: ev.getTs(),
         mine: sender === this.userId,
         pending: ev.status != null,
@@ -346,13 +360,57 @@ class Chat {
         replyTo: content['m.relates_to']?.['m.in_reply_to']?.event_id,
         reactions: reactions.get(id) ?? {},
         imageUrl,
+        threadReplies: ev.isThreadRoot ? (ev.getThread()?.length ?? 0) : 0,
       })
     }
-    this.messages = out
+    return out
+  }
+
+  private refreshTimer: ReturnType<typeof setTimeout> | undefined
+  /** Thread state settles just after its events fire, so refresh a beat later. */
+  scheduleRefresh() {
+    clearTimeout(this.refreshTimer)
+    this.refreshTimer = setTimeout(() => this.refreshMessages(), 120)
+  }
+
+  refreshMessages() {
+    const room = this.activeRoom ? this.client?.getRoom(this.activeRoom) : null
+    if (!this.client || !room) return
+    this.messages = this.build(room.getLiveTimeline().getEvents(), room)
     this.members = room
       .getJoinedMembers()
       .map((m) => ({ id: m.userId, name: m.name }))
       .sort((a, b) => a.name.localeCompare(b.name))
+    this.refreshThread()
+  }
+
+  refreshThread() {
+    const room = this.activeRoom ? this.client?.getRoom(this.activeRoom) : null
+    const thread = this.threadRoot ? room?.getThread(this.threadRoot) : null
+    if (!room || !this.threadRoot) {
+      this.threadMessages = []
+      return
+    }
+    // The root is always part of the thread view, even before the server has replies for it.
+    const root = room.findEventById(this.threadRoot)
+    const events = thread ? thread.events : root ? [root] : []
+    this.threadMessages = this.build(events, room)
+  }
+
+  openThread(rootId: string) {
+    this.threadRoot = rootId
+    this.refreshThread()
+  }
+
+  closeThread() {
+    this.threadRoot = null
+    this.threadMessages = []
+  }
+
+  async sendInThread(body: string) {
+    if (!this.activeRoom || !this.threadRoot || !body.trim()) return
+    await this.client!.sendMessage(this.activeRoom, this.threadRoot, { msgtype: 'm.text', body } as never)
+    this.scheduleRefresh()
   }
 
   async loadOlder() {
@@ -459,6 +517,39 @@ class Chat {
     })
     await c.setAccountData('m.direct' as never, { ...direct, [userId]: [...(direct[userId] ?? []), r.room_id] } as never)
     this.openRoom(r.room_id)
+  }
+
+  /** Search messages already loaded on this device. Works in encrypted rooms because it reads decrypted events locally. */
+  searchMessages(term: string, limit = 20): MessageHit[] {
+    const q = term.trim().toLowerCase()
+    const c = this.client
+    if (q.length < 2 || !c) return []
+    const hits: MessageHit[] = []
+    for (const room of c.getRooms()) {
+      if (room.getMyMembership() !== 'join') continue
+      for (const ev of room.getLiveTimeline().getEvents()) {
+        if (ev.getType() !== 'm.room.message' || ev.isRedacted()) continue
+        const content = ev.getContent()
+        if (content['m.relates_to']?.rel_type === 'm.replace') continue
+        const body: string = typeof content.body === 'string' ? content.body : ''
+        const i = body.toLowerCase().indexOf(q)
+        if (i < 0) continue
+        hits.push({
+          roomId: room.roomId,
+          roomName: room.name,
+          eventId: ev.getId() ?? '',
+          sender: room.getMember(ev.getSender() ?? '')?.name ?? ev.getSender() ?? '',
+          snippet: (i > 30 ? '…' : '') + body.slice(Math.max(0, i - 30), i + 70),
+          ts: ev.getTs(),
+        })
+      }
+    }
+    return hits.sort((a, b) => b.ts - a.ts).slice(0, limit)
+  }
+
+  async openMessage(hit: MessageHit) {
+    await this.openRoom(hit.roomId)
+    this.focusEvent = hit.eventId
   }
 
   async leaveRoom(id: string) {

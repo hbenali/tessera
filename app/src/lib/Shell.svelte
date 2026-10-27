@@ -4,6 +4,7 @@
   import Sidebar from './Sidebar.svelte'
   import Timeline from './Timeline.svelte'
   import Details from './Details.svelte'
+  import ThreadPanel from './ThreadPanel.svelte'
   import Palette from './Palette.svelte'
   import Settings from './Settings.svelte'
   import NewRoom from './NewRoom.svelte'
@@ -24,10 +25,10 @@
 
 <svelte:window onkeydown={key} />
 
-<div class="shell" class:has-room={!!chat.activeRoom} class:with-details={ui.details && !!chat.activeRoom}>
+<div class="shell" class:has-room={!!chat.activeRoom} class:with-details={(ui.details || !!chat.threadRoot) && !!chat.activeRoom}>
   <Sidebar onsearch={() => (palette = true)} />
   <Timeline />
-  {#if ui.details && chat.activeRoom}<Details />{/if}
+  {#if chat.activeRoom && chat.threadRoot}<ThreadPanel />{:else if ui.details && chat.activeRoom}<Details />{/if}
 </div>
 {#if palette}<Palette onclose={() => (palette = false)} />{/if}
 {#if ui.modal === 'settings'}<Settings />{/if}
