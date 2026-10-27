@@ -8,9 +8,6 @@
   import { install } from './install.svelte'
   import { loadPushConfig, pushSupported, type PushConfig } from './push'
 
-  let tabsEl: HTMLElement | undefined = $state()
-  // Keep the chosen tab in view when the bar scrolls.
-  $effect(() => { tab; tabsEl?.querySelector('[aria-selected=true]')?.scrollIntoView({ inline: 'nearest', block: 'nearest' }) })
   let tab = $state<'look' | 'security' | 'notify' | 'privacy' | 'account' | 'about'>('security')
   let perm = $state(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
   async function enableNotifications() {
@@ -67,7 +64,7 @@
 </script>
 
 <Modal title="Settings" onclose={() => (ui.modal = null)}>
-  <div class="tabs" role="tablist" bind:this={tabsEl}>
+  <div class="tabs" role="tablist">
     {#each [['look', 'Appearance'], ['security', 'Security'], ['notify', 'Notifications'], ['privacy', 'Privacy'], ['account', 'Account'], ['about', 'About']] as [k, label] (k)}
       <button role="tab" aria-selected={tab === k} class:on={tab === k} onclick={() => (tab = k as typeof tab)}>{label}</button>
     {/each}
@@ -224,9 +221,9 @@
 </Modal>
 
 <style>
-  /* Six tabs: they share the width on a wide dialog and scroll inside the bar on a narrow one, never widening the dialog. */
-  .tabs { display: flex; gap: 2px; margin-bottom: 16px; padding: 3px; background: var(--tile); border-radius: 8px; overflow-x: auto; scrollbar-width: none; } .tabs::-webkit-scrollbar { display: none; }
-  .tabs button { flex: 1 0 auto; padding: 6px 6px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--muted); white-space: nowrap; } .tabs .on { background: var(--bg); color: var(--text); }
+  /* Six tabs: one row when they fit, otherwise they wrap onto a second row. (Scrolling them sideways hid the last tab, About, on a phone.) */
+  .tabs { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 16px; padding: 3px; background: var(--tile); border-radius: 8px; }
+  .tabs button { flex: 1 1 auto; padding: 6px 8px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--muted); white-space: nowrap; } .tabs .on { background: var(--bg); color: var(--text); }
   .hint { color: var(--muted); font-size: 13px; }
   h3 { margin: 20px 0 8px; }
   .themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
