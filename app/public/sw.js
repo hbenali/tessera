@@ -75,6 +75,8 @@ async function likeEvent(roomId, eventId) {
 }
 
 self.addEventListener('message', (e) => {
+  // Only this app's own pages may ask the worker to act with the stored session.
+  if (e.origin !== self.location.origin) return
   const d = e.data
   if (d?.type === 'like' && typeof d.room_id === 'string' && typeof d.event_id === 'string') e.waitUntil(likeEvent(d.room_id, d.event_id).catch(() => {}))
 })
