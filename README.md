@@ -27,9 +27,23 @@ npm run dev      # http://localhost:5173
 npm run check    # svelte-check + tsc
 npm test         # vitest
 npm run build
+npm run e2e      # real Chrome against a local Synapse (see below)
 ```
 
-For local testing, run a Synapse (`matrixdotorg/synapse`) with `enable_registration` on and the `rc_*` rate limits relaxed.
+For local testing, run a Synapse (`matrixdotorg/synapse`) with the `rc_*` rate limits relaxed.
+
+### Browser tests
+
+`npm run e2e` drives the installed Google Chrome (via `playwright-core`, nothing is downloaded) against the production build, served with `vite preview`. Each run creates two throwaway users and a seeded room (mentions, an image, a reaction, 45 older messages), then checks the things that broke before: the composer staying on screen, scrolling from the top of a long room, the hover toolbar and emoji picker not being clipped, avatars and authenticated images loading, mention pills, per-room notification push rules, a phone-sized screen, no SDK in the login bundle, and axe (WCAG 2.1 A/AA) in every theme.
+
+```sh
+npm run build
+SYNAPSE_URL=http://localhost:8008 \
+SYNAPSE_REGISTRATION_SECRET=...   \  # registration_shared_secret from homeserver.yaml; omit if registration is open
+npm run e2e
+```
+
+Set `TESSERA_URL` to test an already running instance instead of `vite preview`.
 
 ## Deploy
 

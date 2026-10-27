@@ -64,9 +64,10 @@
     if (!scroller) return
     stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80
     away = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight > 400
-    if (scroller.scrollTop < 40 && !chat.loadingOlder) {
+    if (scroller.scrollTop < 40 && !chat.loadingOlder && chat.hasOlder()) {
       const h = scroller.scrollHeight
-      chat.loadOlder().then(() => tick().then(() => scroller && (scroller.scrollTop = scroller.scrollHeight - h)))
+      // Keep the reader's place: add only the height that was loaded above, never jump to a fixed position.
+      chat.loadOlder().then(() => tick().then(() => scroller && (scroller.scrollTop += scroller.scrollHeight - h)))
     }
   }
 

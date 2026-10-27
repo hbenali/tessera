@@ -388,6 +388,12 @@ class Chat {
     this.scheduleRefresh()
   }
 
+  /** False once the start of the room's history has been reached. */
+  hasOlder(): boolean {
+    const room = this.activeRoom ? this.client?.getRoom(this.activeRoom) : null
+    return !!room?.getLiveTimeline().getPaginationToken(sdk.Direction.Backward)
+  }
+
   async loadOlder() {
     const room = this.activeRoom ? this.client?.getRoom(this.activeRoom) : null
     if (!room || this.loadingOlder) return
@@ -482,7 +488,16 @@ class Chat {
     return rules?.room?.some((r) => r.enabled && r.rule_id === roomId && r.actions.length === 0) ? 'mentions' : 'all'
   }
 
-  async setRoomNotifs(roomId: string, level: 'all' | 'mentions' | 'mute') {
+  private notifQueue: Promise<unknown> = Promise.resolve()
+
+  /** Changes run one after another: each is several requests, and quick clicks must not interleave. */
+  setRoomNotifs(roomId: string, level: 'all' | 'mentions' | 'mute'): Promise<void> {
+    const run = this.notifQueue.then(() => this.applyRoomNotifs(roomId, level))
+    this.notifQueue = run.catch(() => {})
+    return run
+  }
+
+  private async applyRoomNotifs(roomId: string, level: 'all' | 'mentions' | 'mute') {
     const c = this.client!
     // The cached rules lag behind the server, so PUT/DELETE rather than trusting them.
     const drop = (kind: string) => c.deletePushRule('global', kind as never, roomId).catch(() => {})
