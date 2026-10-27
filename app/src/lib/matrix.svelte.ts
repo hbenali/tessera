@@ -31,6 +31,8 @@ export interface Msg {
   edited: boolean
   replyTo?: string
   reactions: Record<string, number>
+  /** Who reacted with each emoji; eventId lets me take my own reaction back. */
+  reactors: Record<string, { id: string; name: string; eventId?: string }[]>
   imageMxc?: string
   undecryptable?: boolean
   decrypting?: boolean
@@ -60,6 +62,9 @@ export interface RoomItem {
   avatar?: string
   /** The other person in a direct chat. */
   dmUser?: string
+  /** Notification level for this room, from my push rules. */
+  notifs: 'all' | 'mentions' | 'mute'
+  favourite: boolean
   /** Someone else is typing here right now. */
   typing: boolean
 }
@@ -211,6 +216,9 @@ class Chat {
     client.on(sdk.ThreadEvent.Update as never, (() => this.scheduleRefresh()) as never)
     client.on(sdk.ThreadEvent.NewReply as never, (() => this.scheduleRefresh()) as never)
     client.on('Thread.new' as never, (() => this.scheduleRefresh()) as never)
+    // Push rules and tags change from other devices too, and the list shows both.
+    client.on(sdk.ClientEvent.AccountData, (ev) => { if (ev.getType() === 'm.push_rules') this.refreshRooms() })
+    client.on(sdk.RoomEvent.Tags, () => this.refreshRooms())
     client.on(sdk.RoomMemberEvent.Typing, () => { this.refreshTyping(); this.refreshRooms() })
     client.on(sdk.UserEvent.Presence, (_e, u) => { this.presence[u.userId] = u.presence as Presence })
     client.on(sdk.RoomEvent.LocalEchoUpdated, () => this.refreshMessages())
@@ -278,6 +286,8 @@ class Chat {
         topic: room.currentState.getStateEvents('m.room.topic', '')?.getContent().topic ?? '',
         memberCount: room.getJoinedMemberCount(),
         dmUser: dms.has(room.roomId) ? this.otherMember(room)?.userId : undefined,
+        notifs: this.roomNotifs(room.roomId),
+        favourite: !!room.tags['m.favourite'],
         typing: room.getMembers().some((m) => m.typing && m.userId !== this.userId),
         avatar: room.getMxcAvatarUrl() ?? (dms.has(room.roomId) ? this.otherMember(room)?.getMxcAvatarUrl() : undefined) ?? undefined,
       })
@@ -374,6 +384,7 @@ class Chat {
   private build(events: sdk.MatrixEvent[], room: sdk.Room): Msg[] {
     const c = this.client!
     const reactions = new Map<string, Record<string, number>>()
+    const reactors = new Map<string, Msg['reactors']>()
     const edits = new Map<string, string>()
     for (const ev of events) {
       const rel = ev.getContent()['m.relates_to']
@@ -381,6 +392,10 @@ class Chat {
         const r = reactions.get(rel.event_id) ?? {}
         r[rel.key] = (r[rel.key] ?? 0) + 1
         reactions.set(rel.event_id, r)
+        const who = reactors.get(rel.event_id) ?? {}
+        const from = ev.getSender() ?? ''
+        ;(who[rel.key] ??= []).push({ id: from, name: room.getMember(from)?.name ?? from, eventId: ev.getId() })
+        reactors.set(rel.event_id, who)
       } else if (rel?.rel_type === 'm.replace' && ev.getContent()['m.new_content']) {
         edits.set(rel.event_id as string, ev.getContent()['m.new_content'].body)
       }
@@ -412,6 +427,7 @@ class Chat {
         edited: edits.has(id),
         replyTo: content['m.relates_to']?.['m.in_reply_to']?.event_id,
         reactions: reactions.get(id) ?? {},
+        reactors: reactors.get(id) ?? {},
         imageMxc,
         threadReplies: ev.isThreadRoot ? (ev.getThread()?.length ?? 0) : 0,
         senderAvatar: room.getMember(sender)?.getMxcAvatarUrl() ?? undefined,
@@ -562,8 +578,14 @@ class Chat {
     } as never)
   }
 
+  /** React with an emoji, or take my own reaction back if I already used it. */
   async react(id: string, key: string) {
     if (!this.activeRoom) return
+    const own = [...this.messages, ...this.threadMessages].find((m) => m.id === id)?.reactors[key]?.find((u) => u.id === this.userId)
+    if (own?.eventId) {
+      await this.client!.redactEvent(this.activeRoom, own.eventId)
+      return
+    }
     await this.client!.sendEvent(this.activeRoom, 'm.reaction' as never, {
       'm.relates_to': { rel_type: 'm.annotation', event_id: id, key },
     } as never)
@@ -619,6 +641,11 @@ class Chat {
    * Per-room notification level as ordinary push rules, so other clients agree:
    * mentions = room rule with no actions; mute = override rule matching the room (beats mention rules).
    */
+  async setFavourite(roomId: string, on: boolean) {
+    if (on) await this.client!.setRoomTag(roomId, 'm.favourite', { order: 0.5 })
+    else await this.client!.deleteRoomTag(roomId, 'm.favourite')
+  }
+
   roomNotifs(roomId: string): 'all' | 'mentions' | 'mute' {
     const rules = this.client?.pushRules?.global
     if (rules?.override?.some((r) => r.enabled && r.rule_id === roomId)) return 'mute'

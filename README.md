@@ -12,26 +12,28 @@ A fast, private, workspace-style [Matrix](https://matrix.org) client for Synapse
 ## Why
 
 - **Fast and light.** The sign-in page is about 32 KiB; the Matrix SDK and crypto WASM load only after you sign in. Long rooms use CSS `content-visibility`.
-- **Workspace feel.** Spaces as a workspace switcher, threads in a side panel, pinned messages, per-room notification levels, a Ctrl K switcher.
+- **Workspace feel.** One menu switches between views (All, Unread, Mentions, Favourites, People, Rooms) and spaces; threads in a side panel, pinned messages, per-room notification levels, a Ctrl K switcher.
 - **Simple.** One list of conversations with previews, unread filters and no settings maze.
 - **Eight themes**, including a high-contrast one, chosen from Settings.
 
 ## What works
 
 - **Sign in:** password, or single sign-on when the homeserver offers it. Bare domains resolve through `.well-known`; the form starts on `matrix.org`.
-- **Conversations:** room list with avatars, previews, times, unread badges and All/Unread/People filters; spaces; invitations; direct messages with user-directory search; join by address; leave; edit a room's name, topic and photo.
-- **Messages:** Markdown subset (escaped first, so safe by construction), replies, edits, deletes, reactions with an emoji picker, image and file upload (also by paste or drag and drop), typing indicators, day dividers, history on scroll, "Seen" receipts, per-room drafts (kept across a reload only in unencrypted rooms, never written to disk for encrypted ones).
+- **Conversations:** room list with avatars, previews, times, unread badges, muted and favourite markers, and animated typing; views and spaces from one menu; invitations; direct messages with user-directory search; join by address; leave; edit a room's name, topic and photo.
+- **Presence:** online and away dots on avatars, your own status (Online, Away, Invisible) from the sidebar, and your own avatar and name, which you can change in Settings.
+- **Messages:** sending, sent and seen marks on your messages; hover a reaction to see who reacted (click your own to take it back); Copy link on any message; Markdown subset (escaped first, so safe by construction), replies, edits, deletes, reactions with an emoji picker, image and file upload (also by paste or drag and drop), typing indicators, day dividers, history on scroll, "Seen" receipts, per-room drafts (kept across a reload only in unencrypted rooms, never written to disk for encrypted ones).
 - **Mentions:** `@` autocomplete, mention pills, highlighted messages, and structured `m.mentions` so people are notified reliably.
-- **Threads, pins and search:** reply in a thread with live updates; pin and unpin messages with a pin bar; Ctrl K searches rooms and the messages already loaded on the device, including inside encrypted rooms.
-- **End-to-end encryption:** encrypted rooms and DMs, cross-signing, secret storage and key backup, restore from a recovery key, emoji (SAS) verification.
+- **Threads, pins and search:** reply in a thread with live updates; pin and unpin messages with a pin bar; Ctrl K searches rooms, the homeserver's index for older messages, and what is loaded on the device (the only way to search inside encrypted rooms).
+- **Links:** the open room is in the address bar (`#/room/<id>`), so reload, Back and Forward work and a message link opens at that message.
+- **End-to-end encryption:** encrypted rooms and DMs, cross-signing, secret storage and key backup, restore from a recovery key, verification by QR code (show, scan with the camera or from a screenshot) or by emoji.
 - **Notifications:** desktop notifications that follow your push rules, an unread count in the tab title, and a per-room level (all, mentions, mute) stored as standard push rules so other clients agree.
 - **Installable:** web app manifest and an offline-shell service worker.
 
 ## Not yet
 
-Voice and video calls, QR verification, server-side search (search covers loaded messages only), and a true timeline virtualiser.
+Voice and video calls, search inside encrypted rooms beyond what the device has loaded, and a true timeline virtualiser.
 
-Known gaps in what has been verified: single sign-on was only exercised against a stand-in identity provider, not a real one; desktop notification pop-ups were not exercised (the unread count was); and accessibility has been checked with automated tools only (see below).
+Known gaps in what has been verified: single sign-on was only exercised against a stand-in identity provider, not a real one; QR scanning was tested with a screenshot of the code between two sessions, not a live camera; desktop notification pop-ups were not exercised (the unread count was); and accessibility has been checked with automated tools only (see below).
 
 ## Accessibility
 

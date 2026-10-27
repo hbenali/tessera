@@ -235,7 +235,7 @@
     <header>
       <button class="icon-btn back" onclick={() => chat.closeRoom()} aria-label="Back to rooms"><Icon name="back" /></button>
       <Avatar name={chat.active.name} size={32} round={chat.active.isDM} src={chat.active.avatar} presence={chat.active.dmUser ? (chat.presenceOf(chat.active.dmUser) ?? 'offline') : undefined} />
-      <div class="title"><h1>{chat.active.name}</h1>{#if chat.active.dmUser}<span class="topic">{({ online: 'Online', unavailable: 'Away', offline: 'Offline' })[chat.presenceOf(chat.active.dmUser) ?? 'offline']}</span>{:else if chat.active.topic}<span class="topic">{chat.active.topic}</span>{:else}<span class="topic">{chat.active.memberCount} {chat.active.memberCount === 1 ? 'member' : 'members'}</span>{/if}</div>
+      <div class="title"><h1>{chat.active.name}{#if chat.active.notifs === 'mute'}<span class="muted" title="Notifications are muted"><Icon name="bellOff" size={14} /><span class="sr">Muted</span></span>{/if}</h1>{#if chat.active.dmUser}<span class="topic">{({ online: 'Online', unavailable: 'Away', offline: 'Offline' })[chat.presenceOf(chat.active.dmUser) ?? 'offline']}</span>{:else if chat.active.topic}<span class="topic">{chat.active.topic}</span>{:else}<span class="topic">{chat.active.memberCount} {chat.active.memberCount === 1 ? 'member' : 'members'}</span>{/if}</div>
       {#if chat.active.encrypted}<span class="enc" title="End-to-end encrypted"><Icon name="lock" size={13} /> Encrypted</span>{/if}
       <button class="icon-btn" class:on={ui.details} onclick={() => (ui.details = !ui.details)} aria-label="Room details" aria-pressed={ui.details}><Icon name="info" /></button>
     </header>
@@ -276,7 +276,12 @@
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
             {#if m.seenBy?.length}<div class="seen" title="Seen by {m.seenBy.map((s) => s.name).join(', ')}">{#each m.seenBy.slice(0, 5) as s (s.name)}<Avatar name={s.name} size={14} round src={s.avatar} />{/each}<span>Seen{m.seenBy.length > 5 ? ` by ${m.seenBy.length}` : ''}</span></div>{/if}
             {#if Object.keys(m.reactions).length}
-              <div class="reacts">{#each Object.entries(m.reactions) as [k, n] (k)}<button onclick={() => chat.react(m.id, k)} aria-label="{k} {n}, add your reaction"><span>{k}</span> {n}</button>{/each}</div>
+              <div class="reacts">{#each Object.entries(m.reactions) as [k, n] (k)}
+                {@const who = m.reactors[k] ?? []}
+                {@const mine = who.some((u) => u.id === chat.userId)}
+                {@const names = who.map((u) => (u.id === chat.userId ? 'You' : u.name)).join(', ')}
+                <button class:mine data-who={names} onclick={() => chat.react(m.id, k)} aria-pressed={mine} aria-label="{k} {n}: {names}. {mine ? 'Remove your reaction' : 'Add your reaction'}"><span>{k}</span> {n}</button>
+              {/each}</div>
             {/if}
           </div>
           <div class="tools">
@@ -352,12 +357,14 @@
   .pinlist { position: absolute; z-index: 6; top: 100%; left: 12px; right: 12px; margin: 4px 0 0; padding: 4px; list-style: none; max-height: 260px; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); } .pinlist li { display: flex; align-items: center; gap: 4px; } .pinlist li > button:first-child { flex: 1; min-width: 0; display: flex; gap: 8px; border: 0; background: none; color: var(--text); font: inherit; text-align: left; padding: 6px 8px; border-radius: 7px; cursor: pointer; } .pinlist li > button:first-child:hover { background: var(--tile); } .pinlist span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
   .pinned { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: 11px; }
   .seen { display: flex; align-items: center; gap: 3px; margin-top: 3px; color: var(--muted); font-size: 11px; } .seen span { margin-left: 3px; }
-  .reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; } .reacts button { display: inline-flex; flex: none; gap: 5px; align-items: center; white-space: nowrap; line-height: 20px; min-height: 24px; padding: 1px 9px; font-variant-numeric: tabular-nums; border-radius: 999px; background: var(--tile); border: 1px solid var(--line); font-size: 12px; font-weight: 600; } .reacts button span { font-size: 14px; line-height: 20px; } .reacts button:hover { border-color: var(--accent); }
+  .reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; } .reacts button { display: inline-flex; flex: none; gap: 5px; align-items: center; white-space: nowrap; line-height: 20px; min-height: 24px; padding: 1px 9px; font-variant-numeric: tabular-nums; border-radius: 999px; background: var(--tile); border: 1px solid var(--line); font-size: 12px; font-weight: 600; } .reacts button span { font-size: 14px; line-height: 20px; } .reacts button:hover { border-color: var(--accent); } .reacts button { position: relative; } .reacts button.mine { background: color-mix(in srgb, var(--accent) 18%, var(--tile)); border-color: var(--accent); }
+  .reacts button::after { content: attr(data-who); position: absolute; left: 0; bottom: calc(100% + 6px); max-width: 240px; width: max-content; padding: 5px 9px; border-radius: 7px; background: var(--text); color: var(--bg); font-size: 12px; font-weight: 500; white-space: normal; line-height: 1.35; opacity: 0; pointer-events: none; transition: opacity .12s; z-index: 7; } .reacts button:hover::after, .reacts button:focus-visible::after { opacity: 1; } @media (prefers-reduced-motion: reduce) { .reacts button::after { transition: none; } }
   .tools { display: none; position: absolute; top: -16px; right: 20px; z-index: 2; gap: 0; padding: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
   /* content-visibility clips overflow; the toolbar and emoji picker hang outside the row, so lift it while the row is in use. */
   article:hover, article:focus-within, article.active { content-visibility: visible; }
   article:hover .tools, article:focus-within .tools, article.active .tools { display: flex; } .tools .icon-btn { width: 30px; height: 28px; font-size: 15px; } .pw { position: relative; }
   .line { display: flex; align-items: flex-end; gap: 8px; } .line .text { flex: 1; min-width: 0; }
+  .muted { display: inline-flex; margin-left: 8px; color: var(--muted); vertical-align: -1px; }
   .tick { display: inline-flex; flex: none; margin-bottom: 3px; color: var(--muted); } .tick.st-seen { color: var(--accent); } .tick.st-failed { color: var(--danger); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .dots { display: inline-flex; gap: 3px; margin-right: 6px; vertical-align: 1px; } .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: blip 1.2s infinite; } .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; } @keyframes blip { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } } @media (prefers-reduced-motion: reduce) { .dots i { animation: none; } }

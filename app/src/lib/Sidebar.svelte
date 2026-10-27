@@ -3,9 +3,12 @@
   import { shortTime, ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
   import Icon from './Icon.svelte'
+  import type { RoomItem } from './matrix.svelte'
+  import type { ComponentProps } from 'svelte'
   let { onsearch }: { onsearch: () => void } = $props()
 
-  let filter = $state<'all' | 'unread' | 'people'>('all')
+  type View = 'all' | 'unread' | 'mentions' | 'favourites' | 'people' | 'rooms'
+  let view = $state<View>('all')
   let switcher = $state(false)
   let status = $state(false)
   const STATUSES = [['online', 'Online'], ['unavailable', 'Away'], ['offline', 'Invisible']] as const
@@ -17,10 +20,23 @@
     chat.rooms
       .filter((r) => !r.isSpace && !r.invited)
       .filter((r) => !chat.activeSpace || r.parents.includes(chat.activeSpace))
-      .filter((r) => (filter === 'unread' ? r.unread > 0 : filter === 'people' ? r.isDM : true)),
+      .filter((r) => matches(view, r)),
   )
-  const total = $derived(chat.rooms.reduce((n, r) => n + (r.isSpace || r.invited ? 0 : r.unread), 0))
-  const pick = (id: string | null) => { chat.activeSpace = id; switcher = false }
+  const matches = (v: View, r: RoomItem) =>
+    v === 'unread' ? r.unread > 0 && r.notifs !== 'mute' : v === 'mentions' ? r.highlight > 0 : v === 'favourites' ? r.favourite : v === 'people' ? r.isDM : v === 'rooms' ? !r.isDM : true
+  const chats = $derived(chat.rooms.filter((r) => !r.isSpace && !r.invited))
+  const count = (v: View) => chats.filter((r) => matches(v, r)).length
+  const VIEWS: [View, string, ComponentProps<typeof Icon>['name']][] = [
+    ['all', 'All conversations', 'hash'],
+    ['unread', 'Unread', 'bell'],
+    ['mentions', 'Mentions', 'at'],
+    ['favourites', 'Favourites', 'star'],
+    ['people', 'People', 'users2'],
+    ['rooms', 'Rooms', 'users'],
+  ]
+  const title = $derived(current?.name ?? VIEWS.find((v) => v[0] === view)![1])
+  const pickView = (v: View) => { view = v; chat.activeSpace = null; switcher = false }
+  const pick = (id: string) => { chat.activeSpace = id; view = 'all'; switcher = false }
 </script>
 
 <aside aria-label="Conversations">
@@ -28,15 +44,24 @@
     <div class="ws">
       <button class="switch" onclick={() => (switcher = !switcher)} aria-expanded={switcher} aria-haspopup="listbox">
         <Avatar name={current?.name ?? 'Tessera'} size={26} />
-        <span class="wsname">{current?.name ?? 'All rooms'}</span>
+        <span class="wsname">{title}</span>
         <Icon name="chevron" size={14} />
       </button>
       {#if switcher}
-        <div class="menu" role="listbox">
-          <button role="option" aria-selected={!chat.activeSpace} onclick={() => pick(null)}>All rooms{#if !chat.activeSpace}<Icon name="check" size={14} />{/if}</button>
-          {#each chat.spaces as s (s.id)}
-            <button role="option" aria-selected={chat.activeSpace === s.id} onclick={() => pick(s.id)}><Avatar name={s.name} size={20} />{s.name}{#if chat.activeSpace === s.id}<Icon name="check" size={14} />{/if}</button>
-          {/each}
+        <div class="menu" role="listbox" aria-label="Show">
+          <div role="group" aria-label="Views">
+            {#each VIEWS as [v, label, icon] (v)}
+              {@const on = !chat.activeSpace && view === v}
+              <button role="option" aria-selected={on} onclick={() => pickView(v)}><Icon name={icon} size={15} />{label}<span class="n">{v === 'all' ? '' : count(v) || ''}</span>{#if on}<Icon name="check" size={14} />{/if}</button>
+            {/each}
+          </div>
+          {#if chat.spaces.length}
+            <div role="group" aria-label="Spaces"><h3 class="grp">Spaces</h3>
+              {#each chat.spaces as s (s.id)}
+                <button role="option" aria-selected={chat.activeSpace === s.id} onclick={() => pick(s.id)}><Avatar name={s.name} size={20} src={s.avatar} />{s.name}{#if chat.activeSpace === s.id}<Icon name="check" size={14} />{/if}</button>
+              {/each}
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -45,11 +70,6 @@
 
   <button class="search" onclick={onsearch}><Icon name="search" size={15} /><span>Search</span><kbd class="mono">Ctrl K</kbd></button>
 
-  <div class="seg" role="tablist" aria-label="Filter rooms">
-    {#each [['all', 'All'], ['unread', total ? `Unread ${total}` : 'Unread'], ['people', 'People']] as [k, label] (k)}
-      <button role="tab" aria-selected={filter === k} class:on={filter === k} onclick={() => (filter = k as typeof filter)}>{label}</button>
-    {/each}
-  </div>
 
   <nav class="list" aria-label="Rooms">
     {#each invites as r (r.id)}
@@ -61,23 +81,25 @@
       </div>
     {/each}
     {#each rooms as r (r.id)}
-      <button class="row" class:active={chat.activeRoom === r.id} class:unread={r.unread > 0} onclick={() => chat.openRoom(r.id)}>
+      <button class="row" class:active={chat.activeRoom === r.id} class:unread={r.unread > 0 && r.notifs !== 'mute'} class:muted={r.notifs === 'mute'} onclick={() => chat.openRoom(r.id)}>
         <Avatar name={r.name} size={38} round={r.isDM} src={r.avatar} presence={r.dmUser ? (chat.presenceOf(r.dmUser) ?? 'offline') : undefined} />
         <span class="body">
           <span class="top">
             <span class="name">{r.name}</span>
+            {#if r.favourite}<span class="lock fav" title="Favourite"><Icon name="star" size={12} /><span class="sr">Favourite</span></span>{/if}
             {#if r.encrypted}<span class="lock" title="End-to-end encrypted"><Icon name="lock" size={12} /></span>{/if}
+            {#if r.notifs === 'mute'}<span class="lock" title="Notifications are muted"><Icon name="bellOff" size={12} /><span class="sr">Muted</span></span>{:else if r.notifs === 'mentions'}<span class="lock" title="Only mentions notify you"><Icon name="at" size={12} /><span class="sr">Mentions only</span></span>{/if}
             <span class="time">{r.lastTs ? shortTime(r.lastTs) : ''}</span>
           </span>
           <span class="bottom">
             {#if r.typing}<span class="preview typing" aria-live="polite">typing<i></i><i></i><i></i></span>{:else}<span class="preview">{r.preview || (r.topic ? r.topic : 'No messages yet')}</span>{/if}
-            {#if r.unread}<span class="badge" class:hl={r.highlight > 0}>{r.unread}</span>{/if}
+            {#if r.unread}<span class="badge" class:hl={r.highlight > 0 && r.notifs !== 'mute'} class:quiet={r.notifs === 'mute'}>{r.unread}</span>{/if}
           </span>
         </span>
       </button>
     {/each}
     {#if !rooms.length && !invites.length}
-      <p class="empty">{filter === 'unread' ? 'You are all caught up.' : 'No rooms here yet.'}</p>
+      <p class="empty">{view === 'unread' ? 'You are all caught up.' : view === 'mentions' ? 'No one has mentioned you.' : view === 'favourites' ? 'Star a room in its details to find it here.' : 'Nothing here yet.'}</p>
     {/if}
   </nav>
 
@@ -110,8 +132,6 @@
   .menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border-radius: 6px; text-align: left; } .menu button:hover { background: var(--tile); } .menu :global(svg:last-child) { margin-left: auto; color: var(--accent); }
   .search { display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 8px 10px; border-radius: 8px; background: var(--tile); color: var(--muted); } .search:hover { color: var(--text); }
   .search span { flex: 1; text-align: left; } kbd { font-size: 11px; }
-  .seg { display: flex; gap: 2px; margin: 0 12px 6px; padding: 2px; background: var(--tile); border-radius: 8px; }
-  .seg button { flex: 1; padding: 5px 6px; border-radius: 6px; font-size: 12px; font-weight: 500; color: var(--muted); } .seg .on { background: var(--bg); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / .18); }
   .list { flex: 1; overflow-y: auto; padding: 0 6px 8px; }
   .row { display: flex; gap: 10px; width: 100%; padding: 8px; border-radius: 10px; text-align: left; align-items: center; } .row:hover { background: var(--tile); } .row.active { background: var(--tile); box-shadow: inset 2px 0 0 var(--accent); }
   .body { flex: 1; min-width: 0; display: grid; gap: 1px; }
@@ -121,6 +141,10 @@
   .preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; } .unread .preview { color: var(--text); }
   .badge { flex: none; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--muted); color: var(--bg); font-size: 11px; font-weight: 700; text-align: center; line-height: 20px; } .badge.hl { background: var(--accent); color: var(--accent-ink); }
   .invite { display: flex; align-items: center; gap: 10px; padding: 8px; margin: 0 0 4px; border-radius: 10px; border: 1px dashed var(--accent); } .invite .meta { flex: 1; display: grid; min-width: 0; } .invite .meta span { color: var(--muted); font-size: 12px; } .invite .btn { padding: 5px 12px; }
+  .muted .name, .muted .preview { opacity: .6; } .badge.quiet { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--muted); } .fav { color: var(--accent); }
+  .grp { margin: 8px 8px 2px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .n { margin-left: auto; color: var(--muted); font-size: 12px; } .menu .n + :global(svg) { margin-left: 8px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .empty { padding: 24px 12px; color: var(--muted); text-align: center; }
   footer { display: flex; align-items: center; gap: 2px; padding: 8px 10px; border-top: 1px solid var(--line); }
   .mewrap { position: relative; flex: 1; min-width: 0; } .menu.up { top: auto; bottom: calc(100% + 6px); min-width: 200px; } .pip { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); } .pip.online { background: var(--ok); } .pip.unavailable { background: #e0a100; } .pip.offline { background: transparent; border: 2px solid var(--muted); box-sizing: border-box; }

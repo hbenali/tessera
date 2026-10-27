@@ -49,6 +49,7 @@
       </form>
     {/if}
     <div class="enc" class:on={r.encrypted}><Icon name={r.encrypted ? 'shield' : 'info'} size={16} />{r.encrypted ? 'End-to-end encrypted' : 'Not encrypted'}</div>
+    <button class="btn ghost fav" aria-pressed={r.favourite} onclick={() => chat.setFavourite(r.id, !r.favourite)}><Icon name="star" size={15} /> {r.favourite ? 'Remove from favourites' : 'Add to favourites'}</button>
     <h4 class="label">Notifications</h4>
     <div class="seg" role="radiogroup" aria-label="Notifications for this room">
       {#each [['all', 'All'], ['mentions', 'Mentions'], ['mute', 'Mute']] as [v, t] (v)}
