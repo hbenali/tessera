@@ -186,6 +186,28 @@ describe('tessera e2e', () => {
       await r.page.getByRole('combobox', { name: 'Message' }).fill('')
     })
 
+    it('opens the composer emoji picker upward and fully inside the window', async () => {
+      await r.page.getByRole('button', { name: 'Insert emoji' }).click()
+      const picker = r.page.getByRole('dialog', { name: 'Emoji picker' })
+      await picker.waitFor()
+      const box = await picker.boundingBox()
+      assert.ok(box.y >= 0 && box.y + box.height <= 720, JSON.stringify(box))
+      await r.page.keyboard.press('Escape')
+    })
+
+    it('renders mention pills inside the thread panel', async () => {
+      const first = await (await fetch(`${process.env.SYNAPSE_URL ?? 'http://localhost:8008'}/_matrix/client/v3/rooms/${encodeURIComponent(data.room)}/messages?dir=f&limit=60`, { headers: { Authorization: `Bearer ${data.bob.token}` } })).json()
+      const root = first.chunk.find((e) => e.type === 'm.room.message' && e.content.body === 'hello bob')
+      await send(data.bob, data.room, { msgtype: 'm.text', body: `in the thread, cc ${data.alice.id}`, 'm.mentions': { user_ids: [data.alice.id] }, 'm.relates_to': { rel_type: 'm.thread', event_id: root.event_id, is_falling_back: true, 'm.in_reply_to': { event_id: root.event_id } } })
+      const row = r.page.locator('article', { hasText: 'hello bob' }).first()
+      await row.scrollIntoViewIfNeeded()
+      await row.getByRole('button', { name: /1 reply|1 replies/ }).click({ timeout: 10_000 })
+      const panel = r.page.getByRole('complementary').filter({ hasText: 'in the thread' })
+      await panel.locator('.mention').first().waitFor()
+      assert.match(await panel.locator('.mention').first().innerText(), /^@/)
+      assert.ok(!(await panel.innerText()).includes(':localhost'), 'no raw ids in the thread')
+    })
+
     it('has no console errors', () => assert.deepEqual(r.errors, []))
 
     it('pins messages, shows the pin bar and jumps to a pin', async () => {

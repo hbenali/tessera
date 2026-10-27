@@ -34,3 +34,44 @@ jobs:
       - run: npm run build
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+
+  # Real Chrome against a throwaway Synapse: layout, scrolling, avatars, mentions, pins, axe in every theme.
+  e2e:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SYNAPSE_IMAGE: matrixdotorg/synapse@sha256:fde86bae86ba17af92d7f02c2442f8a824f0a7584dd75fa0a2cb0a2da63bb81c # v1.118.0
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - name: Start Synapse
+        working-directory: .
+        run: |
+          mkdir synapse
+          docker run --rm -v "$PWD/synapse:/data" -e SYNAPSE_SERVER_NAME=localhost -e SYNAPSE_REPORT_STATS=no "$SYNAPSE_IMAGE" generate
+          sudo chown -R "$USER" synapse
+          SECRET=$(openssl rand -hex 24)
+          echo "SYNAPSE_REGISTRATION_SECRET=$SECRET" >> "$GITHUB_ENV"
+          cat >> synapse/homeserver.yaml <<EOF
+          registration_shared_secret: "$SECRET"
+          suppress_key_server_warning: true
+          rc_message: {per_second: 1000, burst_count: 10000}
+          rc_login: {address: {per_second: 1000, burst_count: 10000}, account: {per_second: 1000, burst_count: 10000}, failed_attempts: {per_second: 1000, burst_count: 10000}}
+          rc_registration: {per_second: 1000, burst_count: 10000}
+          rc_joins: {local: {per_second: 1000, burst_count: 10000}}
+          EOF
+          sudo chown -R 991:991 synapse
+          docker run -d --name synapse -p 8008:8008 -v "$PWD/synapse:/data" "$SYNAPSE_IMAGE"
+          for i in $(seq 1 60); do curl -fs localhost:8008/_matrix/client/versions >/dev/null && exit 0; sleep 2; done
+          docker logs synapse; exit 1
+      - run: npm run e2e
