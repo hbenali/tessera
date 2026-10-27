@@ -791,8 +791,51 @@ class Chat {
     return hits.sort((a, b) => b.ts - a.ts).slice(0, limit)
   }
 
+  /** Search the homeserver's index. It cannot see inside encrypted rooms, which searchMessages covers on this device. */
+  async searchServer(term: string, limit = 20): Promise<MessageHit[]> {
+    const q = term.trim()
+    const c = this.client
+    if (q.length < 2 || !c) return []
+    const r = await c.search({
+      body: {
+        search_categories: {
+          room_events: {
+            search_term: q,
+            keys: ['content.body'],
+            order_by: 'recent',
+            filter: { limit },
+            event_context: { before_limit: 0, after_limit: 0, include_profile: true },
+          },
+        },
+      },
+    } as never)
+    const lower = q.toLowerCase()
+    const out: MessageHit[] = []
+    for (const x of r.search_categories?.room_events?.results ?? []) {
+      const e = x.result
+      const content = e.content as { body?: unknown; 'm.relates_to'?: { rel_type?: string } }
+      if (content['m.relates_to']?.rel_type === 'm.replace' || typeof content.body !== 'string') continue
+      const body = content.body
+      const i = Math.max(0, body.toLowerCase().indexOf(lower))
+      const room = c.getRoom(e.room_id)
+      out.push({
+        roomId: e.room_id,
+        roomName: room?.name ?? e.room_id,
+        eventId: e.event_id,
+        sender: x.context?.profile_info?.[e.sender]?.displayname ?? room?.getMember(e.sender)?.name ?? e.sender,
+        snippet: (i > 30 ? '…' : '') + body.slice(Math.max(0, i - 30), i + 70),
+        ts: e.origin_server_ts,
+      })
+    }
+    return out
+  }
+
   async openMessage(hit: MessageHit) {
     await this.openRoom(hit.roomId)
+    // A server hit can be older than the loaded window: page back until it appears, within reason.
+    const room = this.client?.getRoom(hit.roomId)
+    for (let i = 0; room && i < 40 && !room.findEventById(hit.eventId) && this.hasOlder(); i++) await this.loadOlder()
+    this.refreshMessages()
     this.focusEvent = hit.eventId
   }
 

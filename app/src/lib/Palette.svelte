@@ -6,6 +6,32 @@
   let { onclose }: { onclose: () => void } = $props()
   let q = $state('')
   let sel = $state(0)
+  // Messages older than what this device has loaded come from the homeserver's index, a beat after typing stops.
+  let remote = $state<MessageHit[]>([])
+  let searching = $state(false)
+  let failed = $state(false)
+  let token = 0
+  let timer: ReturnType<typeof setTimeout> | undefined
+  $effect(() => {
+    const term = q.trim()
+    clearTimeout(timer)
+    remote = []
+    failed = false
+    if (term.length < 2) { searching = false; return }
+    searching = true
+    const mine = ++token
+    timer = setTimeout(async () => {
+      try {
+        const hits = await chat.searchServer(term)
+        if (mine === token) remote = hits
+      } catch {
+        if (mine === token) failed = true
+      } finally {
+        if (mine === token) searching = false
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  })
 
   type Item = { kind: 'room'; id: string; name: string; dm: boolean } | { kind: 'msg'; hit: MessageHit }
   const items = $derived.by<Item[]>(() => {
@@ -14,7 +40,9 @@
       .filter((r) => !r.isSpace && !r.invited && r.name.toLowerCase().includes(term))
       .slice(0, 6)
       .map((r) => ({ kind: 'room', id: r.id, name: r.name, dm: r.isDM }))
-    const msgs: Item[] = chat.searchMessages(q).map((hit) => ({ kind: 'msg', hit }))
+    const local = chat.searchMessages(q)
+    const seen = new Set(local.map((h) => h.eventId))
+    const msgs: Item[] = [...local, ...remote.filter((h) => !seen.has(h.eventId))].map((hit) => ({ kind: 'msg', hit }))
     return [...rooms, ...msgs]
   })
 
@@ -35,7 +63,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="scrim" onclick={onclose}>
   <div class="box" role="dialog" tabindex="-1" aria-label="Search" onclick={(e) => e.stopPropagation()}>
-    <div class="field"><Icon name="search" size={16} /><input use:focus bind:value={q} oninput={() => (sel = 0)} onkeydown={key} placeholder="Jump to a room or search loaded messages" aria-label="Search rooms and messages" /></div>
+    <div class="field"><Icon name="search" size={16} /><input use:focus bind:value={q} oninput={() => (sel = 0)} onkeydown={key} placeholder="Jump to a room or search messages" aria-label="Search rooms and messages" /></div>
     <div class="results" role="listbox" aria-label="Results">
       {#each items as it, i (it.kind === 'room' ? 'r' + it.id : 'm' + it.hit.roomId + it.hit.eventId)}
         <button role="option" aria-selected={i === sel} class:sel={i === sel} onclick={() => go(it)}>
@@ -46,7 +74,10 @@
           {/if}
         </button>
       {/each}
-      {#if q.length >= 2 && !items.length}<p class="none">Nothing found. Search covers messages loaded on this device; scroll up in a room to load more history.</p>{/if}
+      {#if q.trim().length >= 2}
+        <p class="none" role="status">{#if searching}Searching the server…{:else if !items.length}Nothing found.{:else}&nbsp;{/if}{#if failed} The server search failed, showing this device only.{/if}</p>
+        <p class="none fine">Encrypted rooms cannot be searched by the server: they are searched on this device, among messages it has loaded.</p>
+      {/if}
     </div>
   </div>
 </div>
@@ -59,5 +90,6 @@
   .results { max-height: 52vh; overflow-y: auto; padding: 6px; }
   button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 10px; border-radius: 8px; text-align: left; } .sel { background: var(--tile); }
   .t { flex: 1; min-width: 0; display: grid; overflow: hidden; } .t small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .k { color: var(--muted); font-size: 12px; flex: none; }
+  .fine { padding-top: 0; font-size: 12px; }
   .none { margin: 0; padding: 18px 12px; color: var(--muted); font-size: 13px; }
 </style>
