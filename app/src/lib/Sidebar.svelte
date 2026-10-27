@@ -51,7 +51,7 @@
   <nav class="list" aria-label="Rooms">
     {#each invites as r (r.id)}
       <div class="invite">
-        <Avatar name={r.name} size={36} />
+        <Avatar name={r.name} size={36} src={r.avatar} />
         <div class="meta"><b>{r.name}</b><span>Invitation</span></div>
         <button class="btn" onclick={() => chat.acceptInvite(r.id)}>Join</button>
         <button class="icon-btn" onclick={() => chat.declineInvite(r.id)} aria-label="Decline invitation"><Icon name="x" size={16} /></button>
@@ -59,7 +59,7 @@
     {/each}
     {#each rooms as r (r.id)}
       <button class="row" class:active={chat.activeRoom === r.id} class:unread={r.unread > 0} onclick={() => chat.openRoom(r.id)}>
-        <Avatar name={r.name} size={38} round={r.isDM} />
+        <Avatar name={r.name} size={38} round={r.isDM} src={r.avatar} />
         <span class="body">
           <span class="top">
             <span class="name">{r.name}</span>

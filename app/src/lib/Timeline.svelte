@@ -4,6 +4,7 @@
   import { render } from './markdown'
   import { dayLabel, ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
+  import Photo from './Photo.svelte'
   import Icon from './Icon.svelte'
   import EmojiPicker from './EmojiPicker.svelte'
 
@@ -15,6 +16,7 @@
   let scroller: HTMLElement | undefined = $state()
   let fileInput: HTMLInputElement | undefined = $state()
   let stick = true
+  let away = $state(false) // scrolled up from the newest message
   let typingTimer: ReturnType<typeof setTimeout> | undefined
 
   const QUICK = ['👍', '❤️', '😂', '🎉']
@@ -61,6 +63,7 @@
   function onscroll() {
     if (!scroller) return
     stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80
+    away = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight > 400
     if (scroller.scrollTop < 40 && !chat.loadingOlder) {
       const h = scroller.scrollHeight
       chat.loadOlder().then(() => tick().then(() => scroller && (scroller.scrollTop = scroller.scrollHeight - h)))
@@ -114,24 +117,25 @@
   {:else}
     <header>
       <button class="icon-btn back" onclick={() => (chat.activeRoom = null)} aria-label="Back to rooms"><Icon name="back" /></button>
-      <Avatar name={chat.active.name} size={32} round={chat.active.isDM} />
+      <Avatar name={chat.active.name} size={32} round={chat.active.isDM} src={chat.active.avatar} />
       <div class="title"><h1>{chat.active.name}</h1>{#if chat.active.topic}<span class="topic">{chat.active.topic}</span>{:else}<span class="topic">{chat.active.memberCount} {chat.active.memberCount === 1 ? 'member' : 'members'}</span>{/if}</div>
       {#if chat.active.encrypted}<span class="enc" title="End-to-end encrypted"><Icon name="lock" size={13} /> Encrypted</span>{/if}
       <button class="icon-btn" class:on={ui.details} onclick={() => (ui.details = !ui.details)} aria-label="Room details" aria-pressed={ui.details}><Icon name="info" /></button>
     </header>
 
+    {#if away}<button class="latest" onclick={() => { stick = true; scroller?.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' }) }}><Icon name="chevron" size={14} /> Jump to latest</button>{/if}
     <div class="scroll" bind:this={scroller} {onscroll}>
       {#if chat.loadingOlder}<div class="note">Loading earlier messages…</div>{/if}
       {#each rows as { m, newDay, cont } (m.id)}
         {#if newDay}<div class="day" role="separator"><span>{dayLabel(m.ts)}</span></div>{/if}
         <article class:cont class:pending={m.pending} class:mention={m.mentionsMe} data-id={m.id}>
           <div class="gutter">
-            {#if !cont}<Avatar name={m.senderName} size={36} round />{:else}<time>{fmt(m.ts)}</time>{/if}
+            {#if !cont}<Avatar name={m.senderName} size={36} round src={m.senderAvatar} />{:else}<time>{fmt(m.ts)}</time>{/if}
           </div>
           <div class="body">
             {#if !cont}<div class="head"><b>{m.senderName}</b><time>{fmt(m.ts)}</time></div>{/if}
             {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {byId(m.replyTo)?.body ?? 'earlier message'}</div>{/if}
-            {#if m.imageUrl}<img src={m.imageUrl} alt={m.body} loading="lazy" />{:else}<div class="text" class:utd={m.undecryptable}>{@html render(m.body)}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{/if}
+            {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} />{:else}<div class="text" class:utd={m.undecryptable}>{@html render(m.body)}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{/if}
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
             {#if Object.keys(m.reactions).length}
               <div class="reacts">{#each Object.entries(m.reactions) as [k, n] (k)}<button onclick={() => chat.react(m.id, k)} aria-label="{k} {n}, add your reaction"><span>{k}</span> {n}</button>{/each}</div>
@@ -171,7 +175,7 @@
 </main>
 
 <style>
-  main { display: flex; flex-direction: column; min-width: 0; height: 100%; background: var(--bg); }
+  main { position: relative; display: flex; flex-direction: column; min-width: 0; height: 100%; background: var(--bg); }
   .empty { margin: auto; padding: 24px; text-align: center; color: var(--muted); display: grid; justify-items: center; gap: 4px; } .empty h1 { margin: 10px 0 0; font-size: 20px; color: var(--text); } .empty p { margin: 0; }
   header { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; border-bottom: 1px solid var(--line); flex: none; }
   .back { display: none; } @media (max-width: 720px) { .back { display: grid; } }
@@ -181,6 +185,7 @@
   .note { text-align: center; color: var(--muted); font-size: 12px; padding: 8px; }
   .day { display: flex; align-items: center; gap: 12px; margin: 16px 20px 6px; color: var(--muted); font-size: 12px; font-weight: 600; } .day::before, .day::after { content: ''; flex: 1; height: 1px; background: var(--line); }
   /* Off-screen messages skip layout and paint, which keeps long rooms fast. */
+  .latest { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 5; display: inline-flex; gap: 6px; align-items: center; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 12px; box-shadow: 0 6px 20px rgb(0 0 0 / .25); cursor: pointer; } .latest :global(svg) { transform: rotate(90deg); }
   article { position: relative; display: flex; gap: 12px; padding: 2px 20px; margin-top: 10px; content-visibility: auto; contain-intrinsic-size: auto 44px; } article.cont { margin-top: 0; } article.mention { background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset 3px 0 0 var(--accent); } article.pending { opacity: .55; } article:hover { background: color-mix(in srgb, var(--tile) 55%, transparent); }
   .gutter { flex: none; width: 36px; padding-top: 2px; } .gutter time { display: none; font-size: 10px; color: var(--muted); text-align: right; line-height: 22px; } article:hover .gutter time { display: block; }
   .body { min-width: 0; flex: 1; }
@@ -189,7 +194,6 @@
   .text :global(code) { background: var(--tile); padding: 1px 5px; border-radius: 4px; font-family: var(--mono); font-size: 12.5px; } .text :global(pre) { margin: 6px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; } .text :global(pre code) { padding: 0; background: none; }
   .text :global(blockquote) { margin: 2px 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); } .text :global(a) { color: var(--accent); text-underline-offset: 3px; }
   .quote { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; margin: 2px 0 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-left: 8px; border-left: 2px solid var(--accent); }
-  img { max-width: min(420px, 100%); max-height: 320px; display: block; margin-top: 4px; border-radius: 10px; border: 1px solid var(--line); }
   .thread-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 2px 8px; border-radius: 6px; color: var(--accent); font-size: 12px; font-weight: 600; } .thread-link:hover { background: var(--tile); }
   .reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; } .reacts button { display: inline-flex; gap: 5px; align-items: center; padding: 1px 8px; border-radius: 999px; background: var(--tile); border: 1px solid var(--line); font-size: 12px; font-weight: 600; } .reacts button:hover { border-color: var(--accent); }
   .tools { display: none; position: absolute; top: -16px; right: 20px; z-index: 2; gap: 0; padding: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }

@@ -11,6 +11,13 @@
   let err = $state('')
   const canEdit = $derived(r ? chat.canEditRoom(r.id) : false)
   function startEdit() { if (!r) return; name = r.name; topic = r.topic ?? ''; err = ''; editing = true }
+  let photo: HTMLInputElement | undefined = $state()
+  async function pickPhoto() {
+    const f = photo?.files?.[0]
+    if (!f || !r) return
+    if (!f.type.startsWith('image/')) { err = 'Choose an image file'; return }
+    try { await chat.setRoomAvatar(r.id, f) } catch (x) { err = x instanceof Error ? x.message : 'Could not upload' }
+  }
   async function save(e: Event) {
     e.preventDefault()
     if (!r) return
@@ -28,11 +35,13 @@
 {#if r}
   <aside aria-label="Room details">
     <header><h2>Details</h2><button class="icon-btn" onclick={() => (ui.details = false)} aria-label="Close details"><Icon name="x" /></button></header>
-    <div class="hero"><Avatar name={r.name} size={64} round={r.isDM} /><h3>{r.name}</h3>{#if r.topic}<p>{r.topic}</p>{/if}
+    <div class="hero"><Avatar name={r.name} size={64} round={r.isDM} src={r.avatar} /><h3>{r.name}</h3>{#if r.topic}<p>{r.topic}</p>{/if}
       {#if canEdit && !r.isDM && !editing}<button class="btn ghost" onclick={startEdit}><Icon name="edit" size={14} /> Edit room</button>{/if}
     </div>
     {#if editing}
       <form class="edit" onsubmit={save}>
+        <input type="file" accept="image/*" hidden bind:this={photo} onchange={pickPhoto} />
+        <button type="button" class="btn ghost" onclick={() => photo?.click()}>Change photo</button>
         <label>Name<input bind:value={name} maxlength="100" required /></label>
         <label>Topic<textarea bind:value={topic} rows="3" maxlength="500"></textarea></label>
         {#if err}<p class="err" role="alert">{err}</p>{/if}
@@ -49,7 +58,7 @@
     <h4 class="label">{chat.members.length} {chat.members.length === 1 ? 'member' : 'members'}</h4>
     <ul>
       {#each chat.members as m (m.id)}
-        <li><Avatar name={m.name} size={28} round /><span class="n">{m.name}</span>{#if m.id === chat.userId}<span class="mono you">you</span>{/if}</li>
+        <li><Avatar name={m.name} size={28} round src={m.avatar} /><span class="n">{m.name}</span>{#if m.id === chat.userId}<span class="mono you">you</span>{/if}</li>
       {/each}
     </ul>
     <div class="actions">

@@ -27,11 +27,12 @@ export interface Msg {
   edited: boolean
   replyTo?: string
   reactions: Record<string, number>
-  imageUrl?: string
+  imageMxc?: string
   undecryptable?: boolean
   decrypting?: boolean
   threadReplies: number
   mentionsMe: boolean
+  senderAvatar?: string
 }
 
 export interface RoomItem {
@@ -48,6 +49,7 @@ export interface RoomItem {
   preview: string
   topic: string
   memberCount: number
+  avatar?: string
 }
 
 export interface MessageHit {
@@ -62,6 +64,7 @@ export interface MessageHit {
 export interface Member {
   id: string
   name: string
+  avatar?: string
 }
 
 class Chat {
@@ -231,6 +234,7 @@ class Chat {
         preview: this.previewOf(room),
         topic: room.currentState.getStateEvents('m.room.topic', '')?.getContent().topic ?? '',
         memberCount: room.getJoinedMemberCount(),
+        avatar: room.getMxcAvatarUrl() ?? (dms.has(room.roomId) ? this.otherMember(room)?.getMxcAvatarUrl() : undefined) ?? undefined,
       })
     }
     items.sort((a, b) => b.lastTs - a.lastTs)
@@ -308,10 +312,7 @@ class Chat {
       const id = ev.getId() ?? ev.getTxnId() ?? String(ev.getTs())
       const sender = ev.getSender() ?? ''
       const bad = (encrypted && ev.isDecryptionFailure()) || content.msgtype === 'm.bad.encrypted'
-      let imageUrl: string | undefined
-      if (content.msgtype === 'm.image' && content.url) {
-        imageUrl = c.mxcUrlToHttp(content.url, 480, 360, 'scale', false, true, true) ?? undefined
-      }
+      const imageMxc: string | undefined = content.msgtype === 'm.image' && typeof content.url === 'string' ? content.url : undefined
       out.push({
         id,
         sender,
@@ -329,8 +330,9 @@ class Chat {
         edited: edits.has(id),
         replyTo: content['m.relates_to']?.['m.in_reply_to']?.event_id,
         reactions: reactions.get(id) ?? {},
-        imageUrl,
+        imageMxc,
         threadReplies: ev.isThreadRoot ? (ev.getThread()?.length ?? 0) : 0,
+        senderAvatar: room.getMember(sender)?.getMxcAvatarUrl() ?? undefined,
         mentionsMe: sender !== this.userId && mentionsUser(content, this.userId, this.client?.getUser(this.userId)?.displayName),
       })
     }
@@ -350,7 +352,7 @@ class Chat {
     this.messages = this.build(room.getLiveTimeline().getEvents(), room)
     this.members = room
       .getJoinedMembers()
-      .map((m) => ({ id: m.userId, name: m.name }))
+      .map((m) => ({ id: m.userId, name: m.name, avatar: m.getMxcAvatarUrl() ?? undefined }))
       .sort((a, b) => a.name.localeCompare(b.name))
     this.refreshThread()
   }
@@ -493,6 +495,36 @@ class Chat {
       await drop('override')
     }
     this.refreshRooms()
+  }
+
+  private otherMember(room: sdk.Room) {
+    return room.getJoinedMembers().find((m) => m.userId !== this.userId)
+  }
+
+  private media = new Map<string, Promise<string>>()
+
+  /** Thumbnail of an mxc:// image as a blob URL; authenticated media cannot be used in a bare <img src>. */
+  thumb(mxc: string, size: number, method: 'crop' | 'scale' = 'crop'): Promise<string> {
+    const key = `${mxc}@${size}${method}`
+    let hit = this.media.get(key)
+    if (!hit) {
+      const c = this.client!
+      const url = c.mxcUrlToHttp(mxc, size * 2, size * 2, method, false, true, true)
+      hit = url
+        ? fetch(url, { headers: { Authorization: `Bearer ${c.getAccessToken()}` } }).then((r) => {
+            if (!r.ok) throw new Error(String(r.status))
+            return r.blob().then((b) => URL.createObjectURL(b))
+          })
+        : Promise.reject(new Error('no url'))
+      hit.catch(() => this.media.delete(key))
+      this.media.set(key, hit)
+    }
+    return hit
+  }
+
+  async setRoomAvatar(roomId: string, file: File) {
+    const { content_uri } = await this.client!.uploadContent(file, { name: file.name })
+    await this.client!.sendStateEvent(roomId, 'm.room.avatar' as never, { url: content_uri } as never, '')
   }
 
   async setRoomName(roomId: string, name: string) {
