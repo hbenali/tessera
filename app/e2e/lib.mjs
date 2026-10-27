@@ -70,6 +70,19 @@ export async function seed() {
   return { alice, bob, room }
 }
 
+/** A room whose last 30+ events are reactions: the first sync window holds no visible message at all. */
+export async function seedSparse(alice) {
+  const { room_id: room } = await api(alice.token, 'POST', '/_matrix/client/v3/createRoom', { name: 'sparse room', preset: 'private_chat' })
+  const msgs = []
+  for (let i = 1; i <= 3; i++) msgs.push(await send(alice, room, { msgtype: 'm.text', body: `early message ${i}` }))
+  for (let i = 0; i < 40; i++) {
+    await api(alice.token, 'PUT', `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/send/m.reaction/s${i}`, {
+      'm.relates_to': { rel_type: 'm.annotation', event_id: msgs[0].event_id, key: String.fromCodePoint(0x1f600 + i) },
+    })
+  }
+  return room
+}
+
 async function reachable(url) {
   try { return (await fetch(url)).ok } catch { return false }
 }

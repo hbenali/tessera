@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { after, before, describe, it } from 'node:test'
-import { app, launch, seed, send, signIn } from './lib.mjs'
+import { app, launch, seed, seedSparse, send, signIn } from './lib.mjs'
 
 const axeSource = readFileSync(new URL('../node_modules/axe-core/axe.min.js', import.meta.url), 'utf8')
 const THEMES = ['dark', 'light', 'sand', 'forest', 'ocean', 'midnight', 'contrast']
@@ -244,6 +244,18 @@ describe('tessera e2e', () => {
         }, theme)
         assert.deepEqual(bad, [], `${theme}: ${bad.join('; ')}`)
       }
+    })
+  })
+
+  describe('history', () => {
+    it('loads older messages even when the first window shows none and nothing can be scrolled', async () => {
+      await seedSparse(data.alice)
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } })
+      const page = await ctx.newPage()
+      await signIn(page, server.url, data.alice)
+      await page.getByRole('button', { name: /sparse room/ }).click()
+      await page.getByText('early message 3', { exact: true }).waitFor({ timeout: 15_000 })
+      await ctx.close()
     })
   })
 

@@ -68,6 +68,36 @@
     if (textRoom && textRoom === chat.activeRoom && !editing) setDraft(textRoom, t, !chat.active?.encrypted)
   })
 
+  // Many of a room's newest events are not shown (reactions, joins, edits), so the first window can hold too few
+  // messages to fill the screen. Then there is nothing to scroll and nothing would ever trigger loading, so
+  // keep paging back until the list can scroll or the start of the room is reached.
+  let filling = false
+  async function fill() {
+    if (filling) return
+    filling = true
+    try {
+      for (let i = 0; i < 12; i++) {
+        await tick()
+        if (!scroller || scroller.scrollHeight > scroller.clientHeight + 40 || !chat.hasOlder() || chat.loadingOlder) return
+        await chat.loadOlder()
+        await new Promise((r) => setTimeout(r, 200)) // let the new events reach the list
+      }
+    } finally {
+      filling = false
+    }
+  }
+  $effect(() => {
+    chat.activeRoom
+    chat.messages.length
+    fill()
+  })
+  async function loadEarlier() {
+    const h = scroller?.scrollHeight ?? 0
+    await chat.loadOlder()
+    await tick()
+    if (scroller) scroller.scrollTop += scroller.scrollHeight - h
+  }
+
   function onscroll() {
     if (!scroller) return
     stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80
@@ -184,6 +214,11 @@
     {#if away}<button class="latest" onclick={() => { stick = true; scroller?.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' }) }}><Icon name="chevron" size={14} /> Jump to latest</button>{/if}
     <div class="scroll" bind:this={scroller} {onscroll} onloadcapture={() => stick && scroller?.scrollTo({ top: scroller.scrollHeight })}>
       {#if chat.loadingOlder}<div class="note">Loading earlier messages…</div>{/if}
+      {#if chat.olderAvailable}
+        <button class="earlier" onclick={loadEarlier} disabled={chat.loadingOlder}>{chat.loadingOlder ? 'Loading…' : 'Load earlier messages'}</button>
+      {:else if rows.length}
+        <p class="start">This is the beginning of the conversation.</p>
+      {/if}
       {#each rows as { m, newDay, cont } (m.id)}
         {#if newDay}<div class="day" role="separator"><span>{dayLabel(m.ts)}</span></div>{/if}
         <article class:cont class:pending={m.pending} class:active={picker === m.id} class:mention={m.mentionsMe} data-id={m.id}>
@@ -252,6 +287,8 @@
   .note { text-align: center; color: var(--muted); font-size: 12px; padding: 8px; }
   .day { display: flex; align-items: center; gap: 12px; margin: 16px 20px 6px; color: var(--muted); font-size: 12px; font-weight: 600; } .day::before, .day::after { content: ''; flex: 1; height: 1px; background: var(--line); }
   /* Off-screen messages skip layout and paint, which keeps long rooms fast. */
+.earlier { display: block; margin: 6px auto 10px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; } .earlier:disabled { opacity: .6; cursor: default; }
+  .start { margin: 8px 0 4px; text-align: center; color: var(--muted); font-size: 12px; }
   .latest { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 5; display: inline-flex; gap: 6px; align-items: center; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 12px; box-shadow: 0 6px 20px rgb(0 0 0 / .25); cursor: pointer; } .latest :global(svg) { transform: rotate(90deg); }
   article { position: relative; display: flex; gap: 12px; padding: 2px 20px; margin-top: 10px; content-visibility: auto; contain-intrinsic-size: auto 44px; } article.cont { margin-top: 0; } article.mention { background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset 3px 0 0 var(--accent); } article.pending { opacity: .55; } article:hover { background: color-mix(in srgb, var(--tile) 55%, transparent); }
   .gutter { flex: none; width: 36px; padding-top: 2px; } .gutter time { display: none; white-space: nowrap; font-size: 10px; color: var(--muted); text-align: center; line-height: 22px; margin-inline: -8px; } article:hover .gutter time { display: block; }

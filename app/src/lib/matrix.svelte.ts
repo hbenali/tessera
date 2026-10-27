@@ -85,6 +85,7 @@ class Chat {
   loadingOlder = $state(false)
   focusEvent = $state<string | null>(null)
   pinnedIds = $state<string[]>([])
+  olderAvailable = $state(false)
   pinned = $state<{ id: string; sender: string; body: string }[]>([])
   canPin = $state(false)
   private pinToken = 0
@@ -372,6 +373,7 @@ class Chat {
     this.canPin = room.currentState.maySendStateEvent('m.room.pinned_events', this.userId)
     this.messages = this.build(room.getLiveTimeline().getEvents(), room)
     this.loadPinned(room)
+    this.olderAvailable = this.hasOlder()
     this.members = room
       .getJoinedMembers()
       .map((m) => ({ id: m.userId, name: m.name, avatar: m.getMxcAvatarUrl() ?? undefined }))
@@ -446,6 +448,7 @@ class Chat {
       await this.client!.scrollback(room, 30)
     } finally {
       this.loadingOlder = false
+      this.olderAvailable = this.hasOlder()
     }
   }
 
