@@ -9,14 +9,14 @@ A fast, private Matrix client for Synapse and any Matrix homeserver. Svelte 5, V
 - **Threads and search:** reply in a thread with a side panel and live updates; Ctrl K searches rooms and loaded messages, including inside encrypted rooms, and jumps to the message.
 - **Messages:** Markdown subset (safe by construction), replies, edits, deletes, reactions with an emoji picker, image and file upload, typing indicators, day dividers, history on scroll.
 - **End-to-end encryption:** Rust crypto with IndexedDB stores, encrypted rooms and DMs, cross-signing, secret storage and key backup setup, restore from a recovery key, emoji (SAS) verification.
-- **Notifications:** desktop notifications that follow your push rules, and an unread count in the tab title.
+- **Notifications:** desktop notifications that follow your push rules, and an unread count in the tab title. Per-room level (all, mentions, mute) in the room details.
 - **Installable:** web app manifest and an offline-shell service worker.
 - **Themes:** System, Dark, Light, Midnight, Sand, Forest, Ocean and High contrast.
 - **Accessibility:** axe-core reports no violations on any theme (room, details panel, settings). Full RGAA conformity also needs manual review.
 
 ## Not yet
 
-Voice and video calls, QR verification, server-side search (search covers messages already loaded on the device), a full timeline virtualiser (long rooms use CSS `content-visibility` for now), and per-room notification settings.
+Voice and video calls, QR verification, server-side search (search covers messages already loaded on the device), a full timeline virtualiser (long rooms use CSS `content-visibility` for now).
 
 ## Develop
 
