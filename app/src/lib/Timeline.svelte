@@ -127,6 +127,7 @@
               {#if picker === m.id}<EmojiPicker onpick={(e) => chat.react(m.id, e)} onclose={() => (picker = null)} />{/if}</span>
             <button class="icon-btn" onclick={() => { replyTo = m; editing = null }} aria-label="Reply"><Icon name="reply" size={16} /></button>
             {#if m.mine && !m.undecryptable}<button class="icon-btn" onclick={() => { editing = m; replyTo = null; text = m.body }} aria-label="Edit"><Icon name="edit" size={16} /></button>{/if}
+            {#if m.mine}<button class="icon-btn" onclick={() => chat.deleteMessage(m.id)} aria-label="Delete message"><Icon name="trash" size={16} /></button>{/if}
           </div>
         </article>
       {/each}

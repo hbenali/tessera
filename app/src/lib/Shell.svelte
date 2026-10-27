@@ -10,6 +10,10 @@
   import Verification from './Verification.svelte'
 
   let palette = $state(false)
+  const unread = $derived(chat.rooms.reduce((n, r) => n + (r.isSpace || r.invited ? 0 : r.unread), 0))
+  $effect(() => {
+    document.title = unread ? `(${unread}) Tessera` : 'Tessera'
+  })
   function key(e: KeyboardEvent) {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault()
@@ -27,8 +31,7 @@
 </div>
 {#if palette}<Palette onclose={() => (palette = false)} />{/if}
 {#if ui.modal === 'settings'}<Settings />{/if}
-{#if ui.modal === 'new-room'}<NewRoom />{/if}
-{#if ui.modal === 'join-room'}<NewRoom join />{/if}
+{#if ui.modal === 'new'}<NewRoom />{/if}
 <Verification />
 
 <style>

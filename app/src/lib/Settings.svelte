@@ -4,7 +4,11 @@
   import { security } from './security.svelte'
   import { THEMES, ui } from './ui.svelte'
 
-  let tab = $state<'look' | 'security' | 'account'>('security')
+  let tab = $state<'look' | 'security' | 'notify' | 'account'>('security')
+  let perm = $state(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
+  async function enableNotifications() {
+    perm = await Notification.requestPermission()
+  }
   let password = $state('')
   let recovery = $state('')
   $effect(() => { security.refresh() })
@@ -12,7 +16,7 @@
 
 <Modal title="Settings" onclose={() => (ui.modal = null)}>
   <div class="tabs" role="tablist">
-    {#each [['look', 'Appearance'], ['security', 'Security'], ['account', 'Account']] as [k, label] (k)}
+    {#each [['look', 'Appearance'], ['security', 'Security'], ['notify', 'Notifications'], ['account', 'Account']] as [k, label] (k)}
       <button role="tab" aria-selected={tab === k} class:on={tab === k} onclick={() => (tab = k as typeof tab)}>{label}</button>
     {/each}
   </div>
@@ -53,6 +57,19 @@
       </form>
     {/if}
     {#if security.message}<div class="err" role="alert">{security.message}</div>{/if}
+  {:else if tab === 'notify'}
+    <h3 class="label">Desktop notifications</h3>
+    {#if perm === 'unsupported'}
+      <p class="hint">This browser does not support notifications.</p>
+    {:else if perm === 'granted'}
+      <p class="status ok">Enabled. You will be notified of new messages while this tab is in the background.</p>
+    {:else if perm === 'denied'}
+      <p class="hint">Blocked in your browser settings. Allow notifications for this site, then reload.</p>
+    {:else}
+      <p class="hint">Get a notification when a message arrives in a room you are not looking at.</p>
+      <button class="btn" onclick={enableNotifications}>Enable notifications</button>
+    {/if}
+    <p class="hint">Message text is shown in the notification for unencrypted rooms and, once decrypted on this device, for encrypted ones. Notifications follow your Matrix push rules.</p>
   {:else}
     <p>Signed in as <b>{chat.userId}</b></p>
     <button class="btn" onclick={() => chat.logout()}>Sign out</button>
@@ -60,8 +77,9 @@
 </Modal>
 
 <style>
-  .tabs { display: flex; gap: 20px; margin-bottom: 18px; } .tabs button { color: var(--muted); padding-bottom: 3px; border-bottom: 2px solid transparent; } .tabs .on { color: var(--text); border-bottom-color: var(--accent); }
-  h3 { margin: 22px 0 8px; font-weight: 400; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; padding: 3px; background: var(--tile); border-radius: 8px; } .tabs button { flex: 1; padding: 6px 8px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--muted); } .tabs .on { background: var(--bg); color: var(--text); }
+  .hint { color: var(--muted); font-size: 13px; }
+  h3 { margin: 20px 0 8px; }
   .themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
   .theme { display: grid; gap: 6px; text-align: left; font-size: 13px; padding: 6px; border-radius: 8px; border: 2px solid transparent; } .theme.on { border-color: var(--accent); }
   .swatch { display: flex; align-items: center; justify-content: space-between; padding: 10px; border-radius: 6px; border: 1px solid var(--line); } .swatch i { width: 14px; height: 14px; border-radius: 3px; } .swatch b { font-size: 18px; }

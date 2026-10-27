@@ -14,8 +14,8 @@
 </div>
 
 <style>
-  .scrim { position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 82%, transparent); display: grid; place-items: center; z-index: 20; }
-  .card { width: min(500px, 94vw); max-height: 88vh; overflow: auto; border-radius: 10px; background: var(--panel); padding: 22px 24px 26px; outline: none; }
-  header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-  h2 { margin: 0; font: 800 26px/1 var(--display); letter-spacing: -.03em; } header button { font-size: 13px; color: var(--muted); }
+  .scrim { position: fixed; inset: 0; background: rgb(0 0 0 / .5); display: grid; place-items: center; z-index: 20; }
+  .card { width: min(480px, 94vw); max-height: 88vh; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px 24px; box-shadow: var(--shadow); outline: none; }
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  h2 { margin: 0; font-size: 17px; letter-spacing: -.01em; } header button { color: var(--muted); font-size: 13px; } header button:hover { color: var(--text); }
 </style>

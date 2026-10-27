@@ -44,7 +44,12 @@ function readTheme(): ThemeId {
 }
 
 class Ui {
-  modal = $state<null | 'settings' | 'new-room' | 'join-room'>(null)
+  modal = $state<null | 'settings' | 'new'>(null)
+  newTab = $state<'room' | 'dm' | 'join'>('room')
+  open(tab: 'room' | 'dm' | 'join') {
+    this.newTab = tab
+    this.modal = 'new'
+  }
   details = $state(false)
   theme = $state<ThemeId>(readTheme())
   setTheme(t: ThemeId) {

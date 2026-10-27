@@ -7,3 +7,8 @@ const app = mount(App, {
 })
 
 export default app
+
+// Offline shell for the installed app; skipped in dev so HMR is never cached.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}))
+}

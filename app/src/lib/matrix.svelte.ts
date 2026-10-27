@@ -125,7 +125,10 @@ class Chat {
     await client.initRustCrypto({ cryptoDatabasePrefix: `tessera-crypto-${s.userId}` })
     security.attach(client)
     security.refresh()
-    client.on(sdk.MatrixEventEvent.Decrypted, () => this.refreshMessages())
+    client.on(sdk.MatrixEventEvent.Decrypted, (ev) => {
+      this.refreshMessages()
+      this.maybeNotify(ev)
+    })
     client.on(sdk.ClientEvent.Sync, (state) => {
       if (state === 'PREPARED' || state === 'SYNCING') {
         this.ready = true
@@ -135,9 +138,10 @@ class Chat {
         this.error = 'Connection lost, retrying…'
       }
     })
-    client.on(sdk.RoomEvent.Timeline, () => {
+    client.on(sdk.RoomEvent.Timeline, (ev, _room, toStart, _removed, data) => {
       this.refreshRooms()
       this.refreshMessages()
+      if (!toStart && data?.liveEvent && ev.getType() === 'm.room.message') this.maybeNotify(ev)
     })
     client.on(sdk.RoomEvent.Receipt, () => this.refreshRooms())
     client.on(sdk.RoomMemberEvent.Typing, () => this.refreshTyping())
@@ -371,6 +375,50 @@ class Chat {
         ? [{ type: 'm.room.encryption', state_key: '', content: { algorithm: 'm.megolm.v1.aes-sha2' } }]
         : [],
     })
+    this.openRoom(r.room_id)
+  }
+
+  private notified = new Set<string>()
+
+  /** Desktop notification for a live message in a room you are not looking at. */
+  private maybeNotify(ev: sdk.MatrixEvent) {
+    const c = this.client
+    const id = ev.getId()
+    if (!c || !this.ready || !id || this.notified.has(id)) return
+    if (ev.getSender() === this.userId || ev.getType() !== 'm.room.message') return
+    if (ev.getTs() < Date.now() - 60_000) return // history, not live
+    if (!document.hidden && ev.getRoomId() === this.activeRoom) return
+    if (!c.getPushActionsForEvent(ev)?.notify) return
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    this.notified.add(id)
+    const room = c.getRoom(ev.getRoomId())
+    const body = ev.getContent().msgtype === 'm.text' ? ev.getContent().body : 'Sent an attachment'
+    const n = new Notification(room?.name ?? 'Tessera', { body: `${room?.getMember(ev.getSender() ?? '')?.name ?? ''}: ${body}`, tag: ev.getRoomId() ?? undefined })
+    n.onclick = () => { window.focus(); if (ev.getRoomId()) this.openRoom(ev.getRoomId()!) }
+  }
+
+  async deleteMessage(id: string) {
+    if (this.activeRoom) await this.client!.redactEvent(this.activeRoom, id)
+  }
+
+  async searchUsers(term: string): Promise<{ id: string; name: string }[]> {
+    const r = await this.client!.searchUserDirectory({ term, limit: 8 })
+    return r.results.filter((u) => u.user_id !== this.userId).map((u) => ({ id: u.user_id, name: u.display_name || u.user_id }))
+  }
+
+  /** Open the existing direct chat with a user, or create an encrypted one. */
+  async startDM(userId: string) {
+    const c = this.client!
+    const direct = (c.getAccountData('m.direct' as never)?.getContent() ?? {}) as Record<string, string[]>
+    const existing = (direct[userId] ?? []).find((rid) => c.getRoom(rid)?.getMyMembership() === 'join')
+    if (existing) return this.openRoom(existing)
+    const r = await c.createRoom({
+      is_direct: true,
+      invite: [userId],
+      preset: sdk.Preset.TrustedPrivateChat,
+      initial_state: [{ type: 'm.room.encryption', state_key: '', content: { algorithm: 'm.megolm.v1.aes-sha2' } }],
+    })
+    await c.setAccountData('m.direct' as never, { ...direct, [userId]: [...(direct[userId] ?? []), r.room_id] } as never)
     this.openRoom(r.room_id)
   }
 

@@ -37,7 +37,7 @@
         </div>
       {/if}
     </div>
-    <button class="icon-btn" onclick={() => (ui.modal = 'new-room')} aria-label="New room" title="New room"><Icon name="plus" /></button>
+    <button class="icon-btn" onclick={() => ui.open('room')} aria-label="New room or message" title="New room or message"><Icon name="plus" /></button>
   </header>
 
   <button class="search" onclick={onsearch}><Icon name="search" size={15} /><span>Search</span><kbd class="mono">Ctrl K</kbd></button>
@@ -80,7 +80,7 @@
 
   <footer>
     <button class="me" onclick={() => (ui.modal = 'settings')}><Avatar name={chat.userId.replace('@', '')} size={28} round /><span>{chat.userId}</span></button>
-    <button class="icon-btn" onclick={() => (ui.modal = 'join-room')} aria-label="Join a room by address" title="Join a room"><Icon name="hash" /></button>
+    <button class="icon-btn" onclick={() => ui.open('join')} aria-label="Join a room by address" title="Join a room"><Icon name="hash" /></button>
     <button class="icon-btn" onclick={() => (ui.modal = 'settings')} aria-label="Settings" title="Settings"><Icon name="sliders" /></button>
   </footer>
 </aside>
