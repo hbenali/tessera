@@ -188,6 +188,28 @@ describe('tessera e2e', () => {
 
     it('has no console errors', () => assert.deepEqual(r.errors, []))
 
+    it('pins messages, shows the pin bar and jumps to a pin', async () => {
+      const synapse = process.env.SYNAPSE_URL ?? 'http://localhost:8008'
+      const pin = async (text) => {
+        const row = r.page.locator('article', { hasText: text }).first()
+        await row.scrollIntoViewIfNeeded()
+        await row.hover()
+        await row.getByRole('button', { name: 'Pin message' }).click()
+      }
+      await pin('hello bob')
+      await r.page.locator('.pinbar').waitFor()
+      assert.match(await r.page.locator('.pinbar').innerText(), /hello bob/)
+      await pin('first message from bob')
+      await r.page.getByRole('button', { name: '2 pinned' }).click()
+      const list = r.page.getByRole('list', { name: 'Pinned messages' })
+      await list.waitFor()
+      assert.equal(await list.getByRole('listitem').count(), 2)
+      const state = await (await fetch(`${synapse}/_matrix/client/v3/rooms/${encodeURIComponent(data.room)}/state/m.room.pinned_events`, { headers: { Authorization: `Bearer ${data.alice.token}` } })).json()
+      assert.equal(state.pinned.length, 2)
+      assert.ok(await r.page.locator('article', { hasText: 'hello bob' }).first().getByText('Pinned').isVisible())
+      // Pin list stays open so axe sees it below.
+    })
+
     it('passes axe (WCAG 2.1 A/AA) in every theme', async () => {
       await r.page.addScriptTag({ content: axeSource })
       await r.page.getByRole('button', { name: 'Room details' }).click()

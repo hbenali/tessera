@@ -1,7 +1,8 @@
 <script lang="ts">
-  type Name = 'hash' | 'lock' | 'send' | 'clip' | 'search' | 'plus' | 'smile' | 'reply' | 'edit' | 'chevron' | 'x' | 'users' | 'info' | 'back' | 'shield' | 'sliders' | 'check' | 'logout' | 'trash' | 'bell' | 'thread'
+  type Name = 'pin' | 'hash' | 'lock' | 'send' | 'clip' | 'search' | 'plus' | 'smile' | 'reply' | 'edit' | 'chevron' | 'x' | 'users' | 'info' | 'back' | 'shield' | 'sliders' | 'check' | 'logout' | 'trash' | 'bell' | 'thread'
   let { name, size = 18 }: { name: Name; size?: number } = $props()
   const paths: Record<Name, string[]> = {
+    pin: ['M12 17v5', 'M9 3h6l-1 6 3 3v2H7v-2l3-3z'],
     hash: ['M4 9h16', 'M4 15h16', 'M10 3 8 21', 'M16 3l-2 18'],
     lock: ['M5 11h14v10H5z', 'M8 11V7a4 4 0 0 1 8 0v4'],
     send: ['M22 2 11 13', 'M22 2l-7 20-4-9-9-4z'],

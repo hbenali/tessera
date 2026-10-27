@@ -17,6 +17,7 @@
   let scroller: HTMLElement | undefined = $state()
   let fileInput: HTMLInputElement | undefined = $state()
   let stick = true
+  let pins = $state(false) // pinned list open
   let away = $state(false) // scrolled up from the newest message
   let typingTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -165,6 +166,21 @@
       <button class="icon-btn" class:on={ui.details} onclick={() => (ui.details = !ui.details)} aria-label="Room details" aria-pressed={ui.details}><Icon name="info" /></button>
     </header>
 
+    {#if chat.pinned.length}
+      <div class="pinbar">
+        <button class="pin-main" onclick={() => { const p = chat.pinned.at(-1)!; chat.focusEvent = p.id }} title="Jump to pinned message">
+          <Icon name="pin" size={14} /><b>{chat.pinned.at(-1)!.sender}</b><span>{chat.pinned.at(-1)!.body}</span>
+        </button>
+        {#if chat.pinned.length > 1}<button class="pin-count" aria-expanded={pins} onclick={() => (pins = !pins)}>{chat.pinned.length} pinned</button>{/if}
+        {#if pins}
+          <ul class="pinlist" aria-label="Pinned messages">
+            {#each [...chat.pinned].reverse() as p (p.id)}
+              <li><button onclick={() => { chat.focusEvent = p.id; pins = false }}><b>{p.sender}</b><span>{p.body}</span></button>{#if chat.canPin}<button class="icon-btn" onclick={() => chat.togglePin(p.id)} aria-label="Unpin message from {p.sender}"><Icon name="x" size={14} /></button>{/if}</li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+    {/if}
     {#if away}<button class="latest" onclick={() => { stick = true; scroller?.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' }) }}><Icon name="chevron" size={14} /> Jump to latest</button>{/if}
     <div class="scroll" bind:this={scroller} {onscroll} onloadcapture={() => stick && scroller?.scrollTo({ top: scroller.scrollHeight })}>
       {#if chat.loadingOlder}<div class="note">Loading earlier messages…</div>{/if}
@@ -175,7 +191,7 @@
             {#if !cont}<Avatar name={m.senderName} size={36} round src={m.senderAvatar} />{:else}<time>{fmt(m.ts)}</time>{/if}
           </div>
           <div class="body">
-            {#if !cont}<div class="head"><b>{m.senderName}</b><time>{fmt(m.ts)}</time></div>{/if}
+            {#if !cont}<div class="head"><b>{m.senderName}</b><time>{fmt(m.ts)}</time>{#if m.pinned}<span class="pinned" title="Pinned"><Icon name="pin" size={12} /> Pinned</span>{/if}</div>{/if}
             {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {byId(m.replyTo)?.body ?? 'earlier message'}</div>{/if}
             {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} />{:else}<div class="text" class:utd={m.undecryptable}>{@html render(m.body, { name: chat.nameOf, me: chat.userId })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{/if}
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
@@ -189,6 +205,7 @@
             <span class="pw"><button class="icon-btn" onclick={() => (picker = picker === m.id ? null : m.id)} aria-label="More reactions"><Icon name="smile" size={16} /></button>
               {#if picker === m.id}<EmojiPicker onpick={(e) => chat.react(m.id, e)} onclose={() => (picker = null)} />{/if}</span>
             <button class="icon-btn" onclick={() => { replyTo = m; editing = null }} aria-label="Reply"><Icon name="reply" size={16} /></button>
+            {#if chat.canPin}<button class="icon-btn" onclick={() => chat.togglePin(m.id)} aria-label={m.pinned ? 'Unpin message' : 'Pin message'} aria-pressed={m.pinned}><Icon name="pin" size={16} /></button>{/if}
             <button class="icon-btn" onclick={() => chat.openThread(m.id)} aria-label="Reply in thread"><Icon name="thread" size={16} /></button>
             {#if m.mine && !m.undecryptable}<button class="icon-btn" onclick={() => { editing = m; replyTo = null; text = m.body }} aria-label="Edit"><Icon name="edit" size={16} /></button>{/if}
             {#if m.mine}<button class="icon-btn" onclick={() => chat.deleteMessage(m.id)} aria-label="Delete message"><Icon name="trash" size={16} /></button>{/if}
@@ -246,6 +263,11 @@
   .text :global(blockquote) { margin: 2px 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); } .text :global(a) { color: var(--accent); text-underline-offset: 3px; }
   .quote { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; margin: 2px 0 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-left: 8px; border-left: 2px solid var(--accent); }
   .thread-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 2px 8px; border-radius: 6px; color: var(--accent); font-size: 12px; font-weight: 600; } .thread-link:hover { background: var(--tile); }
+  .pinbar { position: relative; display: flex; align-items: center; gap: 8px; padding: 6px 16px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: 12px; }
+  .pin-main { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; } .pin-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  .pin-count { border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--muted); font: inherit; padding: 2px 10px; cursor: pointer; }
+  .pinlist { position: absolute; z-index: 6; top: 100%; left: 12px; right: 12px; margin: 4px 0 0; padding: 4px; list-style: none; max-height: 260px; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); } .pinlist li { display: flex; align-items: center; gap: 4px; } .pinlist li > button:first-child { flex: 1; min-width: 0; display: flex; gap: 8px; border: 0; background: none; color: var(--text); font: inherit; text-align: left; padding: 6px 8px; border-radius: 7px; cursor: pointer; } .pinlist li > button:first-child:hover { background: var(--tile); } .pinlist span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  .pinned { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: 11px; }
   .seen { display: flex; align-items: center; gap: 3px; margin-top: 3px; color: var(--muted); font-size: 11px; } .seen span { margin-left: 3px; }
   .reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; } .reacts button { display: inline-flex; flex: none; gap: 5px; align-items: center; white-space: nowrap; line-height: 20px; min-height: 24px; padding: 1px 9px; font-variant-numeric: tabular-nums; border-radius: 999px; background: var(--tile); border: 1px solid var(--line); font-size: 12px; font-weight: 600; } .reacts button span { font-size: 14px; line-height: 20px; } .reacts button:hover { border-color: var(--accent); }
   .tools { display: none; position: absolute; top: -16px; right: 20px; z-index: 2; gap: 0; padding: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }

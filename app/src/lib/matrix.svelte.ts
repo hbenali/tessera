@@ -1,4 +1,5 @@
 import { mentionsUser, plainMentions } from './mentions'
+import { toggled } from './pins'
 import * as sdk from 'matrix-js-sdk'
 import { security } from './security.svelte'
 import { discover } from './discover'
@@ -33,6 +34,7 @@ export interface Msg {
   decrypting?: boolean
   threadReplies: number
   mentionsMe: boolean
+  pinned: boolean
   seenBy?: { name: string; avatar?: string }[]
   senderAvatar?: string
 }
@@ -81,6 +83,10 @@ class Chat {
   typing = $state<string[]>([])
   loadingOlder = $state(false)
   focusEvent = $state<string | null>(null)
+  pinnedIds = $state<string[]>([])
+  pinned = $state<{ id: string; sender: string; body: string }[]>([])
+  canPin = $state(false)
+  private pinToken = 0
   threadRoot = $state<string | null>(null)
   threadMessages = $state<Msg[]>([])
   members = $state<Member[]>([])
@@ -336,6 +342,7 @@ class Chat {
         imageMxc,
         threadReplies: ev.isThreadRoot ? (ev.getThread()?.length ?? 0) : 0,
         senderAvatar: room.getMember(sender)?.getMxcAvatarUrl() ?? undefined,
+        pinned: this.pinnedIds.includes(id),
         mentionsMe: sender !== this.userId && mentionsUser(content, this.userId, this.client?.getUser(this.userId)?.displayName),
       })
     }
@@ -359,7 +366,10 @@ class Chat {
   refreshMessages() {
     const room = this.activeRoom ? this.client?.getRoom(this.activeRoom) : null
     if (!this.client || !room) return
+    this.pinnedIds = (room.currentState.getStateEvents('m.room.pinned_events', '')?.getContent().pinned as string[] | undefined) ?? []
+    this.canPin = room.currentState.maySendStateEvent('m.room.pinned_events', this.userId)
     this.messages = this.build(room.getLiveTimeline().getEvents(), room)
+    this.loadPinned(room)
     this.members = room
       .getJoinedMembers()
       .map((m) => ({ id: m.userId, name: m.name, avatar: m.getMxcAvatarUrl() ?? undefined }))
@@ -394,6 +404,30 @@ class Chat {
     if (!this.activeRoom || !this.threadRoot || !body.trim()) return
     await this.client!.sendMessage(this.activeRoom, this.threadRoot, { msgtype: 'm.text', body } as never)
     this.scheduleRefresh()
+  }
+
+  /** Text of each pinned message, from the loaded timeline or fetched (and decrypted) when it is older. */
+  private async loadPinned(room: sdk.Room) {
+    const token = ++this.pinToken
+    const c = this.client!
+    const out: { id: string; sender: string; body: string }[] = []
+    for (const id of this.pinnedIds) {
+      let ev = room.findEventById(id) ?? null
+      if (!ev) {
+        try {
+          ev = new sdk.MatrixEvent(await c.fetchRoomEvent(room.roomId, id))
+          await c.decryptEventIfNeeded(ev)
+        } catch { /* not visible to us: show a placeholder */ }
+      }
+      const body = ev && !ev.isDecryptionFailure() ? ev.getContent().body : undefined
+      out.push({ id, sender: ev ? (room.getMember(ev.getSender() ?? '')?.name ?? ev.getSender() ?? '') : '', body: plainMentions(String(body ?? 'Pinned message'), (u) => room.getMember(u)?.name) })
+    }
+    if (token === this.pinToken) this.pinned = out
+  }
+
+  async togglePin(id: string) {
+    if (!this.activeRoom) return
+    await this.client!.sendStateEvent(this.activeRoom, 'm.room.pinned_events' as never, { pinned: toggled(this.pinnedIds, id) } as never, '')
   }
 
   /** False once the start of the room's history has been reached. */
