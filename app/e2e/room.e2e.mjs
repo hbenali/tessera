@@ -157,6 +157,35 @@ describe('tessera e2e', () => {
       assert.ok(top >= 60, `scrolled ${top}px and must stay there, not be reset to the top`)
     })
 
+    it('shows who has seen your latest message', async () => {
+      const synapse = process.env.SYNAPSE_URL ?? 'http://localhost:8008'
+      const res = await (await fetch(`${synapse}/_matrix/client/v3/rooms/${encodeURIComponent(data.room)}/messages?dir=b&limit=10`, { headers: { Authorization: `Bearer ${data.bob.token}` } })).json()
+      const mine = res.chunk.find((e) => e.type === 'm.room.message' && e.sender === data.alice.id)
+      await fetch(`${synapse}/_matrix/client/v3/rooms/${encodeURIComponent(data.room)}/receipt/m.read/${encodeURIComponent(mine.event_id)}`, { method: 'POST', headers: { Authorization: `Bearer ${data.bob.token}`, 'Content-Type': 'application/json' }, body: '{}' })
+      await r.page.locator('.seen').waitFor({ timeout: 10_000 })
+      assert.match(await r.page.locator('.seen').getAttribute('title'), new RegExp(`Seen by ${data.bob.name}`))
+    })
+
+    it('uploads an image pasted into the composer', async () => {
+      const before = await r.page.locator('article .body img').count()
+      await r.page.getByRole('combobox', { name: 'Message' }).evaluate((el) => {
+        const bytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0))
+        const dt = new DataTransfer()
+        dt.items.add(new File([bytes], 'pasted.png', { type: 'image/png' }))
+        el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+      })
+      await r.page.waitForFunction((n) => document.querySelectorAll('article .body img').length > n, before, { timeout: 15_000 })
+    })
+
+    it('keeps an unsent draft across a reload', async () => {
+      const box = r.page.getByRole('combobox', { name: 'Message' })
+      await box.fill('a draft worth keeping')
+      await r.page.reload()
+      await r.page.getByRole('button', { name: /e2e room/ }).click()
+      assert.equal(await r.page.getByRole('combobox', { name: 'Message' }).inputValue(), 'a draft worth keeping')
+      await r.page.getByRole('combobox', { name: 'Message' }).fill('')
+    })
+
     it('has no console errors', () => assert.deepEqual(r.errors, []))
 
     it('passes axe (WCAG 2.1 A/AA) in every theme', async () => {

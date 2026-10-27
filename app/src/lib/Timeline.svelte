@@ -5,6 +5,7 @@
   import { dayLabel, ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
   import Photo from './Photo.svelte'
+  import { getDraft, setDraft } from './drafts'
   import Icon from './Icon.svelte'
   import EmojiPicker from './EmojiPicker.svelte'
 
@@ -51,13 +52,19 @@
       chat.focusEvent = null
     })
   })
+  let textRoom: string | null = null // the room `text` belongs to
   $effect(() => {
-    chat.activeRoom
+    const id = chat.activeRoom
     stick = true
     replyTo = editing = null
     picker = null
     notice = ''
-    text = ''
+    textRoom = id
+    text = id ? getDraft(id) : ''
+  })
+  $effect(() => {
+    const t = text
+    if (textRoom && textRoom === chat.activeRoom && !editing) setDraft(textRoom, t)
   })
 
   function onscroll() {
@@ -128,6 +135,12 @@
       typingTimer = setTimeout(() => chat.setTyping(false), 4000)
     }
   }
+  function paste(e: ClipboardEvent) {
+    const file = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/'))
+    if (!file) return
+    e.preventDefault()
+    chat.upload(file).catch((x) => (notice = String(x.message ?? x)))
+  }
   function pick(e: Event) {
     const f = (e.target as HTMLInputElement).files?.[0]
     if (f) chat.upload(f)
@@ -166,6 +179,7 @@
             {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {byId(m.replyTo)?.body ?? 'earlier message'}</div>{/if}
             {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} />{:else}<div class="text" class:utd={m.undecryptable}>{@html render(m.body, { name: chat.nameOf, me: chat.userId })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{/if}
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
+            {#if m.seenBy?.length}<div class="seen" title="Seen by {m.seenBy.map((s) => s.name).join(', ')}">{#each m.seenBy.slice(0, 5) as s (s.name)}<Avatar name={s.name} size={14} round src={s.avatar} />{/each}<span>Seen{m.seenBy.length > 5 ? ` by ${m.seenBy.length}` : ''}</span></div>{/if}
             {#if Object.keys(m.reactions).length}
               <div class="reacts">{#each Object.entries(m.reactions) as [k, n] (k)}<button onclick={() => chat.react(m.id, k)} aria-label="{k} {n}, add your reaction"><span>{k}</span> {n}</button>{/each}</div>
             {/if}
@@ -199,7 +213,7 @@
         <div class="input">
           <button class="icon-btn" title="Attach a file" aria-label="Attach a file" onclick={() => fileInput?.click()}><Icon name="clip" /></button>
           <input type="file" hidden bind:this={fileInput} onchange={pick} />
-          <textarea rows="1" bind:this={area} bind:value={text} onkeydown={keydown} oninput={() => (caret = area?.selectionStart ?? 0)} onclick={() => (caret = area?.selectionStart ?? 0)} role="combobox" aria-expanded={suggestions.length > 0} aria-controls="mention-list" aria-autocomplete="list" placeholder="Message {chat.active.name}" aria-label="Message"></textarea>
+          <textarea rows="1" bind:this={area} bind:value={text} onkeydown={keydown} onpaste={paste} oninput={() => (caret = area?.selectionStart ?? 0)} onclick={() => (caret = area?.selectionStart ?? 0)} role="combobox" aria-expanded={suggestions.length > 0} aria-controls="mention-list" aria-autocomplete="list" placeholder="Message {chat.active.name}" aria-label="Message"></textarea>
           <span class="pw"><button class="icon-btn" onclick={() => (picker = picker === 'composer' ? null : 'composer')} aria-label="Insert emoji"><Icon name="smile" /></button>
             {#if picker === 'composer'}<EmojiPicker onpick={(e) => (text += e)} onclose={() => (picker = null)} />{/if}</span>
           <button class="send" onclick={submit} disabled={!text.trim()} aria-label="Send message"><Icon name="send" size={17} /></button>
@@ -232,6 +246,7 @@
   .text :global(blockquote) { margin: 2px 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); } .text :global(a) { color: var(--accent); text-underline-offset: 3px; }
   .quote { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; margin: 2px 0 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-left: 8px; border-left: 2px solid var(--accent); }
   .thread-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 2px 8px; border-radius: 6px; color: var(--accent); font-size: 12px; font-weight: 600; } .thread-link:hover { background: var(--tile); }
+  .seen { display: flex; align-items: center; gap: 3px; margin-top: 3px; color: var(--muted); font-size: 11px; } .seen span { margin-left: 3px; }
   .reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; } .reacts button { display: inline-flex; flex: none; gap: 5px; align-items: center; white-space: nowrap; line-height: 20px; min-height: 24px; padding: 1px 9px; font-variant-numeric: tabular-nums; border-radius: 999px; background: var(--tile); border: 1px solid var(--line); font-size: 12px; font-weight: 600; } .reacts button span { font-size: 14px; line-height: 20px; } .reacts button:hover { border-color: var(--accent); }
   .tools { display: none; position: absolute; top: -16px; right: 20px; z-index: 2; gap: 0; padding: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
   /* content-visibility clips overflow; the toolbar and emoji picker hang outside the row, so lift it while the row is in use. */

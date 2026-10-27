@@ -33,6 +33,7 @@ export interface Msg {
   decrypting?: boolean
   threadReplies: number
   mentionsMe: boolean
+  seenBy?: { name: string; avatar?: string }[]
   senderAvatar?: string
 }
 
@@ -170,7 +171,7 @@ class Chat {
       this.refreshMessages()
       if (!toStart && data?.liveEvent && ev.getType() === 'm.room.message') this.maybeNotify(ev)
     })
-    client.on(sdk.RoomEvent.Receipt, () => this.refreshRooms())
+    client.on(sdk.RoomEvent.Receipt, () => { this.refreshRooms(); this.scheduleRefresh() })
     client.on(sdk.ThreadEvent.Update as never, (() => this.scheduleRefresh()) as never)
     client.on(sdk.ThreadEvent.NewReply as never, (() => this.scheduleRefresh()) as never)
     client.on('Thread.new' as never, (() => this.scheduleRefresh()) as never)
@@ -337,6 +338,13 @@ class Chat {
         senderAvatar: room.getMember(sender)?.getMxcAvatarUrl() ?? undefined,
         mentionsMe: sender !== this.userId && mentionsUser(content, this.userId, this.client?.getUser(this.userId)?.displayName),
       })
+    }
+    // Who has read up to my latest message.
+    const mine = out.findLast((m) => m.mine && !m.pending)
+    const ev = mine && events.find((e) => e.getId() === mine.id)
+    if (mine && ev) {
+      const seen = room.getUsersReadUpTo(ev).filter((u) => u !== this.userId)
+      mine.seenBy = seen.map((u) => ({ name: room.getMember(u)?.name ?? u, avatar: room.getMember(u)?.getMxcAvatarUrl() ?? undefined }))
     }
     return out
   }
