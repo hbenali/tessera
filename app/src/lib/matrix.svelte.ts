@@ -1,5 +1,6 @@
 import { clearDrafts } from './drafts'
 import { inviteTarget } from './commands'
+import { safeFileName } from './files'
 import { mentionPills, mentionsUser, plainMentions, type MentionPill } from './mentions'
 import { toggled } from './pins'
 import * as sdk from 'matrix-js-sdk'
@@ -42,6 +43,8 @@ export interface Msg {
   /** Set when the image is encrypted: how to decrypt it. */
   imageFile?: EncryptedFile
   /** An audio message or a voice recording. */
+  /** A file (or video) to download: shown as a card. */
+  attachment?: { mxc: string; file?: EncryptedFile; name: string; size?: number; mimetype?: string; caption?: string }
   audio?: { mxc: string; file?: EncryptedFile; duration?: number; waveform?: number[]; voice: boolean; name: string }
   undecryptable?: boolean
   decrypting?: boolean
@@ -228,7 +231,7 @@ class Chat {
     await client.initRustCrypto({ cryptoDatabasePrefix: `tessera-crypto-${s.userId}` })
     security.attach(client)
     setThumbLoader((m, s, method) => this.thumb(m, s, method))
-    setOriginalLoader((m, f) => this.original(m, f))
+    setOriginalLoader((m, f, k) => this.original(m, f, k))
     security.refresh()
     client.on(sdk.MatrixEventEvent.Decrypted, (ev) => {
       this.refreshMessages()
@@ -717,6 +720,19 @@ class Chat {
       const file = isEncryptedFile(content.file) ? content.file : undefined
       const mediaMxc: string | undefined = typeof content.url === 'string' ? content.url : file?.url
       const imageMxc: string | undefined = content.msgtype === 'm.image' ? mediaMxc : undefined
+      const filename = typeof content.filename === 'string' ? content.filename : undefined
+      const attachment: Msg['attachment'] =
+        (content.msgtype === 'm.file' || content.msgtype === 'm.video') && mediaMxc
+          ? {
+              mxc: mediaMxc,
+              file,
+              name: safeFileName(filename ?? (typeof content.body === 'string' ? content.body : undefined)),
+              size: Number.isFinite(content.info?.size) ? content.info.size : undefined,
+              mimetype: typeof content.info?.mimetype === 'string' ? content.info.mimetype : undefined,
+              // Since Matrix 1.10 the body can be a caption for a file that has its own `filename`.
+              caption: filename && typeof content.body === 'string' && content.body.trim() && content.body !== filename ? content.body : undefined,
+            }
+          : undefined
       const rawWave = content['org.matrix.msc1767.audio']?.waveform
       const audio: Msg['audio'] =
         content.msgtype === 'm.audio' && mediaMxc
@@ -749,6 +765,7 @@ class Chat {
         reactors: reactors.get(id) ?? {},
         imageMxc,
         imageFile: imageMxc ? file : undefined,
+        attachment,
         audio,
         threadReplies: ev.isThreadRoot ? (ev.getThread()?.length ?? 0) : 0,
         senderAvatar: room.getMember(sender)?.getMxcAvatarUrl() ?? undefined,
@@ -1206,7 +1223,7 @@ class Chat {
   private originals = new Map<string, Promise<Blob>>()
 
   /** The full-size file, for the image viewer, audio and downloads. Kept for the session so paging back and forth is instant. */
-  original(mxc: string, file?: EncryptedFile): Promise<Blob> {
+  original(mxc: string, file?: EncryptedFile, keep = true): Promise<Blob> {
     let hit = this.originals.get(mxc)
     if (!hit) {
       const c = this.client!
@@ -1219,7 +1236,8 @@ class Chat {
           })
         : Promise.reject(new Error('no url'))
       hit.catch(() => this.originals.delete(mxc))
-      this.originals.set(mxc, hit)
+      // A download is not kept: a large file would otherwise sit in memory for the rest of the session.
+      if (keep) this.originals.set(mxc, hit)
     }
     return hit
   }
