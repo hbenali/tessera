@@ -9,6 +9,9 @@ const app = mount(App, {
   target: document.getElementById('app')!,
 })
 
+// The page is now Tessera's own: take the static first-paint splash down.
+document.getElementById('splash')?.remove()
+
 export default app
 
 // Offline shell for the installed app; skipped in dev so HMR is never cached.

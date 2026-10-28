@@ -2,6 +2,12 @@
   import { tick } from 'svelte'
   import { chat, friendlyError, type Msg } from './matrix.svelte'
   import { COMMANDS, isKnown, parseCommand, shrug } from './commands'
+  import { quote as quoteLines, wrap, type Edit } from './format'
+  import { findEmoji } from './emojiNames'
+  import { canRecord, type Recorded } from './recorder'
+  import VoiceRecorder from './VoiceRecorder.svelte'
+  import Skeleton from './Skeleton.svelte'
+  import AudioPlayer from './AudioPlayer.svelte'
   import { render } from './markdown'
   import { dayLabel, ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
@@ -180,8 +186,12 @@
     const original = text
     const originalPicked = { ...picked }
     const body = fromComposer(text, picked)
-    if (!body.trim()) return
+    if (!body.trim() && !tray.length) return
+    if (uploading) return
     notice = ''
+    // Files go first, in order; if one fails, nothing else is sent and the text stays in the box.
+    if (tray.length && !(await sendTray())) { notice = 'A file could not be sent. Retry, or remove it from the tray.'; return }
+    if (!body.trim()) { chat.setTyping(false); return }
     // "/word" is a command and never goes to the room by accident; a doubled slash sends a literal one.
     const parsed = editing ? null : parseCommand(body)
     // When a command cannot run, the text goes back in the box so it can be corrected instead of being lost.
@@ -242,15 +252,26 @@
     }, 250)
     return () => clearTimeout(t)
   })
-  const suggestions = $derived(
-    inviteQuery !== null
+  // ":smi" suggests emoji.
+  const emojiQuery = $derived(/(?:^|\s):([a-z0-9_+\-]{2,})$/i.exec(text.slice(0, caret))?.[1] ?? null)
+  const suggestions = $derived<{ id: string; name: string; avatar?: string; emoji?: string }[]>(
+    emojiQuery !== null && inviteQuery === null
+      ? findEmoji(emojiQuery).map(([n, e]) => ({ id: n, name: n, emoji: e }))
+      : inviteQuery !== null
       ? inviteFound
       : query === null
         ? []
         : chat.members.filter((u) => u.id !== chat.userId && (u.name.toLowerCase().includes(query) || u.id.toLowerCase().includes(query))).slice(0, 6),
   )
   $effect(() => { suggestions; sel = 0 })
-  function complete(u: { id: string; name: string }) {
+  function complete(u: { id: string; name: string; emoji?: string }) {
+    if (u.emoji) {
+      const before = text.slice(0, caret).replace(/:[a-z0-9_+\-]{2,}$/i, `${u.emoji} `)
+      text = before + text.slice(caret)
+      caret = before.length
+      tick().then(() => { area?.focus(); area?.setSelectionRange(caret, caret) })
+      return
+    }
     if (inviteQuery !== null) {
       // An invitation takes the plain id.
       const before = text.slice(0, caret).replace(/^(\/invite\s+)@?[^\s@]*$/i, `$1${u.id}`)
@@ -276,7 +297,11 @@
       else complete(suggestions[sel])
       return
     }
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && ['b', 'i', 'e'].includes(e.key.toLowerCase())) {
+      e.preventDefault()
+      mark({ b: '**', i: '*', e: '`' }[e.key.toLowerCase() as 'b' | 'i' | 'e'])
+    } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'x') { e.preventDefault(); mark('~~') }
+    else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() }
     else if (e.key === 'Escape') { replyTo = editing = null }
     else if (e.key === 'ArrowUp' && !text) {
       const mine = [...chat.messages].reverse().find((m) => m.mine && !m.pending)
@@ -328,22 +353,88 @@
     }
     setTimeout(() => (toast = ''), 1800)
   }
+  // ---- Attachments: they wait in a tray (with a preview and progress) until you send ----
+  interface Pending { id: number; file: File; preview?: string; progress: number; error?: string }
+  let tray = $state<Pending[]>([])
+  let nextId = 0
+  let uploading = $state(false)
+  let maxUpload = 0 // the server's limit in bytes, 0 until known
+  async function addFiles(files: Iterable<File>) {
+    if (!maxUpload) maxUpload = await chat.maxUploadSize()
+    for (const file of files) {
+      if (maxUpload && file.size > maxUpload) { notice = `${file.name} is ${mb(file.size)}, and this server accepts files up to ${mb(maxUpload)}.`; continue }
+      tray.push({ id: nextId++, file, preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined, progress: 0 })
+    }
+    tick().then(() => area?.focus())
+  }
+  const mb = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} kB`)
+  function removePending(id: number) {
+    const p = tray.find((t) => t.id === id)
+    if (p?.preview) URL.revokeObjectURL(p.preview)
+    tray = tray.filter((t) => t.id !== id)
+  }
+  /** Send the tray's files one after another. A failure stops there and leaves it, marked, to retry or remove. */
+  async function sendTray(): Promise<boolean> {
+    uploading = true
+    try {
+      for (const p of [...tray]) {
+        p.error = undefined
+        try {
+          await chat.upload(p.file, (l, t) => (p.progress = t ? l / t : 0))
+        } catch (e) {
+          p.error = friendlyError(e)
+          return false
+        }
+        removePending(p.id)
+      }
+      return true
+    } finally {
+      uploading = false
+    }
+  }
   function paste(e: ClipboardEvent) {
-    const file = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/'))
-    if (!file) return
+    const files = [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'))
+    if (!files.length) return
     e.preventDefault()
-    chat.upload(file).catch((x) => (notice = String(x.message ?? x)))
+    addFiles(files)
   }
   function pick(e: Event) {
-    const f = (e.target as HTMLInputElement).files?.[0]
-    if (f) chat.upload(f)
-    ;(e.target as HTMLInputElement).value = ''
+    const input = e.target as HTMLInputElement
+    if (input.files?.length) addFiles([...input.files])
+    input.value = ''
   }
+  // A drag over the room shows where it will land.
+  let dragDepth = $state(0)
+  const hasFiles = (e: DragEvent) => [...(e.dataTransfer?.types ?? [])].includes('Files')
   function drop(e: DragEvent) {
     e.preventDefault()
-    const f = e.dataTransfer?.files[0]
-    if (f) chat.upload(f)
+    dragDepth = 0
+    if (e.dataTransfer?.files.length) addFiles([...e.dataTransfer.files])
   }
+
+  // ---- Voice messages ----
+  const micOk = canRecord()
+  let recording = $state(false)
+  let voiceProgress = $state<number | null>(null) // while a recording is being sent
+  async function sendRecorded(r: Recorded) {
+    recording = false
+    voiceProgress = 0
+    try {
+      await chat.sendVoice(r, (l, t) => (voiceProgress = t ? l / t : 0))
+    } catch (e) {
+      notice = `The voice message was not sent: ${friendlyError(e)}`
+    } finally {
+      voiceProgress = null
+    }
+  }
+
+  // ---- Formatting: Markdown markers around the selection ----
+  function applyEdit(r: Edit) {
+    text = r.text
+    tick().then(() => { area?.focus(); area?.setSelectionRange(r.start, r.end); caret = r.end })
+  }
+  const mark = (m: string) => area && applyEdit(wrap(text, area.selectionStart, area.selectionEnd, m))
+  const fmtQuote = () => area && applyEdit(quoteLines(text, area.selectionStart, area.selectionEnd))
 </script>
 
 {#snippet delivery(m: Msg)}
@@ -364,7 +455,8 @@
   {/if}
 {/snippet}
 
-<main class="main" ondragover={(e) => e.preventDefault()} ondrop={drop}>
+<main class="main" ondragover={(e) => e.preventDefault()} ondragenter={(e) => hasFiles(e) && dragDepth++} ondragleave={() => (dragDepth = Math.max(0, dragDepth - 1))} ondrop={drop}>
+  {#if dragDepth > 0 && chat.active}<div class="dropzone" aria-hidden="true"><span><Icon name="clip" size={22} /> Drop to attach</span></div>{/if}
   {#if !chat.active && chat.routeMissing}
     <div class="empty"><Icon name="lock" size={40} /><h1>You are not in this room</h1><p class="mono">{chat.routeMissing}</p>
       <button class="btn" onclick={() => chat.joinRoom(chat.routeMissing!).catch((e) => (notice = String(e.message ?? e)))}>Join room</button>
@@ -400,6 +492,7 @@
     {/if}
     {#if away}<button class="latest" onclick={() => { stick = true; scroller?.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' }) }}><Icon name="chevron" size={14} /> Jump to latest</button>{/if}
     <div class="scroll" bind:this={scroller} {onscroll} onloadcapture={() => stick && scroller?.scrollTo({ top: scroller.scrollHeight })}>
+      {#if !chat.messages.length && !chat.ready}<Skeleton variant="timeline" />{/if}
       {#if chat.loadingOlder}<div class="note">Loading earlier messages…</div>{/if}
       {#if chat.olderAvailable}
         <div class="sentinel" bind:this={topEl} role="status">{chat.loadingOlder ? 'Loading earlier messages…' : ''}</div>
@@ -416,7 +509,7 @@
           <div class="body">
             {#if !cont}<div class="head"><button class="who" onclick={(e) => card(m.sender, e)} aria-haspopup="dialog"><b>{m.senderName}</b></button><time>{fmt(m.ts)}</time>{#if m.pinned}<span class="pinned" title="Pinned"><Icon name="pin" size={12} /> Pinned</span>{/if}</div>{/if}
             {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {plainMentions(byId(m.replyTo)?.body ?? 'earlier message', chat.nameOf)}</div>{/if}
-            {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} onopen={(opener) => (ui.viewer = { id: m.id, opener })} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} class:emote={m.emote} use:pills>{#if m.emote}<span class="who-emote">* {m.senderName}</span>{" "}{/if}{@html render(m.body, { name: chat.nameOf, me: chat.userId, pills: m.pills })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
+            {#if m.audio}<AudioPlayer mxc={m.audio.mxc} file={m.audio.file} duration={m.audio.duration} waveform={m.audio.waveform} voice={m.audio.voice} name={m.audio.name} />{:else if m.imageMxc}<Photo mxc={m.imageMxc} file={m.imageFile} alt={m.body} onopen={(opener) => (ui.viewer = { id: m.id, opener })} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} class:emote={m.emote} use:pills>{#if m.emote}<span class="who-emote">* {m.senderName}</span>{" "}{/if}{@html render(m.body, { name: chat.nameOf, me: chat.userId, pills: m.pills })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
             {#if m.seenBy?.length}
               {@const who = m.seenBy}
@@ -467,23 +560,54 @@
         {#if replyTo}<div class="ctx"><Icon name="reply" size={14} /> Replying to <b>{replyTo.senderName}</b><span class="clip">{plainMentions(replyTo.body, chat.nameOf)}</span><button class="icon-btn" onclick={() => (replyTo = null)} aria-label="Cancel reply"><Icon name="x" size={14} /></button></div>{/if}
         {#if editing}<div class="ctx"><Icon name="edit" size={14} /> Editing message<button class="icon-btn" onclick={() => { editing = null; text = ''; picked = {} }} aria-label="Cancel edit"><Icon name="x" size={14} /></button></div>{/if}
         {#if suggestions.length}
-          <ul class="mentions" id="mention-list" role="listbox" aria-label="Mention suggestions">
+          <ul class="mentions" id="mention-list" role="listbox" aria-label={emojiQuery !== null && inviteQuery === null ? 'Emoji suggestions' : 'Mention suggestions'}>
             {#each suggestions as u, i (u.id)}
-              <li role="option" aria-selected={i === sel} class:on={i === sel} onmousedown={(e) => { e.preventDefault(); complete(u) }}><Avatar name={u.name} size={22} round src={u.avatar} presence={chat.presenceOf(u.id)} /><span>{#each highlight(u.name, query ?? '') as p, i (i)}{#if p.hit}<mark>{p.text}</mark>{:else}{p.text}{/if}{/each}</span><small>{u.id}</small></li>
+              <li role="option" aria-selected={i === sel} class:on={i === sel} onmousedown={(e) => { e.preventDefault(); complete(u) }}>{#if u.emoji}<span class="emo" aria-hidden="true">{u.emoji}</span><span>:{u.name}:</span>{:else}<Avatar name={u.name} size={22} round src={u.avatar} presence={chat.presenceOf(u.id)} /><span>{#each highlight(u.name, query ?? '') as p, i (i)}{#if p.hit}<mark>{p.text}</mark>{:else}{p.text}{/if}{/each}</span><small>{u.id}</small>{/if}</li>
             {/each}
           </ul>
         {/if}
+        {#if tray.length}
+          <ul class="tray" aria-label="Files to send">
+            {#each tray as p (p.id)}
+              <li class:bad={!!p.error}>
+                {#if p.preview}<img src={p.preview} alt="" />{:else}<span class="ico" aria-hidden="true"><Icon name="clip" size={18} /></span>{/if}
+                <span class="meta"><b>{p.file.name}</b><small>{p.error ?? (uploading && p.progress > 0 ? `${Math.round(p.progress * 100)}%` : mb(p.file.size))}</small></span>
+                {#if uploading && !p.error}<span class="bar" role="progressbar" aria-label="Uploading {p.file.name}" aria-valuenow={Math.round(p.progress * 100)} aria-valuemin="0" aria-valuemax="100"><i style="width:{Math.round(p.progress * 100)}%"></i></span>{/if}
+                <button class="icon-btn" onclick={() => removePending(p.id)} aria-label="Remove {p.file.name}" disabled={uploading && !p.error}><Icon name="x" size={14} /></button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+        {#if !recording && voiceProgress === null}
+          <div class="fmt" role="toolbar" aria-label="Formatting">
+            <button class="icon-btn" onmousedown={(e) => e.preventDefault()} onclick={() => mark('**')} aria-label="Bold" title="Bold (Ctrl+B)"><b>B</b></button>
+            <button class="icon-btn" onmousedown={(e) => e.preventDefault()} onclick={() => mark('*')} aria-label="Italic" title="Italic (Ctrl+I)"><i>I</i></button>
+            <button class="icon-btn" onmousedown={(e) => e.preventDefault()} onclick={() => mark('~~')} aria-label="Strikethrough" title="Strikethrough (Ctrl+Shift+X)"><s>S</s></button>
+            <button class="icon-btn mono" onmousedown={(e) => e.preventDefault()} onclick={() => mark('`')} aria-label="Code" title="Code (Ctrl+E)">&lt;/&gt;</button>
+            <button class="icon-btn" onmousedown={(e) => e.preventDefault()} onclick={fmtQuote} aria-label="Quote" title="Quote">❝</button>
+          </div>
+        {/if}
         <div class="input">
-          <button class="icon-btn" title="Attach a file" aria-label="Attach a file" onclick={() => fileInput?.click()}><Icon name="clip" /></button>
-          <input type="file" hidden bind:this={fileInput} onchange={pick} />
+          {#if recording}
+            <VoiceRecorder onsend={sendRecorded} oncancel={() => (recording = false)} onerror={(why) => { recording = false; notice = why }} />
+          {:else if voiceProgress !== null}
+            <div class="sendingvoice" role="status"><span class="spin" aria-hidden="true"></span> Sending voice message… {Math.round(voiceProgress * 100)}%</div>
+          {:else}
+          <button class="icon-btn" title="Attach files" aria-label="Attach files" onclick={() => fileInput?.click()}><Icon name="clip" /></button>
+          <input type="file" multiple hidden bind:this={fileInput} onchange={pick} />
           <div class="field"><div class="mirror" aria-hidden="true" bind:this={mirror}>{#each pieces as p, i (i)}{#if p.pill}<span class="pill">{p.t}</span>{:else}{p.t}{/if}{/each}</div>
           <textarea rows="1" bind:this={area} bind:value={text} onscroll={syncScroll} onkeydown={keydown} onpaste={paste} oninput={() => (caret = area?.selectionStart ?? 0)} onclick={() => (caret = area?.selectionStart ?? 0)} role="combobox" aria-expanded={suggestions.length > 0} aria-controls="mention-list" aria-autocomplete="list" placeholder="Message {chat.active.name}" aria-label="Message"></textarea></div>
           <span class="pw"><button class="icon-btn" onclick={() => (picker = picker === 'composer' ? null : 'composer')} aria-label="Insert emoji"><Icon name="smile" /></button>
             {#if picker === 'composer'}<EmojiPicker onpick={(e) => (text += e)} onclose={() => (picker = null)} />{/if}</span>
-          <button class="send" onclick={submit} disabled={!text.trim()} aria-label="Send message"><Icon name="send" size={17} /></button>
+          {#if !text.trim() && !tray.length && micOk && !editing}
+            <button class="send mic" onclick={() => (recording = true)} aria-label="Record a voice message" title="Record a voice message"><Icon name="mic" size={18} /></button>
+          {:else}
+            <button class="send" onclick={submit} disabled={(!text.trim() && !tray.length) || uploading} aria-label="Send message"><Icon name="send" size={17} /></button>
+          {/if}
+          {/if}
         </div>
       </div>
-      <div class="hint">Enter to send · Shift+Enter for a new line · ↑ edits your last message · /invite @user:server</div>
+      <div class="hint">Enter to send · Shift+Enter for a new line · ↑ edits your last message · Ctrl+B / I for bold and italic · :emoji: · /invite @user</div>
     </footer>
   {/if}
 </main>
@@ -561,6 +685,19 @@
   .composer { background: var(--tile); border: 1px solid var(--line); border-radius: 12px; } .composer:focus-within { border-color: var(--accent); }
   .ctx { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 12px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); } .ctx .clip { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ctx button { margin-left: auto; } .err { color: var(--danger); border: 0; }
   .input { display: flex; align-items: flex-end; gap: 2px; padding: 6px; }
+  .tray { list-style: none; margin: 0; padding: 8px 8px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .tray li { position: relative; display: flex; align-items: center; gap: 8px; max-width: 240px; padding: 5px 6px 5px 5px; border-radius: 10px; background: var(--tile); border: 1px solid var(--line); overflow: hidden; } .tray li.bad { border-color: var(--danger); }
+  .tray img { width: 38px; height: 38px; border-radius: 7px; object-fit: cover; flex: none; } .tray .ico { width: 38px; height: 38px; border-radius: 7px; display: grid; place-items: center; background: var(--line); color: var(--muted); flex: none; }
+  .tray .meta { display: grid; min-width: 0; font-size: 12px; } .tray .meta b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; } .tray .meta small { color: var(--muted); } .tray li.bad small { color: var(--danger); }
+  .tray .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--line); } .tray .bar i { display: block; height: 100%; background: var(--accent); transition: width .15s; }
+  /* Formatting buttons appear while the box has focus */
+  .fmt { display: none; gap: 2px; padding: 4px 8px 0; } .composer:focus-within .fmt { display: flex; } .fmt .icon-btn { width: 28px; height: 26px; font-size: 13px; color: var(--muted); border-radius: 6px; } .fmt .icon-btn:hover { background: var(--tile); color: var(--text); }
+  .dropzone { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 82%, transparent); border: 2px dashed var(--accent); border-radius: 12px; margin: 8px; pointer-events: none; } .dropzone span { display: inline-flex; gap: 10px; align-items: center; font-weight: 650; font-size: 16px; }
+  .emo { font-size: 20px; width: 22px; text-align: center; }
+  .send.mic { background: var(--tile); color: var(--text); } .send.mic:hover { background: var(--accent); color: var(--accent-ink); }
+  .sendingvoice { flex: 1; display: flex; align-items: center; gap: 10px; padding: 8px; color: var(--muted); font-size: 13px; }
+  .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: spin .8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } .tray .bar i { transition: none; } }
 .mentions { list-style: none; margin: 0 0 6px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 8px 24px rgb(0 0 0 / .25); } .mentions li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 7px; color: var(--text); cursor: pointer; } .mentions li.on { background: var(--tile); } .mentions small { margin-left: auto; color: var(--muted); font-size: 11px; }
   /* The mirror sits behind the text box with the same text and metrics; only its backgrounds (the pills) show. */
   .field { position: relative; flex: 1; min-width: 0; display: flex; }

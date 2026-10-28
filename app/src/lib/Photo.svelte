@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { thumb } from './media'
-  let { mxc, alt, onopen }: { mxc: string; alt: string; onopen?: (opener: HTMLElement) => void } = $props()
+  import { originalOf, thumb } from './media'
+  import type { EncryptedFile } from './attachments'
+  let { mxc, alt, file, onopen }: { mxc: string; alt: string; file?: EncryptedFile; onopen?: (opener: HTMLElement) => void } = $props()
   let url = $state<string>()
   let failed = $state(false)
   $effect(() => {
@@ -8,8 +9,13 @@
     url = undefined
     failed = false
     let live = true
-    thumb(m, 320, 'scale').then((u) => { if (live) url = u }, () => { if (live) failed = true })
-    return () => { live = false }
+    // An encrypted image cannot be resized by the server, so it is downloaded, decrypted and shown from a local copy.
+    let made: string | undefined
+    const shown = file
+      ? originalOf(m, file).then((b) => (made = URL.createObjectURL(b)))
+      : thumb(m, 320, 'scale')
+    shown.then((u) => { if (live) url = u; else if (made) URL.revokeObjectURL(made) }, () => { if (live) failed = true })
+    return () => { live = false; if (made && !url) URL.revokeObjectURL(made) }
   })
 </script>
 

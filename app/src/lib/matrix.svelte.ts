@@ -6,6 +6,7 @@ import * as sdk from 'matrix-js-sdk'
 import { security } from './security.svelte'
 import { discover } from './discover'
 import { setOriginalLoader, setThumbLoader } from './media'
+import { decryptAttachment, encryptAttachment, isEncryptedFile, type EncryptedFile } from './attachments'
 import { beep, unlockAudio } from './sound'
 import { format, parse, type Route } from './route'
 import { PUSH_APP_ID, currentSubscription, storePushSession, storeWorkerDnd, subscribe, unsubscribe, type PushConfig } from './push'
@@ -38,6 +39,10 @@ export interface Msg {
   /** Who reacted with each emoji; eventId lets me take my own reaction back. */
   reactors: Record<string, { id: string; name: string; eventId?: string }[]>
   imageMxc?: string
+  /** Set when the image is encrypted: how to decrypt it. */
+  imageFile?: EncryptedFile
+  /** An audio message or a voice recording. */
+  audio?: { mxc: string; file?: EncryptedFile; duration?: number; waveform?: number[]; voice: boolean; name: string }
   undecryptable?: boolean
   decrypting?: boolean
   threadReplies: number
@@ -223,7 +228,7 @@ class Chat {
     await client.initRustCrypto({ cryptoDatabasePrefix: `tessera-crypto-${s.userId}` })
     security.attach(client)
     setThumbLoader((m, s, method) => this.thumb(m, s, method))
-    setOriginalLoader((m) => this.original(m))
+    setOriginalLoader((m, f) => this.original(m, f))
     security.refresh()
     client.on(sdk.MatrixEventEvent.Decrypted, (ev) => {
       this.refreshMessages()
@@ -308,7 +313,7 @@ class Chat {
     const c = ev.getContent()
     if (ev.getType() === 'm.room.encrypted' || c.msgtype === 'm.bad.encrypted') return 'Encrypted message'
     const who = ev.getSender() === this.userId ? 'You' : (room.getMember(ev.getSender() ?? '')?.name ?? '')
-    const what = c.msgtype === 'm.image' ? 'Photo' : c.msgtype === 'm.file' ? 'File' : plainMentions(c.body ?? '', (id) => room.getMember(id)?.name)
+    const what = c.msgtype === 'm.image' ? 'Photo' : c.msgtype === 'm.audio' ? (c['org.matrix.msc3245.voice'] ? 'Voice message' : 'Audio') : c.msgtype === 'm.file' ? 'File' : plainMentions(c.body ?? '', (id) => room.getMember(id)?.name)
     return `${who}: ${what}`
   }
 
@@ -708,7 +713,22 @@ class Chat {
       const id = ev.getId() ?? ev.getTxnId() ?? String(ev.getTs())
       const sender = ev.getSender() ?? ''
       const bad = (encrypted && ev.isDecryptionFailure()) || content.msgtype === 'm.bad.encrypted'
-      const imageMxc: string | undefined = content.msgtype === 'm.image' && typeof content.url === 'string' ? content.url : undefined
+      // A plain attachment has `url`; one in an encrypted room has `file` (url plus key).
+      const file = isEncryptedFile(content.file) ? content.file : undefined
+      const mediaMxc: string | undefined = typeof content.url === 'string' ? content.url : file?.url
+      const imageMxc: string | undefined = content.msgtype === 'm.image' ? mediaMxc : undefined
+      const rawWave = content['org.matrix.msc1767.audio']?.waveform
+      const audio: Msg['audio'] =
+        content.msgtype === 'm.audio' && mediaMxc
+          ? {
+              mxc: mediaMxc,
+              file,
+              duration: Number.isFinite(content.info?.duration) ? content.info.duration : Number.isFinite(content['org.matrix.msc1767.audio']?.duration) ? content['org.matrix.msc1767.audio'].duration : undefined,
+              waveform: Array.isArray(rawWave) ? rawWave.filter((n: unknown): n is number => typeof n === 'number').slice(0, 512) : undefined,
+              voice: !!content['org.matrix.msc3245.voice'],
+              name: typeof content.body === 'string' ? content.body : 'Audio',
+            }
+          : undefined
       out.push({
         id,
         sender,
@@ -728,6 +748,8 @@ class Chat {
         reactions: reactions.get(id) ?? {},
         reactors: reactors.get(id) ?? {},
         imageMxc,
+        imageFile: imageMxc ? file : undefined,
+        audio,
         threadReplies: ev.isThreadRoot ? (ev.getThread()?.length ?? 0) : 0,
         senderAvatar: room.getMember(sender)?.getMxcAvatarUrl() ?? undefined,
         emote: content.msgtype === 'm.emote',
@@ -911,15 +933,54 @@ class Chat {
     } as never)
   }
 
-  async upload(file: File) {
+  /**
+   * Upload a file. In an encrypted room it is encrypted first, so the homeserver stores only ciphertext, and the key goes in
+   * the (encrypted) message as `file`; elsewhere it is a plain `url`. `progress` reports bytes sent.
+   */
+  /** The largest file the homeserver accepts, in bytes; 0 if it does not say. */
+  async maxUploadSize(): Promise<number> {
+    try {
+      return (await this.client!.getMediaConfig())['m.upload.size'] ?? 0
+    } catch {
+      return 0
+    }
+  }
+
+  async uploadMedia(blob: Blob, name: string, mimetype: string, progress?: (loaded: number, total: number) => void): Promise<{ url: string } | { file: EncryptedFile }> {
+    const c = this.client!
+    const handler = progress ? { progressHandler: (p: { loaded: number; total: number }) => progress(p.loaded, p.total) } : {}
+    if (this.activeRoom && c.isRoomEncrypted(this.activeRoom)) {
+      const { ciphertext, file } = await encryptAttachment(await blob.arrayBuffer())
+      const { content_uri } = await c.uploadContent(new Blob([ciphertext], { type: 'application/octet-stream' }), { name: 'encrypted', type: 'application/octet-stream', ...handler })
+      return { file: { ...file, url: content_uri, mimetype } }
+    }
+    const { content_uri } = await c.uploadContent(blob, { name, type: mimetype, ...handler })
+    return { url: content_uri }
+  }
+
+  async upload(file: File, progress?: (loaded: number, total: number) => void) {
     if (!this.activeRoom) return
-    const { content_uri } = await this.client!.uploadContent(file, { name: file.name })
+    const media = await this.uploadMedia(file, file.name, file.type || 'application/octet-stream', progress)
     const isImg = file.type.startsWith('image/')
     await this.client!.sendMessage(this.activeRoom, {
       msgtype: isImg ? 'm.image' : 'm.file',
       body: file.name,
-      url: content_uri,
+      ...media,
       info: { mimetype: file.type, size: file.size },
+    } as never)
+  }
+
+  /** Send a recorded voice message (MSC3245 voice, with the MSC1767 audio details other clients read for the waveform). */
+  async sendVoice(rec: { blob: Blob; duration: number; waveform: number[]; mimetype: string }, progress?: (loaded: number, total: number) => void) {
+    if (!this.activeRoom) return
+    const media = await this.uploadMedia(rec.blob, 'voice-message', rec.mimetype, progress)
+    await this.client!.sendMessage(this.activeRoom, {
+      msgtype: 'm.audio',
+      body: 'Voice message',
+      ...media,
+      info: { mimetype: rec.mimetype, size: rec.blob.size, duration: Math.round(rec.duration) },
+      'org.matrix.msc3245.voice': {},
+      'org.matrix.msc1767.audio': { duration: Math.round(rec.duration), waveform: rec.waveform },
     } as never)
   }
 
@@ -1144,8 +1205,8 @@ class Chat {
 
   private originals = new Map<string, Promise<Blob>>()
 
-  /** The full-size file, for the image viewer and downloads. Kept for the session so paging back and forth is instant. */
-  original(mxc: string): Promise<Blob> {
+  /** The full-size file, for the image viewer, audio and downloads. Kept for the session so paging back and forth is instant. */
+  original(mxc: string, file?: EncryptedFile): Promise<Blob> {
     let hit = this.originals.get(mxc)
     if (!hit) {
       const c = this.client!
@@ -1153,7 +1214,8 @@ class Chat {
       hit = url
         ? fetch(url, { headers: { Authorization: `Bearer ${c.getAccessToken()}` } }).then((r) => {
             if (!r.ok) throw new Error(String(r.status))
-            return r.blob()
+            // In an encrypted room the server holds ciphertext: check it against its hash and decrypt it here.
+            return file ? r.arrayBuffer().then((buf) => decryptAttachment(buf, file)).then((plain) => new Blob([plain], { type: file.mimetype ?? 'application/octet-stream' })) : r.blob()
           })
         : Promise.reject(new Error('no url'))
       hit.catch(() => this.originals.delete(mxc))

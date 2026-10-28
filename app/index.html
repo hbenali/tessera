@@ -9,9 +9,18 @@
     <title>Tessera</title>
     <meta name="description" content="Tessera is a fast, private Matrix chat client for Synapse and any Matrix homeserver." />
     <meta name="theme-color" content="#0d0f14" />
+    <!-- Painted before any script runs, so the first thing on screen is not a blank page. Removed when the app mounts. -->
+    <style>
+      #splash { position: fixed; inset: 0; display: grid; place-items: center; background: #0d0f14; }
+      #splash svg { width: 72px; height: 72px; border-radius: 18px; animation: splash 1.6s ease-in-out infinite; }
+      @keyframes splash { 50% { opacity: .55; transform: scale(.96); } }
+      @media (prefers-color-scheme: light) { #splash { background: #f1f2f5; } }
+      @media (prefers-reduced-motion: reduce) { #splash svg { animation: none; } }
+    </style>
   </head>
   <body>
     <div id="app"></div>
+    <div id="splash" aria-hidden="true"><svg viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#0f1115"/><rect x="112" y="112" width="140" height="140" rx="26" fill="#f08a72"/><rect x="268" y="112" width="140" height="140" rx="26" fill="#8f9dff"/><rect x="112" y="268" width="140" height="140" rx="26" fill="#52c2b2"/><rect x="268" y="268" width="140" height="140" rx="26" fill="#efc352"/></svg></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

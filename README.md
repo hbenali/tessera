@@ -13,6 +13,7 @@ A fast, private, workspace-style [Matrix](https://matrix.org) client for Synapse
 
 - **Fast and light.** The sign-in page is about 32 KiB; the Matrix SDK and crypto WASM load only after you sign in. Long rooms use CSS `content-visibility`.
 - **Workspace feel.** One menu switches between views (All, Unread, Mentions, Favourites, People, Rooms) and spaces; threads in a side panel, pinned messages, per-room notification levels, a Ctrl K switcher.
+- **Quick to appear.** A splash is in the first HTML, then an app-shaped skeleton and a thin sync bar instead of a blank "Loading…", and the app shell downloads alongside the Matrix SDK rather than after it.
 - **Simple.** One list of conversations with previews, unread filters and no settings maze.
 - **Eight themes**, including a high-contrast one, chosen from Settings.
 
@@ -25,6 +26,9 @@ A fast, private, workspace-style [Matrix](https://matrix.org) client for Synapse
 - **About:** version, build, session and server details, a device fingerprint, update check and a copy-for-bug-report button (no secrets).
 - **Quiet reading:** per room (room menu or details), read without showing anyone that you have. It sends a private read receipt, so your own unread count and other devices still update. Replying in the room still shows you were there.
 - **Presence:** online and away dots on avatars, your own status (Online, Away, Invisible) from the sidebar, and your own avatar and name, which you can change in Settings.
+- **Voice messages:** a mic button records (a live meter and timer, Esc to cancel, Enter to send, up to ten minutes) and sends a standard voice message other clients can play; received voice and audio messages, including those from Element, play in an inline player with a waveform, seeking and 1×/1.5×/2× speed.
+- **Composer:** files wait in a tray with previews and upload progress until you send (several at once, by button, paste or drag and drop, with a drop target), a failed upload keeps its file and your text, formatting buttons and shortcuts (Ctrl+B, Ctrl+I, Ctrl+E, quote), `:emoji:` shortcodes, and slash commands: `/invite` (by id, short name or display name, with suggestions), `/me`, `/shrug`. A mistyped command is never sent to the room, and `//` sends a literal slash.
+- **Encrypted attachments:** in an encrypted room every file, image and voice message is encrypted in the browser before upload (the Matrix v2 attachment format: AES-256-CTR plus a SHA-256 check), so the homeserver only holds ciphertext, and received encrypted attachments are checked and decrypted.
 - **Images:** click one to open a viewer with zoom (buttons, wheel, double-click, pinch, drag to pan), previous and next through the room's images, and a download button that saves the original file.
 - **Messages:** sending, sent and seen marks on your messages, with each reader's avatar at the message they have read up to (click for everyone and when; "Seen 10:32" in direct chats); labelled hover actions; hover a reaction to see who reacted (click your own to take it back); Copy link on any message; Markdown subset (escaped first, so safe by construction), replies, edits, deletes, reactions with an emoji picker, image and file upload (also by paste or drag and drop), typing indicators, day dividers, history on scroll, "Seen" receipts, per-room drafts (kept across a reload only in unencrypted rooms, never written to disk for encrypted ones).
 - **Sound:** a quiet sound when a message arrives (Chime, Blip or Pop, with a longer rise for a mention), off with one switch. It follows your notification settings: muted rooms are silent, mentions-only rooms sound only for a mention, and do not disturb and quiet hours silence it. One sound covers a burst (at most one every 8 seconds, 3 for a mention) and a busy room sounds at most once a minute.
@@ -42,7 +46,7 @@ A fast, private, workspace-style [Matrix](https://matrix.org) client for Synapse
 
 Voice and video calls, search inside encrypted rooms beyond what the device has loaded, and a true timeline virtualiser.
 
-Known gaps in what has been verified: single sign-on was only exercised against a stand-in identity provider, not a real one; QR scanning was tested with a screenshot of the code between two sessions, not a live camera; desktop notification pop-ups were not exercised (the unread count was); and accessibility has been checked with automated tools only (see below).
+Known gaps in what has been verified: voice recording was tested with Chrome's fake microphone, not a real one, and the nginx changes for the microphone and audio playback (`security-headers.conf`) were not tested with a Docker build; single sign-on was only exercised against a stand-in identity provider, not a real one; QR scanning was tested with a screenshot of the code between two sessions, not a live camera; desktop notification pop-ups were not exercised (the unread count was); and accessibility has been checked with automated tools only (see below).
 
 ## Accessibility
 

@@ -16,7 +16,7 @@ const commit = (() => {
 // Same policy as security-headers.conf (nginx). Static hosts like GitHub Pages cannot send headers, so the
 // Pages build puts it in a <meta> tag instead. frame-ancestors is not allowed in meta, nginx still sets it.
 const CSP =
-  "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; " +
+  "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; media-src 'self' blob:; " +
   "connect-src 'self' https: http: wss: ws:; worker-src 'self' blob:; manifest-src 'self'; base-uri 'none'; form-action 'self'"
 
 const cspMeta = (): Plugin => ({

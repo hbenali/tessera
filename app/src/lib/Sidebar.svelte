@@ -3,6 +3,7 @@
   import { shortTime, ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
   import Icon from './Icon.svelte'
+  import Skeleton from './Skeleton.svelte'
   import type { RoomItem } from './matrix.svelte'
   import type { ComponentProps } from 'svelte'
   let { onsearch }: { onsearch: () => void } = $props()
@@ -118,7 +119,9 @@
         <button class="more icon-btn" aria-label="Options for {r.name}" aria-haspopup="menu" onclick={(e) => { const b = e.currentTarget.getBoundingClientRect(); ui.openRoomMenu(r.id, b.left, b.bottom + 4, e.currentTarget) }}><Icon name="more" size={16} /></button>
       </div>
     {/each}
-    {#if !rooms.length && !invites.length}
+    {#if !chat.ready && !chat.rooms.length}
+      <Skeleton variant="list" />
+    {:else if !rooms.length && !invites.length}
       <p class="empty">{view === 'unread' ? 'You are all caught up.' : view === 'mentions' ? 'No one has mentioned you.' : view === 'favourites' ? 'Star a room in its details to find it here.' : 'Nothing here yet.'}</p>
     {/if}
   </nav>

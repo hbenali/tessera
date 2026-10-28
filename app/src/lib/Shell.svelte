@@ -35,6 +35,7 @@
 
 <svelte:window onkeydown={key} />
 
+{#if !chat.ready}<div class="syncbar" role="status" aria-label="Syncing"></div>{/if}
 <div class="shell" class:has-room={!!chat.activeRoom} class:with-details={(ui.details || ui.roomSearch || !!chat.threadRoot) && !!chat.activeRoom}>
   <Sidebar onsearch={() => (palette = true)} />
   <Timeline />
@@ -49,6 +50,11 @@
 {#if ui.viewer}<ImageViewer />{/if}
 
 <style>
+  /* A thin moving bar along the top while the first sync runs. */
+  .syncbar { position: fixed; z-index: 30; top: 0; left: 0; right: 0; height: 2px; overflow: hidden; background: color-mix(in srgb, var(--accent) 18%, transparent); }
+  .syncbar::after { content: ''; position: absolute; inset: 0 auto 0 0; width: 35%; background: var(--accent); animation: sync 1.1s ease-in-out infinite; }
+  @keyframes sync { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+  @media (prefers-reduced-motion: reduce) { .syncbar::after { animation: none; width: 100%; opacity: .5; } }
   /* The app fills the window and scrolls inside its own panes; the page itself must never scroll. */
   :global(html), :global(body) { overflow: hidden; }
   .shell { height: 100%; display: grid; grid-template-rows: minmax(0, 1fr); overflow: hidden; grid-template-columns: 320px 1fr; } .shell.with-details { grid-template-columns: 320px 1fr 300px; }

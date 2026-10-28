@@ -30,7 +30,7 @@
     let live = true
     let made: string | undefined
     thumb(m.imageMxc, 320, 'scale').then((u) => { if (live && !src) preview = u }, () => {})
-    originalOf(m.imageMxc).then(
+    originalOf(m.imageMxc, m.imageFile).then(
       (b) => { if (!live) return; blob = b; made = URL.createObjectURL(b); src = made },
       () => { if (live) error = 'This image could not be loaded.' },
     )

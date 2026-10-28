@@ -177,7 +177,7 @@ describe('tessera e2e', () => {
       assert.match(await r.page.locator('.seen').getAttribute('title'), new RegExp(`Seen by ${data.bob.name}`))
     })
 
-    it('uploads an image pasted into the composer', async () => {
+    it('puts a pasted image in the tray, and uploads it when sent', async () => {
       const before = await r.page.locator('article .body img').count()
       await r.page.getByRole('combobox', { name: 'Message' }).evaluate((el) => {
         const bytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0))
@@ -185,6 +185,10 @@ describe('tessera e2e', () => {
         dt.items.add(new File([bytes], 'pasted.png', { type: 'image/png' }))
         el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
       })
+      // It waits in the tray (a preview, nothing sent yet) until Send.
+      await r.page.locator('.tray li img').waitFor()
+      assert.equal(await r.page.locator('article .body img').count(), before)
+      await r.page.getByRole('button', { name: 'Send message' }).click()
       await r.page.waitForFunction((n) => document.querySelectorAll('article .body img').length > n, before, { timeout: 15_000 })
     })
 
