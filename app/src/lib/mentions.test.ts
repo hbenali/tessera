@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mentionsUser, plainMentions } from './mentions'
+import { fromComposer, mentionRanges, mentionsUser, toComposer, plainMentions } from './mentions'
 
 const me = '@alice:localhost'
 describe('mentionsUser', () => {
@@ -25,5 +25,37 @@ describe('plainMentions', () => {
   })
   it('leaves ids inside URLs alone', () => {
     expect(plainMentions('see https://x.org/@bob:localhost', name)).toBe('see https://x.org/@bob:localhost')
+  })
+})
+
+describe('mentions in the message box', () => {
+  const picked = { 'Bob Marley': '@bob:localhost', Bo: '@bo:localhost' }
+  it('shows names and sends ids', () => {
+    expect(fromComposer('hi @Bob Marley, see this', picked)).toBe('hi @bob:localhost, see this')
+    expect(fromComposer('@Bo and @Bob Marley', picked)).toBe('@bo:localhost and @bob:localhost')
+  })
+  it('does not turn part of a longer word into a mention', () => {
+    expect(fromComposer('@Bobby is not @Bo', picked)).toBe('@Bobby is not @bo:localhost')
+    expect(fromComposer('mail me at a@Bo.example', picked)).toBe('mail me at a@Bo.example')
+  })
+  it('finds the ranges to draw as pills, longest name first', () => {
+    const t = 'hey @Bob Marley and @Bo!'
+    expect(mentionRanges(t, picked).map(([a, b]) => t.slice(a, b))).toEqual(['@Bob Marley', '@Bo'])
+    expect(mentionRanges('nothing', picked)).toEqual([])
+    expect(mentionRanges('@x', {})).toEqual([])
+  })
+  it('treats names as text, never as a pattern', () => {
+    const odd = { 'A.B (c)+': '@ab:localhost' }
+    expect(fromComposer('@A.B (c)+ ok, @AxB (c)+ not', odd)).toBe('@ab:localhost ok, @AxB (c)+ not')
+  })
+  it('turns ids back into names for an edit or a draft, and round-trips', () => {
+    const name = (id: string) => ({ '@bob:localhost': 'Bob Marley' })[id]
+    const { text, picked: p } = toComposer('hi @bob:localhost and @who:localhost', name)
+    expect(text).toBe('hi @Bob Marley and @who:localhost') // an unknown id stays as it is
+    expect(fromComposer(text, p)).toBe('hi @bob:localhost and @who:localhost')
+  })
+  it('leaves an id alone when two people share a name', () => {
+    const { text } = toComposer('@a:x and @b:x', () => 'Alex')
+    expect(text).toBe('@Alex and @b:x')
   })
 })

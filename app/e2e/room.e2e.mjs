@@ -132,7 +132,10 @@ describe('tessera e2e', () => {
       await box.fill(`ping @${data.bob.name.slice(0, 6)}`)
       await r.page.getByRole('listbox', { name: 'Mention suggestions' }).waitFor()
       await box.press('Tab')
-      assert.ok((await box.inputValue()).includes(data.bob.id))
+      // The box shows the name, drawn as a pill; the Matrix id is only what gets sent (checked below).
+      assert.ok((await box.inputValue()).includes(`@${data.bob.name}`))
+      assert.ok(!(await box.inputValue()).includes(data.bob.id))
+      assert.equal(await r.page.locator('.mirror .pill').count(), 1)
       await box.press('Enter')
       await r.page.waitForFunction((t) => document.querySelector('article:last-of-type .text')?.textContent.includes(t), 'ping', { timeout: 10_000 })
       const synapse = process.env.SYNAPSE_URL ?? 'http://localhost:8008'
@@ -144,6 +147,7 @@ describe('tessera e2e', () => {
     }
     assert.ok(sent, 'the message reached the server')
     assert.deepEqual(sent.content['m.mentions'], { user_ids: [data.bob.id] }, JSON.stringify(sent.content))
+    assert.ok(sent.content.body.includes(data.bob.id), 'the sent body carries the Matrix id, not the display name')
     })
 
     it('lets you scroll down from the top of the history without snapping back', async () => {

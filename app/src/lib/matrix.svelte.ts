@@ -5,6 +5,7 @@ import * as sdk from 'matrix-js-sdk'
 import { security } from './security.svelte'
 import { discover } from './discover'
 import { setOriginalLoader, setThumbLoader } from './media'
+import { beep, unlockAudio } from './sound'
 import { format, parse, type Route } from './route'
 import { PUSH_APP_ID, currentSubscription, storePushSession, storeWorkerDnd, subscribe, unsubscribe, type PushConfig } from './push'
 import { DEFAULT_REPLY, DEFAULT_SCHEDULE, inSchedule, parseAutoReply, parseSchedule, replyText, scheduleEnd, type AutoReply, type Schedule } from './dnd'
@@ -264,6 +265,7 @@ class Chat {
     await client.startClient({ initialSyncLimit: 30, lazyLoadMembers: true, threadSupport: true })
     this.loadProfile()
     this.setStatus(this.myStatus)
+    unlockAudio()
     this.refreshPush()
     this.loadQuiet()
     this.loadPrivacy()
@@ -939,9 +941,12 @@ class Chat {
     if (ev.getSender() === this.userId || ev.getType() !== 'm.room.message') return
     if (ev.getTs() < Date.now() - 60_000) return // history, not live
     if (!document.hidden && ev.getRoomId() === this.activeRoom) return
-    if (!c.getPushActionsForEvent(ev)?.notify) return
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    // The push rules decide, so a muted room stays silent and a mentions-only room only sounds for a mention.
+    const actions = c.getPushActionsForEvent(ev)
+    if (!actions?.notify) return
     this.notified.add(id)
+    beep(actions.tweaks?.highlight ? 'mention' : 'message', { room: ev.getRoomId() ?? undefined })
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
     const room = c.getRoom(ev.getRoomId())
     const body = ev.getContent().msgtype === 'm.text' ? plainMentions(ev.getContent().body, (id) => room?.getMember(id)?.name) : 'Sent an attachment'
     const n = new Notification(room?.name ?? 'Tessera', { body: `${room?.getMember(ev.getSender() ?? '')?.name ?? ''}: ${body}`, tag: ev.getRoomId() ?? undefined })

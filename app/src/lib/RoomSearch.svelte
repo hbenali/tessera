@@ -1,6 +1,7 @@
 <script lang="ts">
   import { chat, type MessageHit } from './matrix.svelte'
   import { highlight } from './highlight'
+  import { plainMentions } from './mentions'
   import { ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
   import Icon from './Icon.svelte'
@@ -158,7 +159,7 @@
             <Avatar name={h.sender} size={26} round />
             <span class="body">
               <span class="top"><b>{h.sender}</b><time>{when(h.ts)}</time></span>
-              <span class="snip">{#each highlight(h.snippet, term) as p, i (i)}{#if p.hit}<mark>{p.text}</mark>{:else}{p.text}{/if}{/each}</span>
+              <span class="snip">{#each highlight(plainMentions(h.snippet, chat.nameOf), term) as p, i (i)}{#if p.hit}<mark>{p.text}</mark>{:else}{p.text}{/if}{/each}</span>
             </span>
           </button>
         </div>

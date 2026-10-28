@@ -5,6 +5,7 @@
   import { THEMES, ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
   import About from './About.svelte'
+  import { STYLES, beep, setSoundOn, setSoundStyle, soundOn, soundStyle, type Style } from './sound'
   import { install } from './install.svelte'
   import { loadPushConfig, pushSupported, type PushConfig } from './push'
 
@@ -43,6 +44,8 @@
     const reg = await navigator.serviceWorker.ready
     await reg.showNotification('Tessera', { body: 'Notifications are working.', icon: '/icon-192.png', tag: 'tessera-test' })
   }
+  let sound = $state(soundOn())
+  let style = $state<Style>(soundStyle())
   let photo: HTMLInputElement | undefined = $state()
   let name = $state('')
   let profileErr = $state('')
@@ -107,6 +110,22 @@
     {/if}
     {#if security.message}<div class="err" role="alert">{security.message}</div>{/if}
   {:else if tab === 'notify'}
+    <h3 class="label">Sound</h3>
+    <div class="switches">
+      <label class="switch"><span><b>Play a sound when a message arrives</b><small>Follows your notification settings: a muted room is silent, a room set to mentions only sounds only for a mention, and do not disturb or quiet hours silence it. A mention gets a longer sound. It is kept quiet and rare: one sound covers a burst, and a busy room sounds at most once a minute. Browsers allow sound only after you have clicked or typed in the page.</small></span>
+        <input type="checkbox" role="switch" checked={sound} onchange={(e) => { sound = e.currentTarget.checked; setSoundOn(sound) }} /></label>
+    </div>
+    {#if sound}
+      <div class="row soundrow">
+        <div class="seg" role="radiogroup" aria-label="Sound">
+          {#each STYLES as s (s.id)}
+            <button role="radio" aria-checked={style === s.id} class:on={style === s.id} onclick={() => { style = s.id; setSoundStyle(s.id); beep('message', { force: true, style: s.id }) }}>{s.label}</button>
+          {/each}
+        </div>
+        <button class="btn ghost" onclick={() => beep('message', { force: true, style })}>Play</button>
+        <button class="btn ghost" onclick={() => beep('mention', { force: true, style })}>Play mention</button>
+      </div>
+    {/if}
     <h3 class="label">Do not disturb</h3>
     {#if chat.manualDnd}
       <p class="status ok">On {chat.dnd?.until ? `until ${new Date(chat.dnd.until).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}` : 'until you turn it off'}.</p>
@@ -236,6 +255,7 @@
   @media (prefers-reduced-motion: reduce) { .switch input[role=switch], .switch input[role=switch]::after { transition: none; } }
   .field { display: grid; gap: 4px; margin: 10px 0 6px; font-size: 12px; color: var(--muted); } .field textarea { font: inherit; font-size: 14px; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; resize: vertical; }
   .check { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 6px 0; }
+  .soundrow { align-items: center; flex-wrap: wrap; margin-top: 10px; } .soundrow .seg { flex: 1 1 200px; }
   .days { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; } .day { padding: 6px 11px; border-radius: 999px; background: var(--tile); color: var(--muted); font-size: 13px; font-weight: 500; box-shadow: inset 0 0 0 1px var(--line); } .day.on { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
   .times { display: flex; gap: 14px; margin: 10px 0; } .times label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); } .times input { font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
   .me { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; } .grow { flex: 1; display: grid; gap: 4px; font-size: 12px; color: var(--muted); }

@@ -6,6 +6,7 @@
   import Avatar from './Avatar.svelte'
   import Photo from './Photo.svelte'
   import { highlight } from './highlight'
+  import { fromComposer, mentionRanges, plainMentions, toComposer, type Picked } from './mentions'
   import { getDraft, setDraft } from './drafts'
   import Icon from './Icon.svelte'
   import EmojiPicker from './EmojiPicker.svelte'
@@ -67,6 +68,26 @@
       chat.focusEvent = null
     })
   })
+  // The box shows people as "@Name" (drawn as pills behind the text); the sent message carries their Matrix id.
+  let picked = $state<Picked>({})
+  function setComposer(wire: string) {
+    const c = toComposer(wire, chat.nameOf)
+    text = c.text
+    picked = c.picked
+  }
+  const pieces = $derived.by(() => {
+    const out: { t: string; pill: boolean }[] = []
+    let at = 0
+    for (const [a, b] of mentionRanges(text, picked)) {
+      if (a > at) out.push({ t: text.slice(at, a), pill: false })
+      out.push({ t: text.slice(a, b), pill: true })
+      at = b
+    }
+    out.push({ t: text.slice(at) + '\u200b', pill: false }) // the zero-width space keeps a trailing newline's height
+    return out
+  })
+  let mirror: HTMLElement | undefined = $state()
+  const syncScroll = () => { if (mirror && area) mirror.scrollTop = area.scrollTop }
   let textRoom: string | null = null // the room `text` belongs to
   $effect(() => {
     const id = chat.activeRoom
@@ -75,11 +96,12 @@
     picker = null
     notice = ''
     textRoom = id
-    text = id ? getDraft(id) : ''
+    if (id) setComposer(getDraft(id))
+    else { text = ''; picked = {} }
   })
   $effect(() => {
     const t = text
-    if (textRoom && textRoom === chat.activeRoom && !editing) setDraft(textRoom, t, !chat.active?.encrypted)
+    if (textRoom && textRoom === chat.activeRoom && !editing) setDraft(textRoom, fromComposer(t, picked), !chat.active?.encrypted)
   })
 
   // Many of a room's newest events are not shown (reactions, joins, edits), so the first window can hold too few
@@ -154,9 +176,10 @@
   }
 
   async function submit() {
-    const body = text
+    const body = fromComposer(text, picked)
     if (!body.trim()) return
     text = ''
+    picked = {}
     notice = ''
     const cmd = body.match(/^\/invite\s+(@\S+)\s*$/)
     if (cmd) {
@@ -185,8 +208,11 @@
       : chat.members.filter((u) => u.id !== chat.userId && (u.name.toLowerCase().includes(query) || u.id.toLowerCase().includes(query))).slice(0, 6),
   )
   $effect(() => { suggestions; sel = 0 })
-  function complete(u: { id: string }) {
-    const before = text.slice(0, caret).replace(/@[^\s@]*$/, `${u.id} `)
+  function complete(u: { id: string; name: string }) {
+    // The name is shown when it is unambiguous; two people with one name fall back to the plain id.
+    const shown = picked[u.name] && picked[u.name] !== u.id ? u.id : `@${u.name}`
+    if (shown !== u.id) picked[u.name] = u.id
+    const before = text.slice(0, caret).replace(/@[^\s@]*$/, `${shown} `)
     text = before + text.slice(caret)
     caret = before.length
     tick().then(() => { area?.focus(); area?.setSelectionRange(caret, caret) })
@@ -204,7 +230,7 @@
     else if (e.key === 'Escape') { replyTo = editing = null }
     else if (e.key === 'ArrowUp' && !text) {
       const mine = [...chat.messages].reverse().find((m) => m.mine && !m.pending)
-      if (mine) { editing = mine; text = mine.body }
+      if (mine) { editing = mine; setComposer(mine.body) }
     } else {
       chat.setTyping(true)
       clearTimeout(typingTimer)
@@ -338,7 +364,7 @@
           </div>
           <div class="body">
             {#if !cont}<div class="head"><button class="who" onclick={(e) => card(m.sender, e)} aria-haspopup="dialog"><b>{m.senderName}</b></button><time>{fmt(m.ts)}</time>{#if m.pinned}<span class="pinned" title="Pinned"><Icon name="pin" size={12} /> Pinned</span>{/if}</div>{/if}
-            {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {byId(m.replyTo)?.body ?? 'earlier message'}</div>{/if}
+            {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {plainMentions(byId(m.replyTo)?.body ?? 'earlier message', chat.nameOf)}</div>{/if}
             {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} onopen={(opener) => (ui.viewer = { id: m.id, opener })} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} use:pills>{@html render(m.body, { name: chat.nameOf, me: chat.userId })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
             {#if m.seenBy?.length}
@@ -374,7 +400,7 @@
             {#if chat.canPin}<button class="icon-btn" onclick={() => chat.togglePin(m.id)} aria-label={m.pinned ? 'Unpin message' : 'Pin message'} aria-pressed={m.pinned}><Icon name="pin" size={16} /></button>{/if}
             <button class="icon-btn" onclick={() => copyLink(m)} aria-label="Copy link to message"><Icon name="link" size={16} /></button>
             <button class="icon-btn" onclick={() => chat.openThread(m.id)} aria-label="Reply in thread"><Icon name="thread" size={16} /></button>
-            {#if m.mine && !m.undecryptable}<button class="icon-btn" onclick={() => { editing = m; replyTo = null; text = m.body }} aria-label="Edit"><Icon name="edit" size={16} /></button>{/if}
+            {#if m.mine && !m.undecryptable}<button class="icon-btn" onclick={() => { editing = m; replyTo = null; setComposer(m.body) }} aria-label="Edit"><Icon name="edit" size={16} /></button>{/if}
             {#if m.mine}<button class="icon-btn" onclick={() => chat.deleteMessage(m.id)} aria-label="Delete message"><Icon name="trash" size={16} /></button>{/if}
           </div>
         </article>
@@ -387,8 +413,8 @@
     <footer>
       {#if notice}<div class="ctx err" role="alert">{notice}</div>{/if}
       <div class="composer">
-        {#if replyTo}<div class="ctx"><Icon name="reply" size={14} /> Replying to <b>{replyTo.senderName}</b><span class="clip">{replyTo.body}</span><button class="icon-btn" onclick={() => (replyTo = null)} aria-label="Cancel reply"><Icon name="x" size={14} /></button></div>{/if}
-        {#if editing}<div class="ctx"><Icon name="edit" size={14} /> Editing message<button class="icon-btn" onclick={() => { editing = null; text = '' }} aria-label="Cancel edit"><Icon name="x" size={14} /></button></div>{/if}
+        {#if replyTo}<div class="ctx"><Icon name="reply" size={14} /> Replying to <b>{replyTo.senderName}</b><span class="clip">{plainMentions(replyTo.body, chat.nameOf)}</span><button class="icon-btn" onclick={() => (replyTo = null)} aria-label="Cancel reply"><Icon name="x" size={14} /></button></div>{/if}
+        {#if editing}<div class="ctx"><Icon name="edit" size={14} /> Editing message<button class="icon-btn" onclick={() => { editing = null; text = ''; picked = {} }} aria-label="Cancel edit"><Icon name="x" size={14} /></button></div>{/if}
         {#if suggestions.length}
           <ul class="mentions" id="mention-list" role="listbox" aria-label="Mention suggestions">
             {#each suggestions as u, i (u.id)}
@@ -399,7 +425,8 @@
         <div class="input">
           <button class="icon-btn" title="Attach a file" aria-label="Attach a file" onclick={() => fileInput?.click()}><Icon name="clip" /></button>
           <input type="file" hidden bind:this={fileInput} onchange={pick} />
-          <textarea rows="1" bind:this={area} bind:value={text} onkeydown={keydown} onpaste={paste} oninput={() => (caret = area?.selectionStart ?? 0)} onclick={() => (caret = area?.selectionStart ?? 0)} role="combobox" aria-expanded={suggestions.length > 0} aria-controls="mention-list" aria-autocomplete="list" placeholder="Message {chat.active.name}" aria-label="Message"></textarea>
+          <div class="field"><div class="mirror" aria-hidden="true" bind:this={mirror}>{#each pieces as p, i (i)}{#if p.pill}<span class="pill">{p.t}</span>{:else}{p.t}{/if}{/each}</div>
+          <textarea rows="1" bind:this={area} bind:value={text} onscroll={syncScroll} onkeydown={keydown} onpaste={paste} oninput={() => (caret = area?.selectionStart ?? 0)} onclick={() => (caret = area?.selectionStart ?? 0)} role="combobox" aria-expanded={suggestions.length > 0} aria-controls="mention-list" aria-autocomplete="list" placeholder="Message {chat.active.name}" aria-label="Message"></textarea></div>
           <span class="pw"><button class="icon-btn" onclick={() => (picker = picker === 'composer' ? null : 'composer')} aria-label="Insert emoji"><Icon name="smile" /></button>
             {#if picker === 'composer'}<EmojiPicker onpick={(e) => (text += e)} onclose={() => (picker = null)} />{/if}</span>
           <button class="send" onclick={submit} disabled={!text.trim()} aria-label="Send message"><Icon name="send" size={17} /></button>
@@ -483,7 +510,12 @@
   .ctx { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 12px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); } .ctx .clip { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ctx button { margin-left: auto; } .err { color: var(--danger); border: 0; }
   .input { display: flex; align-items: flex-end; gap: 2px; padding: 6px; }
 .mentions { list-style: none; margin: 0 0 6px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 8px 24px rgb(0 0 0 / .25); } .mentions li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 7px; color: var(--text); cursor: pointer; } .mentions li.on { background: var(--tile); } .mentions small { margin-left: auto; color: var(--muted); font-size: 11px; }
-  textarea { flex: 1; resize: none; max-height: 180px; background: none; border: 0; padding: 7px 6px; field-sizing: content; } textarea:focus { border: 0; }
+  /* The mirror sits behind the text box with the same text and metrics; only its backgrounds (the pills) show. */
+  .field { position: relative; flex: 1; min-width: 0; display: flex; }
+  .mirror, textarea { font: inherit; line-height: inherit; letter-spacing: inherit; padding: 7px 6px; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; box-sizing: border-box; border: 0; }
+  .mirror { position: absolute; inset: 0; color: transparent; pointer-events: none; overflow: hidden; }
+  .pill { background: color-mix(in srgb, var(--accent) 24%, transparent); border-radius: 5px; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 24%, transparent); }
+  textarea { position: relative; flex: 1; min-width: 0; resize: none; max-height: 180px; background: none; field-sizing: content; } textarea:focus { border: 0; }
   .send { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); } .send:disabled { background: transparent; color: var(--muted); opacity: .6; }
   .hint { margin-top: 6px; font-size: 11px; color: var(--muted); text-align: center; } @media (max-width: 720px) { .hint { display: none; } }
 </style>
