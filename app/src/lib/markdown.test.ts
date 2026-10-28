@@ -46,3 +46,22 @@ describe('mentions', () => {
     expect(render('https://e.com/@alice:localhost', names)).not.toContain('class="mention"')
   })
 })
+
+describe('mentions by name', () => {
+  const pills = [{ id: '@samuel:exo.test', label: 'Samuel Renault' }]
+  it('draws the name as a pill, with or without an @', () => {
+    const out = render('Je vais partager la clé avec  Samuel Renault', { pills })
+    expect(out).toContain('data-user="@samuel:exo.test"')
+    expect(out).toContain('@Samuel Renault</span>')
+    expect(render('hi @Samuel Renault!', { pills })).toContain('data-user="@samuel:exo.test"')
+  })
+  it('does not touch part of a longer word, and marks the pill for me', () => {
+    expect(render('Samuel Renaulty', { pills })).not.toContain('class="mention')
+    expect(render('x Samuel Renault', { pills, me: '@samuel:exo.test' })).toContain('class="mention me"')
+  })
+  it('escapes the label, so a crafted name cannot add markup', () => {
+    const out = render('hi <img src=x onerror=1>', { pills: [{ id: '@a:x.org', label: '<img src=x onerror=1>' }] })
+    expect(out).not.toContain('<img')
+    expect(out).toContain('&lt;img')
+  })
+})

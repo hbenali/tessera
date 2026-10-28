@@ -365,7 +365,7 @@
           <div class="body">
             {#if !cont}<div class="head"><button class="who" onclick={(e) => card(m.sender, e)} aria-haspopup="dialog"><b>{m.senderName}</b></button><time>{fmt(m.ts)}</time>{#if m.pinned}<span class="pinned" title="Pinned"><Icon name="pin" size={12} /> Pinned</span>{/if}</div>{/if}
             {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {plainMentions(byId(m.replyTo)?.body ?? 'earlier message', chat.nameOf)}</div>{/if}
-            {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} onopen={(opener) => (ui.viewer = { id: m.id, opener })} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} use:pills>{@html render(m.body, { name: chat.nameOf, me: chat.userId })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
+            {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} onopen={(opener) => (ui.viewer = { id: m.id, opener })} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} use:pills>{@html render(m.body, { name: chat.nameOf, me: chat.userId, pills: m.pills })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
             {#if m.seenBy?.length}
               {@const who = m.seenBy}

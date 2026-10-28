@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fromComposer, mentionRanges, mentionsUser, toComposer, plainMentions } from './mentions'
+import { fromComposer, mentionPills, mentionRanges, mentionsUser, toComposer, plainMentions } from './mentions'
 
 const me = '@alice:localhost'
 describe('mentionsUser', () => {
@@ -57,5 +57,23 @@ describe('mentions in the message box', () => {
   it('leaves an id alone when two people share a name', () => {
     const { text } = toComposer('@a:x and @b:x', () => 'Alex')
     expect(text).toBe('@Alex and @b:x')
+  })
+})
+
+describe('mentions written by other clients', () => {
+  const html = (a: string) => ({ format: 'org.matrix.custom.html', formatted_body: a })
+  it('reads the people from formatted_body links', () => {
+    expect(mentionPills(html('Je vais partager la clé avec <a href="https://matrix.to/#/@samuel:exo.test">Samuel Renault</a>'), () => undefined)).toEqual([{ id: '@samuel:exo.test', label: 'Samuel Renault' }])
+    expect(mentionPills(html('<a href="https://matrix.to/#/%40a%3Ax.org">@Ann &amp; Co</a>'), () => undefined)).toEqual([{ id: '@a:x.org', label: 'Ann & Co' }])
+    expect(mentionPills(html('<a href="matrix:u/b:x.org">Bea</a>'), () => undefined)).toEqual([{ id: '@b:x.org', label: 'Bea' }])
+  })
+  it('falls back to m.mentions with the member name', () => {
+    expect(mentionPills({ 'm.mentions': { user_ids: ['@c:x.org'] } }, (id) => (id === '@c:x.org' ? 'Cleo' : undefined))).toEqual([{ id: '@c:x.org', label: 'Cleo' }])
+    expect(mentionPills({ 'm.mentions': { user_ids: ['@d:x.org'] } }, () => undefined)).toEqual([])
+  })
+  it('ignores links that are not people and ids that could carry markup', () => {
+    expect(mentionPills(html('<a href="https://matrix.to/#/#room:x.org">the room</a> <a href="https://example.com">site</a>'), () => 'N')).toEqual([])
+    expect(mentionPills(html('<a href="https://matrix.to/#/@a&quot;onmouseover=alert(1):x.org">Eve</a>'), () => undefined)).toEqual([])
+    expect(mentionPills({ 'm.mentions': { user_ids: ['@x"><img src=x onerror=1>:y.org'] } }, () => 'Mallory')).toEqual([])
   })
 })

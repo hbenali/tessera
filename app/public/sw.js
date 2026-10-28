@@ -82,22 +82,26 @@ self.addEventListener('message', (e) => {
   if (d?.type === 'like' && typeof d.room_id === 'string' && typeof d.event_id === 'string') e.waitUntil(likeEvent(d.room_id, d.event_id).catch(() => {}))
 })
 
-// The sender's avatar as a small data: URL, so the notification shows who wrote. Media needs the access token on
-// current servers (so a bare icon URL cannot work); older servers serve it without. Any failure just means the app icon.
-async function avatarIcon(s, mxc) {
+// ---- The notification picture -------------------------------------------------------------------------------------------
+// A group room: the room's picture as the main tile with the sender as a small round badge in the corner. A direct chat:
+// the sender's picture alone, since room and sender are the same person. Pictures need the access token on current servers
+// (a bare icon URL cannot carry it), so the worker fetches them and draws the combination itself; with no picture a
+// coloured tile with initials is drawn, in the same palette as the app. Any failure just means the app icon.
+const TONES = ['#f08a72', '#efc352', '#52c2b2', '#8f9dff', '#f093b9', '#9fd16f']
+const toneOf = (s) => { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 997; return TONES[h % 6] }
+const initialsOf = (n) => n.replace(/^[#@!]/, '').trim().slice(0, 2).toUpperCase() || '?'
+
+async function mediaBitmap(s, mxc, size) {
   const m = /^mxc:\/\/([^/]+)\/([^/?#]+)$/.exec(mxc ?? '')
   if (!m) return null
-  const q = `${enc(m[1])}/${enc(m[2])}?width=96&height=96&method=crop`
+  const q = `${enc(m[1])}/${enc(m[2])}?width=${size}&height=${size}&method=crop`
   for (const path of [`/_matrix/client/v1/media/thumbnail/${q}`, `/_matrix/media/v3/thumbnail/${q}`]) {
     try {
       const res = await fetch(s.baseUrl + path, { headers: { Authorization: `Bearer ${s.accessToken}` } })
-      const type = res.headers.get('content-type') ?? ''
-      if (!res.ok || !type.startsWith('image/')) continue
-      const bytes = new Uint8Array(await res.arrayBuffer())
-      if (bytes.length > 200_000) return null
-      let bin = ''
-      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-      return `data:${type};base64,${btoa(bin)}`
+      if (!res.ok || !(res.headers.get('content-type') ?? '').startsWith('image/')) continue
+      const blob = await res.blob()
+      if (blob.size > 400_000) return null
+      return await createImageBitmap(blob)
     } catch {
       /* try the next endpoint */
     }
@@ -105,12 +109,60 @@ async function avatarIcon(s, mxc) {
   return null
 }
 
+/** Draw a picture, or a coloured tile with initials, into a square or a circle. */
+function drawTile(g, x, y, size, round, label, bitmap) {
+  g.save()
+  g.beginPath()
+  if (round) g.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2)
+  else g.roundRect(x, y, size, size, size * 0.23)
+  g.clip()
+  if (bitmap) {
+    const side = Math.min(bitmap.width, bitmap.height) // centre-crop to a square
+    g.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, x, y, size, size)
+  } else {
+    g.fillStyle = toneOf(label)
+    g.fillRect(x, y, size, size)
+    g.fillStyle = '#12141a'
+    g.font = `700 ${Math.round(size * 0.4)}px system-ui, sans-serif`
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.fillText(initialsOf(label), x + size / 2, y + size / 2 + size * 0.02)
+  }
+  g.restore()
+}
+
+async function composeIcon(room, sender) {
+  const S = 192
+  const c = new OffscreenCanvas(S, S)
+  const g = c.getContext('2d')
+  if (!room) {
+    drawTile(g, 0, 0, S, false, sender.name, sender.bitmap)
+  } else {
+    drawTile(g, 0, 0, S, false, room.name, room.bitmap)
+    const d = 92
+    const x = S - d - 2
+    const y = S - d - 2
+    g.fillStyle = '#ffffff' // a ring that separates the badge from the picture behind it
+    g.beginPath()
+    g.arc(x + d / 2, y + d / 2, d / 2 + 7, 0, Math.PI * 2)
+    g.fill()
+    drawTile(g, x, y, d, true, sender.name, sender.bitmap)
+  }
+  const blob = await c.convertToBlob({ type: 'image/png' })
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return `data:image/png;base64,${btoa(bin)}`
+}
+
 async function describePush(n) {
   const s = n.event_id && n.room_id ? await storedSession() : null
   if (!s) return { title: 'Tessera', body: 'New message' }
-  const [event, room] = await Promise.all([
+  const [event, room, roomAvatar, members] = await Promise.all([
     matrix(s, `/rooms/${enc(n.room_id)}/event/${enc(n.event_id)}`).catch(() => null),
     matrix(s, `/rooms/${enc(n.room_id)}/state/m.room.name`).catch(() => null),
+    matrix(s, `/rooms/${enc(n.room_id)}/state/m.room.avatar`).catch(() => null),
+    matrix(s, `/rooms/${enc(n.room_id)}/joined_members`).catch(() => null),
   ])
   if (!event) return { title: 'Tessera', body: 'New message' }
   const profile = await matrix(s, `/profile/${enc(event.sender)}`).catch(() => null)
@@ -122,7 +174,17 @@ async function describePush(n) {
     : c.msgtype === 'm.file' ? 'Sent a file'
     : typeof c.body === 'string' ? c.body.slice(0, 160)
     : 'New message'
-  const icon = await avatarIcon(s, profile?.avatar_url)
+  let icon = null
+  try {
+    // An unnamed room of two people or fewer is a direct chat: the sender's picture alone. Any named room, or a bigger one,
+    // gets the room's picture with the sender as a badge.
+    const direct = !room?.name && (members ? Object.keys(members.joined ?? {}).length <= 2 : true)
+    const sender = { name: who, bitmap: await mediaBitmap(s, profile?.avatar_url, direct ? 192 : 96) }
+    const group = direct ? null : { name: room?.name || 'Room', bitmap: await mediaBitmap(s, roomAvatar?.url, 192) }
+    icon = await composeIcon(group, sender)
+  } catch {
+    icon = null // the app icon is used instead
+  }
   return { title: room?.name ? `${who} in ${room.name}` : who, body, canLike: event.type === 'm.room.message', icon }
 }
 

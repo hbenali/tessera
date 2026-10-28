@@ -1,5 +1,5 @@
 import { clearDrafts } from './drafts'
-import { mentionsUser, plainMentions } from './mentions'
+import { mentionPills, mentionsUser, plainMentions, type MentionPill } from './mentions'
 import { toggled } from './pins'
 import * as sdk from 'matrix-js-sdk'
 import { security } from './security.svelte'
@@ -47,6 +47,8 @@ export interface Msg {
   /** Delivery of my own messages: sending, failed, sent to the server, or read by someone. */
   state?: 'sending' | 'failed' | 'sent' | 'seen'
   senderAvatar?: string
+  /** People mentioned by name in the text (messages from other clients), to draw as pills. */
+  pills?: MentionPill[]
 }
 
 export interface RoomItem {
@@ -656,6 +658,7 @@ class Chat {
     const reactions = new Map<string, Record<string, number>>()
     const reactors = new Map<string, Msg['reactors']>()
     const edits = new Map<string, string>()
+    const editContent = new Map<string, Record<string, unknown>>()
     for (const ev of events) {
       const rel = ev.getContent()['m.relates_to']
       if (ev.getType() === 'm.reaction' && rel?.event_id && rel.key) {
@@ -668,6 +671,7 @@ class Chat {
         reactors.set(rel.event_id, who)
       } else if (rel?.rel_type === 'm.replace' && ev.getContent()['m.new_content']) {
         edits.set(rel.event_id as string, ev.getContent()['m.new_content'].body)
+        editContent.set(rel.event_id as string, ev.getContent()['m.new_content'])
       }
     }
     // Reactions that arrive in the first sync window while their message is older never sit next to it in the list above,
@@ -723,6 +727,7 @@ class Chat {
         imageMxc,
         threadReplies: ev.isThreadRoot ? (ev.getThread()?.length ?? 0) : 0,
         senderAvatar: room.getMember(sender)?.getMxcAvatarUrl() ?? undefined,
+        pills: bad || encrypted ? undefined : mentionPills(editContent.get(id) ?? content, (uid) => room.getMember(uid)?.name),
         pinned: this.pinnedIds.includes(id),
         mentionsMe: sender !== this.userId && mentionsUser(content, this.userId, this.client?.getUser(this.userId)?.displayName),
       })

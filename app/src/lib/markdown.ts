@@ -1,4 +1,4 @@
-import { MENTION_ID } from './mentions'
+import { MENTION_ID, type MentionPill } from './mentions'
 import { tone } from './ui.svelte'
 
 /** Tiny, dependency-free renderer for the Markdown subset chat needs. Escapes first, so output is safe for {@html}. */
@@ -9,8 +9,16 @@ export interface RenderOptions {
   /** Display name for a Matrix user id, if known. */
   name?: (id: string) => string | undefined
   me?: string
+  /** People mentioned by name rather than by id (messages from other clients). */
+  pills?: MentionPill[]
 }
 
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** The pill for one person. The dot is the colour of their avatar tile; click or Enter opens their card (wired by the timeline). */
+const pill = (id: string, label: string, me?: string) =>
+  `<span class="mention${id === me ? ' me' : ''}" data-user="${id}" role="button" tabindex="0" aria-haspopup="dialog" title="${id}"><i style="background:var(--t${tone(label)})"></i>@${label.replace(/^@/, '')}</span>`
 
 export function render(src: string, opts: RenderOptions = {}): string {
   const blocks: string[] = []
@@ -25,11 +33,18 @@ export function render(src: string, opts: RenderOptions = {}): string {
       return `\u0000${blocks.length - 1}\u0000`
     })
     .replace(MENTION_ID, (_, pre, id) => {
-      const label = esc(opts.name?.(id) ?? id)
-      // The dot is the colour of the person's avatar tile; click or Enter opens their card (wired up by the timeline).
-      blocks.push(`<span class="mention${id === opts.me ? ' me' : ''}" data-user="${id}" role="button" tabindex="0" aria-haspopup="dialog" title="${id}"><i style="background:var(--t${tone(label)})"></i>@${label.replace(/^@/, '')}</span>`)
+      blocks.push(pill(id, esc(opts.name?.(id) ?? id), opts.me))
       return `${pre}\u0000${blocks.length - 1}\u0000`
     })
+  // A person named in the text (the form other clients send): the name, with or without "@", at a word edge.
+  for (const p of opts.pills ?? []) {
+    const label = esc(p.label)
+    s = s.replace(new RegExp(`(^|[^\\p{L}\\p{N}_@])@?${escapeRe(label)}(?![\\p{L}\\p{N}_])`, 'gu'), (_, pre: string) => {
+      blocks.push(pill(p.id, label, opts.me))
+      return `${pre}\u0000${blocks.length - 1}\u0000`
+    })
+  }
+  s = s
     .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
     .replace(/~~([^~\n]+)~~/g, '<del>$1</del>')

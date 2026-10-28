@@ -54,3 +54,41 @@ export function toComposer(body: string, name: (id: string) => string | undefine
   })
   return { text, picked }
 }
+
+// ---- Mentions written by other clients ----------------------------------------------------------------------------
+// Element and others send a mention as a link in formatted_body (matrix.to/#/@id) with only the display name in the plain
+// text body, and list the person in m.mentions. Tessera's own messages put the Matrix id in the body instead.
+
+export interface MentionPill {
+  id: string
+  label: string
+}
+
+const unescapeHtml = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&amp;/g, '&')
+// Only characters a Matrix user id can contain: the id ends up in an HTML attribute, so nothing else may get through.
+const USER_ID = /^@[a-z0-9._=\-/+]+:[a-z0-9.\-]+(?::\d{1,5})?$/i
+
+/** The people a message mentions and the text that stands for each in its plain body, from formatted_body links and m.mentions. */
+export function mentionPills(content: Record<string, any>, name: (id: string) => string | undefined): MentionPill[] {
+  const out = new Map<string, string>()
+  const html = content.format === 'org.matrix.custom.html' && typeof content.formatted_body === 'string' ? content.formatted_body : ''
+  for (const m of html.matchAll(/<a\s[^>]*?href="(?:https?:\/\/matrix\.to\/#\/|matrix:u\/)([^"?#]+)[^"]*"[^>]*>([^<]{1,100})<\/a>/gi)) {
+    let id = ''
+    try {
+      id = decodeURIComponent(m[1])
+    } catch {
+      continue
+    }
+    if (!id.startsWith('@')) id = '@' + id // matrix:u/user:server
+    const label = unescapeHtml(m[2]).trim().replace(/^@/, '')
+    if (USER_ID.test(id) && label.length >= 2 && !out.has(id)) out.set(id, label)
+  }
+  const ids = content['m.mentions']?.user_ids
+  if (Array.isArray(ids)) {
+    for (const id of ids) {
+      const n = typeof id === 'string' && USER_ID.test(id) && !out.has(id) ? name(id) : undefined
+      if (n && n.length >= 2) out.set(id, n)
+    }
+  }
+  return [...out].map(([id, label]) => ({ id, label }))
+}

@@ -17,7 +17,8 @@
   let palette = $state(false)
   const unread = $derived(chat.rooms.reduce((n, r) => n + (r.isSpace || r.invited ? 0 : r.unread), 0))
   $effect(() => {
-    document.title = unread ? `(${unread}) Tessera` : 'Tessera'
+    // The unread count stays first: the Tessera extension for eXo reads it from the start of the title.
+    document.title = `${unread ? `(${unread}) ` : ''}${chat.active ? `${chat.active.name} · ` : ''}Tessera`
   })
   function key(e: KeyboardEvent) {
     // Ctrl+Shift+F searches the open room; plain Ctrl+F stays the browser's own find.
