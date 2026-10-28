@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte'
-  import { chat, type Msg } from './matrix.svelte'
+  import { chat, friendlyError, type Msg } from './matrix.svelte'
+  import { COMMANDS, isKnown, parseCommand, shrug } from './commands'
   import { render } from './markdown'
   import { dayLabel, ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
@@ -176,20 +177,41 @@
   }
 
   async function submit() {
+    const original = text
+    const originalPicked = { ...picked }
     const body = fromComposer(text, picked)
     if (!body.trim()) return
+    notice = ''
+    // "/word" is a command and never goes to the room by accident; a doubled slash sends a literal one.
+    const parsed = editing ? null : parseCommand(body)
+    // When a command cannot run, the text goes back in the box so it can be corrected instead of being lost.
+    const putBack = (why: string) => { text = original; picked = originalPicked; notice = why }
     text = ''
     picked = {}
-    notice = ''
-    const cmd = body.match(/^\/invite\s+(@\S+)\s*$/)
-    if (cmd) {
-      await chat.invite(cmd[1]).catch((e) => (notice = String(e.message ?? e)))
+    if (parsed && 'command' in parsed) {
+      const { name, arg } = parsed.command
+      try {
+        if (name === 'invite') {
+          say(`Invited ${await chat.invitePerson(arg)}`)
+        } else if (name === 'me') {
+          if (!arg) return putBack('Say what you are doing: /me waves')
+          await chat.send(arg, replyTo?.id, 'm.emote').catch(() => {})
+          replyTo = null
+        } else if (name === 'shrug') {
+          await chat.send(shrug(arg), replyTo?.id).catch(() => {})
+          replyTo = null
+        } else if (!isKnown(name)) {
+          return putBack(`Unknown command /${name}. Commands: ${COMMANDS.map((c) => c.usage).join(', ')}. To send a message that starts with a slash, double it: //${name}`)
+        }
+      } catch (e) {
+        return putBack(friendlyError(e))
+      }
     } else if (editing) {
       await chat.edit(editing.id, body)
       editing = null
     } else {
       // A failed send stays in the list as "Not sent" with Retry and Delete, so the error itself needs no handling here.
-      await chat.send(body, replyTo?.id).catch(() => {})
+      await chat.send(parsed && 'send' in parsed ? parsed.send : body, replyTo?.id).catch(() => {})
       replyTo = null
     }
     chat.setTyping(false)
@@ -202,13 +224,41 @@
     const m = /(?:^|\s)@([^\s@]*)$/.exec(text.slice(0, caret))
     return m ? m[1].toLowerCase() : null
   })
+  // After "/invite" the people to suggest are not in the room yet, so they come from the server's user directory.
+  // A colon means a full id has been typed or picked, so there is nothing left to suggest.
+  const inviteQuery = $derived(/^\/invite\s+@?([^\s@:]*)$/i.exec(text.slice(0, caret))?.[1] ?? null)
+  let inviteFound = $state<{ id: string; name: string; avatar?: string }[]>([])
+  $effect(() => {
+    const q = inviteQuery
+    if (q === null || q.length < 2) { inviteFound = []; return }
+    const t = setTimeout(async () => {
+      try {
+        const here = new Set(chat.members.map((m) => m.id))
+        const r = await chat.searchUsers(q)
+        if (inviteQuery === q) inviteFound = r.filter((u) => !here.has(u.id)).slice(0, 6)
+      } catch {
+        inviteFound = []
+      }
+    }, 250)
+    return () => clearTimeout(t)
+  })
   const suggestions = $derived(
-    query === null
-      ? []
-      : chat.members.filter((u) => u.id !== chat.userId && (u.name.toLowerCase().includes(query) || u.id.toLowerCase().includes(query))).slice(0, 6),
+    inviteQuery !== null
+      ? inviteFound
+      : query === null
+        ? []
+        : chat.members.filter((u) => u.id !== chat.userId && (u.name.toLowerCase().includes(query) || u.id.toLowerCase().includes(query))).slice(0, 6),
   )
   $effect(() => { suggestions; sel = 0 })
   function complete(u: { id: string; name: string }) {
+    if (inviteQuery !== null) {
+      // An invitation takes the plain id.
+      const before = text.slice(0, caret).replace(/^(\/invite\s+)@?[^\s@]*$/i, `$1${u.id}`)
+      text = before + text.slice(caret)
+      caret = before.length
+      tick().then(() => { area?.focus(); area?.setSelectionRange(caret, caret) })
+      return
+    }
     // The name is shown when it is unambiguous; two people with one name fall back to the plain id.
     const shown = picked[u.name] && picked[u.name] !== u.id ? u.id : `@${u.name}`
     if (shown !== u.id) picked[u.name] = u.id
@@ -268,6 +318,7 @@
     tick().then(() => { area?.focus(); area?.setSelectionRange(text.length, text.length) })
   })
   let toast = $state('')
+  const say = (t: string) => { toast = t; setTimeout(() => (toast = ''), 3200) }
   async function copyLink(m: Msg) {
     try {
       await navigator.clipboard.writeText(chat.permalink(chat.activeRoom!, m.id))
@@ -365,7 +416,7 @@
           <div class="body">
             {#if !cont}<div class="head"><button class="who" onclick={(e) => card(m.sender, e)} aria-haspopup="dialog"><b>{m.senderName}</b></button><time>{fmt(m.ts)}</time>{#if m.pinned}<span class="pinned" title="Pinned"><Icon name="pin" size={12} /> Pinned</span>{/if}</div>{/if}
             {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {plainMentions(byId(m.replyTo)?.body ?? 'earlier message', chat.nameOf)}</div>{/if}
-            {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} onopen={(opener) => (ui.viewer = { id: m.id, opener })} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} use:pills>{@html render(m.body, { name: chat.nameOf, me: chat.userId, pills: m.pills })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
+            {#if m.imageMxc}<Photo mxc={m.imageMxc} alt={m.body} onopen={(opener) => (ui.viewer = { id: m.id, opener })} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} class:emote={m.emote} use:pills>{#if m.emote}<span class="who-emote">* {m.senderName}</span>{" "}{/if}{@html render(m.body, { name: chat.nameOf, me: chat.userId, pills: m.pills })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
             {#if m.seenBy?.length}
               {@const who = m.seenBy}
@@ -457,6 +508,7 @@
   .body { min-width: 0; flex: 1; }
   .head { display: flex; align-items: baseline; gap: 8px; } .head b { font-weight: 650; } .head time { color: var(--muted); font-size: 11px; }
   .text { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 75ch; } .text.utd { color: var(--muted); font-style: italic; } .edited { color: var(--muted); font-size: 11px; }
+  .emote { font-style: italic; } .who-emote { font-weight: 600; margin-right: .35em; }
   .who { padding: 0; font: inherit; color: inherit; border-radius: 4px; } .who:hover b { text-decoration: underline; } .avbtn { padding: 0; border-radius: 50%; display: block; }
   .text :global(.mention) { padding: 0 5px; border-radius: 5px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: color-mix(in srgb, var(--accent) 55%, var(--text)); font-weight: 600; white-space: nowrap; }
   .text :global(.mention i) { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 0; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bg) 70%, transparent); }

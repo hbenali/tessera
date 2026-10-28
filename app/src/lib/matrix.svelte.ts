@@ -1,4 +1,5 @@
 import { clearDrafts } from './drafts'
+import { inviteTarget } from './commands'
 import { mentionPills, mentionsUser, plainMentions, type MentionPill } from './mentions'
 import { toggled } from './pins'
 import * as sdk from 'matrix-js-sdk'
@@ -47,6 +48,8 @@ export interface Msg {
   /** Delivery of my own messages: sending, failed, sent to the server, or read by someone. */
   state?: 'sending' | 'failed' | 'sent' | 'seen'
   senderAvatar?: string
+  /** "/me" messages are shown as an action: * Name does something. */
+  emote?: boolean
   /** People mentioned by name in the text (messages from other clients), to draw as pills. */
   pills?: MentionPill[]
 }
@@ -727,6 +730,7 @@ class Chat {
         imageMxc,
         threadReplies: ev.isThreadRoot ? (ev.getThread()?.length ?? 0) : 0,
         senderAvatar: room.getMember(sender)?.getMxcAvatarUrl() ?? undefined,
+        emote: content.msgtype === 'm.emote',
         pills: bad || encrypted ? undefined : mentionPills(editContent.get(id) ?? content, (uid) => room.getMember(uid)?.name),
         pinned: this.pinnedIds.includes(id),
         mentionsMe: sender !== this.userId && mentionsUser(content, this.userId, this.client?.getUser(this.userId)?.displayName),
@@ -853,9 +857,9 @@ class Chat {
     }
   }
 
-  async send(body: string, replyTo?: string) {
+  async send(body: string, replyTo?: string, msgtype: 'm.text' | 'm.emote' = 'm.text') {
     if (!this.activeRoom || !body.trim()) return
-    const content: Record<string, unknown> = { msgtype: 'm.text', body }
+    const content: Record<string, unknown> = { msgtype, body }
     // Structured mentions so the right people are notified even if display names change.
     const ids = this.members.map((m) => m.id).filter((id) => id !== this.userId && body.includes(id))
     if (ids.length) content['m.mentions'] = { user_ids: ids }
@@ -1180,9 +1184,9 @@ class Chat {
     if (this.activeRoom) await this.client!.redactEvent(this.activeRoom, id)
   }
 
-  async searchUsers(term: string): Promise<{ id: string; name: string }[]> {
+  async searchUsers(term: string): Promise<{ id: string; name: string; avatar?: string }[]> {
     const r = await this.client!.searchUserDirectory({ term, limit: 8 })
-    return r.results.filter((u) => u.user_id !== this.userId).map((u) => ({ id: u.user_id, name: u.display_name || u.user_id }))
+    return r.results.filter((u) => u.user_id !== this.userId).map((u) => ({ id: u.user_id, name: u.display_name || u.user_id, avatar: u.avatar_url }))
   }
 
   /** Open the existing direct chat with a user, or create an encrypted one. */
@@ -1299,6 +1303,30 @@ class Chat {
 
   async invite(userId: string) {
     if (this.activeRoom) await this.client!.invite(this.activeRoom, userId)
+  }
+
+  /** /invite: work out who is meant (a full id, or a name found in the user directory), check, invite, and say who. */
+  async invitePerson(arg: string): Promise<string> {
+    const room = this.activeRoom ? this.client?.getRoom(this.activeRoom) : null
+    if (!room) throw new Error('Open a room first')
+    const t = inviteTarget(arg)
+    if (!t) throw new Error('Say who to invite: /invite @person')
+    let who: { id: string; name: string }
+    if ('id' in t) who = { id: t.id, name: this.nameOf(t.id) ?? t.id }
+    else {
+      const found = await this.searchUsers(t.search)
+      const lower = t.search.toLowerCase()
+      const exact = found.filter((u) => u.name.toLowerCase() === lower || u.id.toLowerCase().startsWith(`@${lower}:`))
+      const pool = exact.length ? exact : found
+      if (!pool.length) throw new Error(`No one found for "${t.search}". Try their full Matrix id, like @name:server.`)
+      if (pool.length > 1) throw new Error(`More than one person matches "${t.search}": ${pool.slice(0, 4).map((u) => `${u.name} (${u.id})`).join(', ')}. Use the full Matrix id.`)
+      who = pool[0]
+    }
+    const state = room.getMember(who.id)?.membership
+    if (state === 'join') throw new Error(`${who.name} is already in this room`)
+    if (state === 'invite') throw new Error(`${who.name} has already been invited`)
+    await this.client!.invite(room.roomId, who.id)
+    return who.name
   }
 
   async acceptInvite(id: string) {
