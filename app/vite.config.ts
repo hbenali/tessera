@@ -1,7 +1,8 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { execSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { defineConfig, type Plugin } from 'vite'
+import { inject, planPrecache } from './src/lib/precache.ts'
 
 const json = (p: string) => JSON.parse(readFileSync(p, 'utf8')) as { version: string }
 const commit = (() => {
@@ -26,9 +27,25 @@ const cspMeta = (): Plugin => ({
     process.env.TESSERA_PAGES ? html.replace('<head>', `<head>\n    <meta http-equiv="Content-Security-Policy" content="${CSP}" />`) : html,
 })
 
+// Fill the service worker's file list from what this build produced, so the installed app can start offline.
+const precache = (): Plugin => {
+  let files: string[] = []
+  let outDir = 'dist'
+  return {
+    name: 'tessera-precache',
+    apply: 'build',
+    configResolved: (c) => { outDir = c.build.outDir },
+    generateBundle: (_o, bundle) => { files = Object.keys(bundle) },
+    closeBundle() {
+      const path = `${outDir}/sw.js`
+      writeFileSync(path, inject(readFileSync(path, 'utf8'), planPrecache(files)))
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [svelte(), cspMeta()],
+  plugins: [svelte(), cspMeta(), precache()],
   define: {
     __APP_VERSION__: JSON.stringify(json('./package.json').version),
     __BUILD_COMMIT__: JSON.stringify(commit),

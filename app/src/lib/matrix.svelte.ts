@@ -327,10 +327,17 @@ class Chat {
         this.refreshRooms()
         this.refreshMessages()
         if (!this.routed) { this.routed = true; this.applyRoute(true) }
-      } else if (state === 'ERROR') {
+        const wasOffline = this.offline
+        this.offline = false
+        if (wasOffline) void this.resendUnsent()
+      } else if (state === 'ERROR' || state === 'RECONNECTING') {
         this.error = 'Connection lost, retrying…'
+        this.offline = true
       }
     })
+    // The browser knows the network is gone before the next sync fails, and knows it is back before the sync retries.
+    window.addEventListener('offline', () => (this.offline = true))
+    window.addEventListener('online', () => this.client?.retryImmediately())
     client.on(sdk.RoomEvent.Timeline, (ev, _room, toStart, _removed, data) => {
       this.refreshRooms()
       this.refreshMessages()
@@ -1287,6 +1294,25 @@ class Chat {
     // Local echoes live in the timeline itself in this mode (getPendingEvents is only for the detached mode).
     const ev = room?.getLiveTimeline().getEvents().find((e) => e.status !== null && (e.getId() ?? e.getTxnId()) === id)
     return room && ev ? { room, ev } : null
+  }
+
+  /** No connection to the homeserver right now (the network is down, or its last sync failed). Messages wait in the outbox. */
+  offline = $state(typeof navigator !== 'undefined' && !navigator.onLine)
+
+  /** The outbox: messages that could not be sent are sent again, oldest first, as soon as the connection is back. */
+  async resendUnsent() {
+    const c = this.client
+    if (!c) return
+    const waiting: { ev: sdk.MatrixEvent; room: sdk.Room }[] = []
+    for (const room of c.getRooms()) {
+      if (room.getMyMembership() !== 'join') continue
+      for (const ev of room.getLiveTimeline().getEvents()) if (ev.status === sdk.EventStatus.NOT_SENT) waiting.push({ ev, room })
+    }
+    waiting.sort((a, b) => a.ev.getTs() - b.ev.getTs())
+    for (const { ev, room } of waiting) {
+      try { await c.resendEvent(ev, room) } catch { /* it stays "not sent", with its Retry button */ }
+    }
+    this.refreshMessages()
   }
 
   /** Send a message that failed again. */

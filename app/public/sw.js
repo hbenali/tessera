@@ -1,10 +1,18 @@
 // Minimal offline shell. Only same-origin GETs are cached; homeserver traffic
 // (a different origin) and anything with credentials never touches the cache.
-const CACHE = 'tessera-shell-v1'
+// The build fills this in (see precache.ts): everything the app needs to start with no network. In dev it stays empty.
+const PRECACHE = { core: [], large: [], version: 'dev' }; // @precache
+const CACHE = `tessera-shell-${PRECACHE.version}`
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/icon.svg', '/manifest.webmanifest'])).then(() => self.skipWaiting()))
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE.core.length ? PRECACHE.core : ['/', '/icon.svg', '/manifest.webmanifest'])).then(() => self.skipWaiting()))
 })
+
+// The big files (the encryption module) are fetched after install, when the page asks, so installing stays quick.
+async function warm() {
+  const c = await caches.open(CACHE)
+  await Promise.allSettled(PRECACHE.large.map(async (u) => { if (!(await c.match(u))) await c.add(u) }))
+}
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
@@ -18,14 +26,15 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET' || url.origin !== self.location.origin) return
   if (req.mode === 'navigate') {
     // Network first so a new deploy shows up; fall back to the cached shell offline.
-    e.respondWith(fetch(req).catch(() => caches.match('/')))
+    e.respondWith(fetch(req).catch(() => caches.match('/', { ignoreSearch: true })))
     return
   }
-  if (url.pathname.startsWith('/assets/')) {
-    // Hashed build assets never change: cache first.
+  // Hashed build assets never change: cache first. `ignoreVary` matters: module scripts are fetched with an Origin header and a
+  // server that answers "Vary: Origin" would otherwise make every cached copy a miss, which is a blank page offline.
+  if (url.pathname.startsWith('/assets/') || PRECACHE.core.includes(url.pathname)) {
     e.respondWith(
-      caches.match(req).then((hit) => hit ?? fetch(req).then((res) => {
-        if (res.ok) caches.open(CACHE).then((c) => c.put(req, res.clone()))
+      caches.match(req, { ignoreVary: true }).then((hit) => hit ?? fetch(req).then((res) => {
+        if (res.ok && url.pathname.startsWith('/assets/')) caches.open(CACHE).then((c) => c.put(req, res.clone()))
         return res
       })),
     )
@@ -79,6 +88,7 @@ self.addEventListener('message', (e) => {
   // Only this app's own pages may ask the worker to act with the stored session.
   if (e.origin !== self.location.origin) return
   const d = e.data
+  if (d?.type === 'warm') e.waitUntil(warm().catch(() => {}))
   if (d?.type === 'like' && typeof d.room_id === 'string' && typeof d.event_id === 'string') e.waitUntil(likeEvent(d.room_id, d.event_id).catch(() => {}))
 })
 

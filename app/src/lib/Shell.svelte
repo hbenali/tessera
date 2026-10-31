@@ -52,6 +52,7 @@
 
 <svelte:window onkeydown={key} />
 
+{#if chat.offline}<div class="offline" role="status">You are offline. Messages you write wait here and are sent when you are back online.</div>{/if}
 {#if !chat.ready}<div class="syncbar" role="status" aria-label="Syncing"></div>{/if}
 <div class="shell" class:has-room={!!chat.activeRoom} class:with-details={(ui.details || ui.roomSearch || !!chat.threadRoot) && !!chat.activeRoom}>
   <Sidebar onsearch={() => (palette = true)} />
@@ -69,6 +70,7 @@
 
 <style>
   /* A thin moving bar along the top while the first sync runs. */
+  .offline { position: fixed; z-index: 31; top: 8px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 24px); padding: 7px 14px; border-radius: 99px; background: var(--text); color: var(--bg); font-size: 13px; box-shadow: var(--shadow); text-align: center; }
   .syncbar { position: fixed; z-index: 30; top: 0; left: 0; right: 0; height: 2px; overflow: hidden; background: color-mix(in srgb, var(--accent) 18%, transparent); }
   .syncbar::after { content: ''; position: absolute; inset: 0 auto 0 0; width: 35%; background: var(--accent); animation: sync 1.1s ease-in-out infinite; }
   @keyframes sync { from { transform: translateX(-100%); } to { transform: translateX(300%); } }

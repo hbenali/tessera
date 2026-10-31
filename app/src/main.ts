@@ -43,7 +43,12 @@ export default app
 
 // Offline shell for the installed app; skipped in dev so HMR is never cached.
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}))
+  addEventListener('load', () =>
+    navigator.serviceWorker.register('/sw.js').then(() => navigator.serviceWorker.ready).then((reg) => {
+      // once installed and online, have the worker keep the big files too, so a cold start works offline
+      if (navigator.onLine) setTimeout(() => reg.active?.postMessage({ type: 'warm' }), 3000)
+    }).catch(() => {}),
+  )
 }
 
 // Handy for debugging in the browser console; stripped from production builds.
