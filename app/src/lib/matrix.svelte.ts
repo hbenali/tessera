@@ -4,6 +4,8 @@ import { inviteTarget } from './commands'
 import { safeFileName } from './files'
 import { mentionPills, mentionsUser, plainMentions, type MentionPill } from './mentions'
 import { toggled } from './pins'
+import type { Device } from './devices'
+import { decryptKeyFile, encryptKeyFile } from './keyfile'
 import { canBan, canKick, canRedactOthers, canSetLevel, canSetState, levelOf, withLevel, type History, type JoinRule, type PowerLevels } from './moderation'
 import * as sdk from 'matrix-js-sdk'
 import { security } from './security.svelte'
@@ -77,6 +79,8 @@ export interface RoomItem {
   invited: boolean
   preview: string
   previewKind: PreviewKind
+  /** The latest message is still being fetched: show nothing rather than the topic. */
+  previewLoading: boolean
   /** Unsent text in the message box for this room. */
   draft: string
   lowPriority: boolean
@@ -341,11 +345,46 @@ class Chat {
     return new Set(Object.values(direct).flat() as string[])
   }
 
-  private previewOf(room: sdk.Room): { line: string; kind: PreviewKind; ts: number } {
-    const ev = room.getLiveTimeline().getEvents().findLast((e) => isPreviewable({ type: e.getType(), sender: e.getSender() ?? '', content: e.getContent(), redacted: e.isRedacted() }))
-    if (!ev) return { line: '', kind: 'none', ts: 0 }
+  /** Latest message of rooms whose loaded window held none (only joins, reactions, state): fetched on demand. */
+  private backfilled = new Map<string, { line: string; kind: PreviewKind; ts: number } | 'pending' | 'none'>()
+
+  private describeEvent(room: sdk.Room, ev: sdk.MatrixEvent) {
     const p = describePreview({ type: ev.getType(), sender: ev.getSender() ?? '', content: ev.getContent() }, this.userId, (id) => room.getMember(id)?.name, (b) => plainMentions(b, (id) => room.getMember(id)?.name))
     return { line: previewLine(p, this.dmRoomIds().has(room.roomId)), kind: p.kind, ts: ev.getTs() }
+  }
+
+  private previewOf(room: sdk.Room): { line: string; kind: PreviewKind; ts: number; loading?: boolean } {
+    const ev = room.getLiveTimeline().getEvents().findLast((e) => isPreviewable({ type: e.getType(), sender: e.getSender() ?? '', content: e.getContent(), redacted: e.isRedacted() }))
+    if (ev) return this.describeEvent(room, ev)
+    const got = this.backfilled.get(room.roomId)
+    if (got === 'none') return { line: '', kind: 'none', ts: 0 }
+    if (got && got !== 'pending') return got
+    if (!got && room.getMyMembership() === 'join') void this.backfillPreview(room)
+    return { line: '', kind: 'none', ts: 0, loading: true }
+  }
+
+  private async backfillPreview(room: sdk.Room) {
+    const c = this.client
+    if (!c) return
+    this.backfilled.set(room.roomId, 'pending')
+    try {
+      const filter = new sdk.Filter(this.userId)
+      filter.setDefinition({ room: { timeline: { types: ['m.room.message', 'm.room.encrypted', 'm.sticker', 'm.poll.start'] } } } as never)
+      const res = await c.createMessagesRequest(room.roomId, null, 10, sdk.Direction.Backward, filter)
+      const mapper = c.getEventMapper()
+      for (const raw of res.chunk) {
+        const ev = mapper(raw)
+        await c.decryptEventIfNeeded(ev).catch(() => {})
+        if (!isPreviewable({ type: ev.getType(), sender: ev.getSender() ?? '', content: ev.getContent(), redacted: ev.isRedacted() })) continue
+        this.backfilled.set(room.roomId, this.describeEvent(room, ev))
+        this.refreshRooms()
+        return
+      }
+      this.backfilled.set(room.roomId, 'none')
+    } catch {
+      this.backfilled.set(room.roomId, 'none') // e.g. an invitation we cannot read yet; not retried in a loop
+    }
+    this.refreshRooms()
   }
 
   refreshRooms() {
@@ -374,6 +413,7 @@ class Chat {
         encrypted: c.isRoomEncrypted(room.roomId),
         invited: membership === 'invite',
         preview: pv.line,
+        previewLoading: !!pv.loading,
         previewKind: pv.kind,
         draft: drafts[room.roomId] ?? '',
         lowPriority: !!room.tags['m.lowpriority'],
@@ -878,6 +918,72 @@ class Chat {
       },
     }
     this.ignored = this.client?.getIgnoredUsers() ?? []
+  }
+
+  /** Run a call that may need the account password (user-interactive auth), asking for it only if the server does. */
+  private async withPassword<T>(password: string, call: (auth?: sdk.AuthDict) => Promise<T>): Promise<T> {
+    try {
+      return await call()
+    } catch (e) {
+      const err = e as sdk.MatrixError
+      if (err?.httpStatus !== 401 || !err.data?.flows) throw e
+      if (!password) throw new Error('Enter your account password to confirm')
+      const flows = err.data.flows as { stages: string[] }[]
+      if (!flows.some((f) => f.stages.every((st) => st === 'm.login.password')))
+        throw new Error('Your homeserver asks for a way to confirm that Tessera cannot do yet (for example single sign-on). Use your homeserver\'s own account page.')
+      try {
+        return await call({ type: 'm.login.password', identifier: { type: 'm.id.user', user: this.userId }, password, session: err.data.session } as sdk.AuthDict)
+      } catch (e2) {
+        if ((e2 as sdk.MatrixError)?.httpStatus === 401) throw new Error('That password is not right')
+        throw e2
+      }
+    }
+  }
+
+  async loadDevices(): Promise<Device[]> {
+    const c = this.client!
+    const { devices } = await c.getDevices()
+    const crypto = c.getCrypto()
+    return Promise.all(
+      devices.map(async (d) => ({
+        id: d.device_id,
+        name: d.display_name ?? '',
+        lastIp: d.last_seen_ip,
+        lastTs: d.last_seen_ts,
+        current: d.device_id === c.getDeviceId(),
+        verified: crypto ? !!(await crypto.getDeviceVerificationStatus(this.userId, d.device_id).catch(() => null))?.crossSigningVerified : undefined,
+      })),
+    )
+  }
+  async renameDevice(id: string, name: string) {
+    await this.client!.setDeviceDetails(id, { display_name: name.trim() })
+  }
+  async signOutDevices(ids: string[], password: string) {
+    await this.withPassword(password, (auth) => this.client!.deleteMultipleDevices(ids, auth))
+  }
+  async changePassword(current: string, next: string, signOutOthers: boolean) {
+    await this.withPassword(current, (auth) => this.client!.setPassword(auth as sdk.AuthDict, next, signOutOthers))
+  }
+  async deactivateAccount(password: string, erase: boolean) {
+    await this.withPassword(password, (auth) => this.client!.deactivateAccount(auth, erase))
+    await this.logout()
+  }
+  async threePids(): Promise<{ medium: string; address: string }[]> {
+    return (await this.client!.getThreePids()).threepids.map((t) => ({ medium: t.medium, address: t.address }))
+  }
+  async removeThreePid(medium: string, address: string) {
+    await this.client!.deleteThreePid(medium, address)
+  }
+  /** The keys of every encrypted room this device can read, as an Element-compatible file protected by a passphrase. */
+  async exportKeys(passphrase: string): Promise<string> {
+    const crypto = this.client?.getCrypto()
+    if (!crypto) throw new Error('Encryption is not ready yet')
+    return encryptKeyFile(await crypto.exportRoomKeysAsJson(), passphrase)
+  }
+  async importKeys(file: string, passphrase: string) {
+    const crypto = this.client?.getCrypto()
+    if (!crypto) throw new Error('Encryption is not ready yet')
+    await crypto.importRoomKeysAsJson(await decryptKeyFile(file, passphrase))
   }
 
   private eventOf(id: string): sdk.MatrixEvent | undefined {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { api, app, launch, seed, send, signIn } from './lib.mjs'
+import { api, app, launch, seed, seedSparse, signIn } from './lib.mjs'
 
 describe('moderation, room settings and the room list preview', () => {
   let server, browser, data, page
@@ -28,6 +28,18 @@ describe('moderation, room settings and the room list preview', () => {
   it('previews the last message with its sender, in a room', async () => {
     const line = await rooms().getByRole('button', { name: /e2e room/ }).first().locator('.preview').innerText()
     assert.match(line, /^You: thanks /)
+  })
+
+  it('shows the latest message of a room whose recent events are all reactions, not its description', async () => {
+    const sparse = await seedSparse(data.alice)
+    await api(data.alice.token, 'PUT', `/_matrix/client/v3/rooms/${enc(sparse)}/state/m.room.topic`, { topic: 'THE DESCRIPTION' })
+    // a fresh sign-in: its first sync window holds only reactions and the topic, no message
+    const fresh = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage()
+    await signIn(fresh, server.url, data.alice)
+    const row = fresh.getByRole('navigation', { name: 'Rooms' }).getByRole('button', { name: /sparse room/ }).first()
+    await row.waitFor({ timeout: 15_000 })
+    await fresh.waitForFunction(() => [...document.querySelectorAll('nav .row')].find((r) => /sparse room/.test(r.textContent))?.querySelector('.preview')?.textContent?.includes('early message 3'), null, { timeout: 15_000 })
+    assert.doesNotMatch(await row.locator('.preview').innerText(), /THE DESCRIPTION/)
   })
 
   it('changes who can join and who can read the history', async () => {

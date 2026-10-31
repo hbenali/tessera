@@ -118,7 +118,7 @@
               <span class="time">{r.lastTs ? shortTime(r.lastTs) : ''}</span>
             </span>
             <span class="bottom">
-              {#if r.typing}<span class="preview typing" aria-live="polite">typing<i></i><i></i><i></i></span>{:else}{#if r.draft && chat.activeRoom !== r.id}<span class="preview"><span class="draft">Draft:</span> {r.draft}</span>{:else}<span class="preview">{#if PREVIEW_ICON[r.previewKind]}<Icon name={PREVIEW_ICON[r.previewKind]!} size={13} />{/if}{r.preview || (r.topic ? r.topic : 'No messages yet')}</span>{/if}{/if}
+              {#if r.typing}<span class="preview typing" aria-live="polite">typing<i></i><i></i><i></i></span>{:else}{#if r.draft && chat.activeRoom !== r.id}<span class="preview"><span class="draft">Draft:</span> {r.draft}</span>{:else}<span class="preview">{#if PREVIEW_ICON[r.previewKind]}<Icon name={PREVIEW_ICON[r.previewKind]!} size={13} />{/if}{r.preview || (r.previewLoading ? '' : r.topic ? r.topic : 'No messages yet')}</span>{/if}{/if}
               {#if r.unread}<span class="badge" class:hl={r.highlight > 0 && r.notifs !== 'mute'} class:quiet={r.notifs === 'mute'}>{r.unread}</span>{/if}
             </span>
           </span>

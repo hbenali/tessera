@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Sessions from './Sessions.svelte'
+  import KeyBackup from './KeyBackup.svelte'
+  import AccountManage from './AccountManage.svelte'
   import Modal from './Modal.svelte'
   import { chat } from './matrix.svelte'
   import { security } from './security.svelte'
@@ -9,7 +12,7 @@
   import { install } from './install.svelte'
   import { loadPushConfig, pushSupported, type PushConfig } from './push'
 
-  let tab = $state<'look' | 'security' | 'notify' | 'privacy' | 'account' | 'about'>('security')
+  let tab = $state<'look' | 'security' | 'notify' | 'privacy' | 'sessions' | 'account' | 'about'>('security')
   let perm = $state(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
   async function enableNotifications() {
     perm = await Notification.requestPermission()
@@ -68,7 +71,7 @@
 
 <Modal title="Settings" onclose={() => (ui.modal = null)}>
   <div class="tabs" role="tablist">
-    {#each [['look', 'Appearance'], ['security', 'Security'], ['notify', 'Notifications'], ['privacy', 'Privacy'], ['account', 'Account'], ['about', 'About']] as [k, label] (k)}
+    {#each [['look', 'Appearance'], ['security', 'Security'], ['notify', 'Notifications'], ['privacy', 'Privacy'], ['sessions', 'Sessions'], ['account', 'Account'], ['about', 'About']] as [k, label] (k)}
       <button role="tab" aria-selected={tab === k} class:on={tab === k} onclick={() => (tab = k as typeof tab)}>{label}</button>
     {/each}
   </div>
@@ -213,6 +216,9 @@
         <input type="checkbox" role="switch" checked={chat.privacy.receipts} onchange={(e) => chat.setPrivacy({ receipts: e.currentTarget.checked })} /></label>
     </div>
     <p class="hint">Sending a message always shows that you were there. To read a single room without being seen, use <b>Read quietly</b> in its menu. Presence (online, away) is set from the sidebar.</p>
+  {:else if tab === 'sessions'}
+    <Sessions />
+    <KeyBackup />
   {:else if tab === 'about'}
     <About />
   {:else}
@@ -236,6 +242,7 @@
     <p class="hint">Invisible shows you as offline. Presence must be enabled on your homeserver for others to see it.</p>
     <h3 class="label">Session</h3>
     <button class="btn" onclick={() => chat.logout()}>Sign out</button>
+    <AccountManage />
   {/if}
 </Modal>
 
