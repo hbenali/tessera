@@ -49,7 +49,15 @@ const read = <T extends string>(key: string, ok: readonly T[], dflt: T): T => {
   try { const v = localStorage.getItem(key); return ok.includes(v as T) ? (v as T) : dflt } catch { return dflt }
 }
 
+import { isLayout, type Layout } from './layout'
+
 class Ui {
+  /** The layout of every room that has not picked its own. Per browser. */
+  layout = $state<Layout>(((): Layout => { try { const v = localStorage.getItem('tessera.layout'); return isLayout(v) ? v : 'classic' } catch { return 'classic' } })())
+  setLayout(l: Layout) {
+    this.layout = l
+    try { localStorage.setItem('tessera.layout', l) } catch { /* private mode */ }
+  }
   /** Text shared into Tessera from another app, waiting for a room to be picked. */
   shared = $state<string | null>(null)
   /** How tightly messages are packed, and how big their text is. Per browser. */

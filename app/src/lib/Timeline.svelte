@@ -11,6 +11,7 @@
   import FileCard from './FileCard.svelte'
   import LinkPreview from './LinkPreview.svelte'
   import JumpMenu from './JumpMenu.svelte'
+  import { accentColor, effectiveLayout } from './layout'
   import { t } from './i18n.svelte'
   import { THRESHOLD, computeWindow, gaps, totalHeight, type Win } from './virtual'
   import { calls } from './calls.svelte'
@@ -78,6 +79,10 @@
   const heights = new Map<string, number>()
   let pinIndex: number | undefined
   let win = $state<Win>({ start: 0, end: 0, top: 0, bottom: 0 })
+  // The room's look: its own choice, else my default. Lines needs width, so a phone gets Classic.
+  let vw = $state(1280)
+  const layout = $derived.by(() => { const l = chat.active?.theme.layout ?? ui.layout; return l === 'lines' && vw <= 720 ? 'classic' : l })
+  const roomAccent = $derived(accentColor(chat.active?.theme.accent))
   const virt = $derived(rows.length > THRESHOLD)
   const shown = $derived(virt ? rows.slice(win.start, win.end) : rows)
   let framed = 0
@@ -526,7 +531,8 @@
   {/if}
 {/snippet}
 
-<main class="main" ondragover={(e) => e.preventDefault()} ondragenter={(e) => hasFiles(e) && dragDepth++} ondragleave={() => (dragDepth = Math.max(0, dragDepth - 1))} ondrop={drop}>
+<svelte:window bind:innerWidth={vw} />
+<main class="main" style:--accent={roomAccent} style:--accent-ink={roomAccent ? '#ffffff' : undefined} ondragover={(e) => e.preventDefault()} ondragenter={(e) => hasFiles(e) && dragDepth++} ondragleave={() => (dragDepth = Math.max(0, dragDepth - 1))} ondrop={drop}>
   {#if dragDepth > 0 && chat.active}<div class="dropzone" aria-hidden="true"><span><Icon name="clip" size={22} /> Drop to attach</span></div>{/if}
   {#if !chat.active && chat.routeMissing}
     <div class="empty"><Icon name="lock" size={40} /><h1>You are not in this room</h1><p class="mono">{chat.routeMissing}</p>
@@ -538,7 +544,7 @@
   {:else}
     <header>
       <button class="icon-btn back" onclick={() => chat.closeRoom()} aria-label="Back to rooms"><Icon name="back" /></button>
-      <Avatar name={chat.active.name} size={32} round={chat.active.isDM} src={chat.active.avatar} presence={chat.active.dmUser ? (chat.presenceOf(chat.active.dmUser) ?? 'offline') : undefined} />
+      <span class="hdav"><Avatar name={chat.active.name} size={32} round={chat.active.isDM} src={chat.active.avatar} presence={chat.active.dmUser ? (chat.presenceOf(chat.active.dmUser) ?? 'offline') : undefined} /></span>
       <div class="title"><h1>{chat.active.name}{#if chat.isQuiet(chat.active.id)}<span class="muted" title="Quiet reading: people are not shown that you read this room"><Icon name="eyeOff" size={14} /><span class="sr">Quiet reading</span></span>{/if}{#if chat.active.notifs === 'mute'}<span class="muted" title="Notifications are muted"><Icon name="bellOff" size={14} /><span class="sr">Muted</span></span>{/if}</h1>{#if chat.active.dmUser}<span class="topic">{({ online: 'Online', unavailable: 'Away', offline: 'Offline' })[chat.presenceOf(chat.active.dmUser) ?? 'offline']}</span>{:else if chat.active.topic}<span class="topic">{chat.active.topic}</span>{:else}<span class="topic">{chat.active.memberCount} {chat.active.memberCount === 1 ? 'member' : 'members'}</span>{/if}</div>
       {#if chat.active.encrypted}<span class="enc" title="End-to-end encrypted"><Icon name="lock" size={13} /> Encrypted</span>{/if}
 {#if chat.active.isDM && calls.supported && !calls.active}<button class="icon-btn callbtn" onclick={() => calls.place(chat.active!.id, false).catch(() => {})} aria-label="Voice call" title="Voice call"><Icon name="phone" /></button><button class="icon-btn callbtn" onclick={() => calls.place(chat.active!.id, true).catch(() => {})} aria-label="Video call" title="Video call"><Icon name="video" /></button>{/if}
@@ -564,7 +570,7 @@
       </div>
     {/if}
     {#if away}<button class="latest" onclick={() => { stick = true; scroller?.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' }) }}><Icon name="chevron" size={14} /> Jump to latest</button>{/if}
-    <div class="scroll" bind:this={scroller} {onscroll} onloadcapture={() => stick && scroller?.scrollTo({ top: scroller.scrollHeight })}>
+    <div class="scroll" data-layout={layout} bind:this={scroller} {onscroll} onloadcapture={() => stick && scroller?.scrollTo({ top: scroller.scrollHeight })}>
       {#if !chat.messages.length && !chat.ready}<Skeleton variant="timeline" />{/if}
       {#if chat.loadingOlder}<div class="note">Loading earlier messages…</div>{/if}
       {#if chat.olderAvailable}
@@ -577,12 +583,12 @@
       {#each shown as { m, newDay, cont } (m.id)}
         {#if newDay}<div class="day" role="separator"><span>{dayLabel(m.ts)}</span></div>{/if}
         <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-        <article onclick={(e) => tapMessage(e, m.id)} class:cont class:pending={m.pending} class:active={picker === m.id || seenFor === m.id || tapped === m.id} class:mention={m.mentionsMe} data-id={m.id}>
+        <article onclick={(e) => tapMessage(e, m.id)} class:mine={m.mine} class:cont class:pending={m.pending} class:active={picker === m.id || seenFor === m.id || tapped === m.id} class:mention={m.mentionsMe} data-id={m.id}>
           <div class="gutter">
             {#if !cont}<!-- a mouse shortcut: the sender's name beside it is the accessible way to open the same card --><button class="avbtn" onclick={(e) => card(m.sender, e)} tabindex="-1" aria-hidden="true"><Avatar name={m.senderName} size={36} round src={m.senderAvatar} presence={m.mine ? undefined : chat.presenceOf(m.sender)} /></button>{:else}<time>{fmt(m.ts)}</time>{/if}
           </div>
           <div class="body">
-            {#if !cont}<div class="head"><button class="who" onclick={(e) => card(m.sender, e)} aria-haspopup="dialog"><b>{m.senderName}</b></button><time>{fmt(m.ts)}</time>{#if m.pinned}<span class="pinned" title="Pinned"><Icon name="pin" size={12} /> Pinned</span>{/if}</div>{/if}
+            {#if !cont || layout === 'lines'}<div class="head"><button class="who" onclick={(e) => card(m.sender, e)} aria-haspopup="dialog"><b>{m.senderName}</b></button><time>{fmt(m.ts)}</time>{#if m.pinned}<span class="pinned" title="Pinned"><Icon name="pin" size={12} /> Pinned</span>{/if}</div>{/if}
             {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {plainMentions(byId(m.replyTo)?.body ?? 'earlier message', chat.nameOf)}</div>{/if}
             {#if m.attachment}<FileCard {...m.attachment} sender={m.senderName} ts={m.ts} />{#if m.attachment.caption}<div class="text caption">{@html render(m.attachment.caption, { name: chat.nameOf, me: chat.userId })}</div>{/if}{:else if m.audio}<AudioPlayer mxc={m.audio.mxc} file={m.audio.file} duration={m.audio.duration} waveform={m.audio.waveform} voice={m.audio.voice} name={m.audio.name} />{:else if m.poll}<PollCard {m} />{:else if m.location}<a class="loc" href={mapLink(m.location.lat, m.location.lon)} target="_blank" rel="noopener noreferrer"><Icon name="pin" size={16} /><span><b>{m.location.label}</b><small>Open in a map</small></span></a>{:else if m.imageMxc}<Photo mxc={m.imageMxc} file={m.imageFile} alt={m.body} onopen={(opener) => (ui.viewer = { id: m.id, opener })} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} class:emote={m.emote} use:pills>{#if m.emote}<span class="who-emote">* {m.senderName}</span>{" "}{/if}{@html render(m.body, { name: chat.nameOf, me: chat.userId, pills: m.pills })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
             {#if m.body && !m.attachment && !m.imageMxc && !m.audio && !m.poll && !m.location && !m.undecryptable}<LinkPreview body={m.body} encrypted={!!chat.active?.encrypted} />{/if}
@@ -790,4 +796,37 @@
   textarea { position: relative; flex: 1; min-width: 0; resize: none; max-height: 180px; background: none; field-sizing: content; } textarea:focus { border: 0; }
   .send { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); } .send:disabled { background: transparent; color: var(--muted); opacity: .6; }
   .hint { margin-top: 6px; font-size: 11px; color: var(--muted); text-align: center; } @media (max-width: 720px) { .hint { display: none; } }
+
+  /* ---- Room layouts (data-layout on .scroll). Classic is the base style above. ---- */
+  /* Aligned: your messages on the right in a tinted bubble, others on the left */
+  /* Small phones: the header keeps room for the name by tightening itself and dropping the room picture. */
+  @media (max-width: 420px) { main > header { gap: 4px; padding: 0 8px; } main > header .icon-btn { width: 34px; height: 34px; } }
+  @media (max-width: 360px) { .hdav { display: none; } }
+  [data-layout='aligned'] article { padding: 2px 16px; }
+  [data-layout='aligned'] article.mine { flex-direction: row-reverse; }
+  [data-layout='aligned'] article.mine .gutter { display: none; }
+  [data-layout='aligned'] .body { flex: 0 1 auto; max-width: min(82%, 640px); }
+  [data-layout='aligned'] article.mine .body { margin-left: auto; }
+  [data-layout='aligned'] article.mine .head, [data-layout='aligned'] article.mine .reacts, [data-layout='aligned'] article.mine .seen { justify-content: flex-end; }
+  [data-layout='aligned'] .text:not(.caption):not(.utd) { display: inline-block; padding: 7px 12px; border-radius: 16px 16px 16px 5px; background: var(--tile); }
+  [data-layout='aligned'] article.mine .text:not(.caption):not(.utd) { border-radius: 16px 16px 5px 16px; background: color-mix(in srgb, var(--accent) 20%, var(--bg)); }
+  [data-layout='aligned'] article.cont .text:not(.caption):not(.utd) { border-radius: 16px; }
+  [data-layout='aligned'] .line { align-items: flex-end; }
+  [data-layout='aligned'] article.mine .line { flex-direction: row-reverse; }
+  /* Cards: each message in its own card */
+  [data-layout='cards'] .rows { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 8px 12px; }
+  [data-layout='cards'] article { margin-top: 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  [data-layout='cards'] article.mine { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+  [data-layout='cards'] article.cont .gutter { visibility: hidden; }
+  [data-layout='cards'] .day { margin: 6px 0; }
+  /* Lines: one tight line per message, like IRC */
+  [data-layout='lines'] article { padding: 0 16px; margin-top: 0; gap: 8px; }
+  [data-layout='lines'] .gutter { display: none; }
+  [data-layout='lines'] .body { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
+  [data-layout='lines'] .head { flex: none; flex-direction: row-reverse; gap: 8px; }
+  [data-layout='lines'] .head time { font-family: var(--mono); font-size: 11px; }
+  [data-layout='lines'] .line { flex: 1 1 0; min-width: 8ch; }
+  [data-layout='lines'] .text { max-width: none; }
+  [data-layout='lines'] .quote, [data-layout='lines'] .reacts, [data-layout='lines'] .seen, [data-layout='lines'] .thread-link { flex-basis: 100%; }
+  [data-layout='lines'] :global(.poll), [data-layout='lines'] :global(.filecard) { flex-basis: 100%; }
 </style>

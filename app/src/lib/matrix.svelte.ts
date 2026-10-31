@@ -9,6 +9,7 @@ import { keywordActions, keywordRuleId, normalizeKeyword, readKeywords } from '.
 import { rank, splitServer, toPublicRoom, type PublicRoom } from './directory'
 import { firstUnread } from './jump'
 import { calls } from './calls.svelte'
+import { mergeRoomTheme, parseRoomTheme, type Layout, type RoomTheme } from './layout'
 import { clearSnapshot, writeSnapshot } from './snapshot'
 import { forwardContent } from './forward'
 import { after, readAccounts, remove as removeAccount, save as saveAccounts, upsert, type Account } from './accounts'
@@ -109,6 +110,8 @@ export interface RoomItem {
   notifs: 'all' | 'mentions' | 'mute'
   favourite: boolean
   bridge?: Bridge
+  /** The room's own look (layout and accent), kept in its account data so it follows me between devices. */
+  theme: RoomTheme
   /** Flagged unread by hand ("Mark as unread"), shared with other clients through room account data. */
   markedUnread: boolean
   /** Someone else is typing here right now. */
@@ -116,6 +119,7 @@ export interface RoomItem {
 }
 
 export type Presence = 'online' | 'unavailable' | 'offline'
+const ROOM_THEME = 'ovh.hbenali.tessera.room'
 const POLL_START = ['m.poll.start', 'org.matrix.msc3381.poll.start']
 const POLL_RESPONSE = ['m.poll.response', 'org.matrix.msc3381.poll.response']
 const POLL_END = ['m.poll.end', 'org.matrix.msc3381.poll.end']
@@ -349,7 +353,7 @@ class Chat {
       if (ev.getType() === Chat.AUTO_REPLY) this.loadAutoReply()
     })
     client.on(sdk.RoomEvent.Tags, () => this.refreshRooms())
-    client.on(sdk.RoomEvent.AccountData, (ev) => { if (/marked_unread$/.test(ev.getType())) this.refreshRooms() })
+    client.on(sdk.RoomEvent.AccountData, (ev) => { if (/marked_unread$/.test(ev.getType()) || ev.getType() === ROOM_THEME) this.refreshRooms() })
     client.on(sdk.RoomMemberEvent.Typing, () => { this.refreshTyping(); this.refreshRooms() })
     client.on(sdk.UserEvent.Presence, (_e, u) => { this.presence[u.userId] = u.presence as Presence })
     client.on(sdk.RoomEvent.LocalEchoUpdated, () => this.refreshMessages())
@@ -510,6 +514,7 @@ class Chat {
         dmUser: dms.has(room.roomId) ? this.otherMember(room)?.userId : undefined,
         notifs: this.roomNotifs(room.roomId),
         favourite: !!room.tags['m.favourite'],
+        theme: parseRoomTheme(room.getAccountData(ROOM_THEME as never)?.getContent()),
         bridge: readBridge([...room.currentState.getStateEvents('m.bridge'), ...room.currentState.getStateEvents('uk.half-shot.bridge')].map((e) => e.getContent())),
         markedUnread: !!(room.getAccountData('m.marked_unread')?.getContent().unread ?? room.getAccountData('com.famedly.marked_unread')?.getContent().unread),
         typing: room.getMembers().some((m) => m.typing && m.userId !== this.userId),
@@ -1417,6 +1422,13 @@ class Chat {
   }
 
   /** Flag a room as unread (or clear it) without touching read receipts. */
+  /** Change a room's layout or accent; null puts it back to the default. */
+  async setRoomTheme(roomId: string, patch: { layout?: Layout | null; accent?: string | null }) {
+    const cur = this.rooms.find((r) => r.id === roomId)?.theme ?? {}
+    await this.client!.setRoomAccountData(roomId, ROOM_THEME as never, mergeRoomTheme(cur, patch) as never)
+    this.refreshRooms()
+  }
+
   async setMarkedUnread(roomId: string, on: boolean) {
     const c = this.client!
     await c.setRoomAccountData(roomId, 'm.marked_unread' as never, { unread: on } as never)

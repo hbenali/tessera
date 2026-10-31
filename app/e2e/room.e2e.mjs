@@ -317,7 +317,7 @@ describe('tessera e2e', () => {
       await page.getByRole('button', { name: 'Room details' }).click()
       for (const [label, expected] of [['Mute', 'mute'], ['Mentions', 'mentions'], ['All', 'all']]) {
         await page.getByRole('radio', { name: label }).click()
-        await page.waitForFunction(([id, lvl]) => document.querySelector('[role=radio][aria-checked=true]')?.textContent === lvl, [data.room, label], { timeout: 5000 })
+        await page.waitForFunction(([id, lvl]) => document.querySelector('[aria-label="Notifications for this room"] [role=radio][aria-checked=true]')?.textContent === lvl, [data.room, label], { timeout: 5000 })
         let problem
       for (let i = 0; i < 20; i++) {
         const rules = await (await fetch(`${process.env.SYNAPSE_URL ?? 'http://localhost:8008'}/_matrix/client/v3/pushrules/`, { headers: { Authorization: `Bearer ${data.alice.token}` } })).json()

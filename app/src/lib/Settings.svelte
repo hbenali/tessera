@@ -2,6 +2,7 @@
   import { LANGUAGES, i18n, t } from './i18n.svelte'
   import { keywordProblem } from './keywords'
   import Icon from './Icon.svelte'
+  import LayoutPicker from './LayoutPicker.svelte'
   import Sessions from './Sessions.svelte'
   import KeyBackup from './KeyBackup.svelte'
   import AccountManage from './AccountManage.svelte'
@@ -96,7 +97,10 @@
         </button>
       {/each}
     </div>
-    <h3 class="label">Messages</h3>
+    <h3 class="label">Room layout</h3>
+    <LayoutPicker value={ui.layout} onpick={(l) => ui.setLayout(l)} label="Default room layout" />
+    <p class="hint">The look of every room that has not picked its own. Change one room from its details.</p>
+    <h3 class="label">{t("Messages")}</h3>
     <div class="seg" role="radiogroup" aria-label="Message density">
       {#each [['comfortable', 'Comfortable'], ['compact', 'Compact']] as [v, t] (v)}
         <button role="radio" aria-checked={ui.density === v} class:on={ui.density === v} onclick={() => ui.setLook({ density: v as 'compact' })}>{t}</button>
