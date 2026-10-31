@@ -8,6 +8,7 @@ import type { Device } from './devices'
 import { keywordActions, keywordRuleId, normalizeKeyword, readKeywords } from './keywords'
 import { rank, splitServer, toPublicRoom, type PublicRoom } from './directory'
 import { firstUnread } from './jump'
+import { calls } from './calls.svelte'
 import { parsePollStart, pollContent, tally, type PollStart, type Tally } from './poll'
 import { parseGeo } from './location'
 import { firstUrl, toPreview, type Preview as LinkCard } from './linkpreview'
@@ -294,6 +295,7 @@ class Chat {
     await store.startup()
     await client.initRustCrypto({ cryptoDatabasePrefix: `tessera-crypto-${s.userId}` })
     security.attach(client)
+    calls.attach(client)
     setThumbLoader((m, s, method) => this.thumb(m, s, method))
     setOriginalLoader((m, f, k) => this.original(m, f, k))
     security.refresh()

@@ -1,7 +1,12 @@
 <script lang="ts">
-  type Name = 'pin' | 'hash' | 'lock' | 'send' | 'clip' | 'search' | 'plus' | 'smile' | 'reply' | 'edit' | 'chevron' | 'x' | 'users' | 'info' | 'back' | 'shield' | 'sliders' | 'check' | 'logout' | 'trash' | 'clock' | 'checks' | 'alert' | 'qr' | 'link' | 'bellOff' | 'star' | 'at' | 'users2' | 'more' | 'eyeOff' | 'moon' | 'file' | 'mic' | 'play' | 'pause' | 'zoomIn' | 'zoomOut' | 'download' | 'bell' | 'thread'
+  type Name = 'phone' | 'phoneOff' | 'video' | 'videoOff' | 'micOff' | 'pin' | 'hash' | 'lock' | 'send' | 'clip' | 'search' | 'plus' | 'smile' | 'reply' | 'edit' | 'chevron' | 'x' | 'users' | 'info' | 'back' | 'shield' | 'sliders' | 'check' | 'logout' | 'trash' | 'clock' | 'checks' | 'alert' | 'qr' | 'link' | 'bellOff' | 'star' | 'at' | 'users2' | 'more' | 'eyeOff' | 'moon' | 'file' | 'mic' | 'play' | 'pause' | 'zoomIn' | 'zoomOut' | 'download' | 'bell' | 'thread'
   let { name, size = 18 }: { name: Name; size?: number } = $props()
   const paths: Record<Name, string[]> = {
+    phone: ['M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z'],
+    phoneOff: ['M10.7 13.3a16 16 0 0 0 3 2.4l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1', 'M6.6 6.6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9', 'M2 2l20 20'],
+    video: ['M23 7l-7 5 7 5V7z', 'M3 5h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z'],
+    videoOff: ['M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.7 0H14a2 2 0 0 1 2 2v3.3l7-5v10', 'M1 1l22 22'],
+    micOff: ['M9 9v3a3 3 0 0 0 5.1 2.1', 'M15 9.3V5a3 3 0 0 0-5.9-.8', 'M19 10v2a7 7 0 0 1-.9 3.4', 'M5 10v2a7 7 0 0 0 11 5.7', 'M12 19v3', 'M8 22h8', 'M1 1l22 22'],
     pin: ['M12 17v5', 'M9 3h6l-1 6 3 3v2H7v-2l3-3z'],
     hash: ['M4 9h16', 'M4 15h16', 'M10 3 8 21', 'M16 3l-2 18'],
     lock: ['M5 11h14v10H5z', 'M8 11V7a4 4 0 0 1 8 0v4'],

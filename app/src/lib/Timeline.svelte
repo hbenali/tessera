@@ -12,6 +12,7 @@
   import LinkPreview from './LinkPreview.svelte'
   import JumpMenu from './JumpMenu.svelte'
   import { t } from './i18n.svelte'
+  import { calls } from './calls.svelte'
   import PollCard from './PollCard.svelte'
   import ComposerMore from './ComposerMore.svelte'
   import { mapLink } from './location'
@@ -478,6 +479,7 @@
       <Avatar name={chat.active.name} size={32} round={chat.active.isDM} src={chat.active.avatar} presence={chat.active.dmUser ? (chat.presenceOf(chat.active.dmUser) ?? 'offline') : undefined} />
       <div class="title"><h1>{chat.active.name}{#if chat.isQuiet(chat.active.id)}<span class="muted" title="Quiet reading: people are not shown that you read this room"><Icon name="eyeOff" size={14} /><span class="sr">Quiet reading</span></span>{/if}{#if chat.active.notifs === 'mute'}<span class="muted" title="Notifications are muted"><Icon name="bellOff" size={14} /><span class="sr">Muted</span></span>{/if}</h1>{#if chat.active.dmUser}<span class="topic">{({ online: 'Online', unavailable: 'Away', offline: 'Offline' })[chat.presenceOf(chat.active.dmUser) ?? 'offline']}</span>{:else if chat.active.topic}<span class="topic">{chat.active.topic}</span>{:else}<span class="topic">{chat.active.memberCount} {chat.active.memberCount === 1 ? 'member' : 'members'}</span>{/if}</div>
       {#if chat.active.encrypted}<span class="enc" title="End-to-end encrypted"><Icon name="lock" size={13} /> Encrypted</span>{/if}
+{#if chat.active.isDM && calls.supported && !calls.active}<button class="icon-btn" onclick={() => calls.place(chat.active!.id, false).catch(() => {})} aria-label="Voice call" title="Voice call"><Icon name="phone" /></button><button class="icon-btn" onclick={() => calls.place(chat.active!.id, true).catch(() => {})} aria-label="Video call" title="Video call"><Icon name="video" /></button>{/if}
 <JumpMenu />
  <button class="icon-btn" class:on={ui.roomSearch} onclick={() => { ui.roomSearch = !ui.roomSearch; if (ui.roomSearch) chat.closeThread() }} aria-label="Search in this room" aria-pressed={ui.roomSearch} title="Search in this room (Ctrl+Shift+F)"><Icon name="search" /></button>
       <button class="icon-btn" aria-label="Room menu" aria-haspopup="menu" onclick={(e) => { const b = e.currentTarget.getBoundingClientRect(); ui.openRoomMenu(chat.active!.id, b.right - 220, b.bottom + 4, e.currentTarget) }}><Icon name="more" /></button>

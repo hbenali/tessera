@@ -12,6 +12,7 @@
   import Verification from './Verification.svelte'
   import RoomMenu from './RoomMenu.svelte'
   import UserCard from './UserCard.svelte'
+  import CallPanel from './CallPanel.svelte'
   import ImageViewer from './ImageViewer.svelte'
 
   let palette = $state(false)
@@ -47,6 +48,7 @@
 <Verification />
 {#if ui.roomMenu}<RoomMenu />{/if}
 {#if ui.userCard}<UserCard />{/if}
+<CallPanel />
 {#if ui.viewer}<ImageViewer />{/if}
 
 <style>
