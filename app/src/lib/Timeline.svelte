@@ -11,6 +11,7 @@
   import FileCard from './FileCard.svelte'
   import LinkPreview from './LinkPreview.svelte'
   import JumpMenu from './JumpMenu.svelte'
+  import { t } from './i18n.svelte'
   import PollCard from './PollCard.svelte'
   import ComposerMore from './ComposerMore.svelte'
   import { mapLink } from './location'
@@ -617,7 +618,7 @@
           {/if}
         </div>
       </div>
-      <div class="hint">Enter to send · Shift+Enter for a new line · ↑ edits your last message · Ctrl+B / I for bold and italic · :emoji: · /invite @user</div>
+      <div class="hint">{t("Enter to send · Shift+Enter for a new line · ↑ edits your last message · Ctrl+B / I for bold and italic · :emoji: · /invite @user")}</div>
     </footer>
   {/if}
 </main>

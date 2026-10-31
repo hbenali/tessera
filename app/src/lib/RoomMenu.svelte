@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from './i18n.svelte'
   import { tick } from 'svelte'
   import { chat } from './matrix.svelte'
   import { ui } from './ui.svelte'
@@ -64,30 +65,30 @@
   <div class="menu" role="menu" aria-label="Options for {room.name}" tabindex="-1" bind:this={menu} style="left:{left}px;top:{top}px" onkeydown={key}>
     {#if leaving}
       <p class="ask">Leave {room.name}?</p>
-      <button role="menuitem" class="danger" onclick={() => run(() => chat.leaveRoom(room.id))}><Icon name="logout" size={15} />Leave room</button>
+      <button role="menuitem" class="danger" onclick={() => run(() => chat.leaveRoom(room.id))}><Icon name="logout" size={15} />{t("Leave room")}</button>
       <button role="menuitem" onclick={close}><Icon name="x" size={15} />Cancel</button>
     {:else}
-      {#if room.unread > 0 || room.markedUnread}<button role="menuitem" onclick={() => run(() => chat.markRead(room.id))}><Icon name="checks" size={15} />Mark as read</button>
-      {:else}<button role="menuitem" onclick={() => run(() => chat.setMarkedUnread(room.id, true))}><Icon name="bell" size={15} />Mark as unread</button>{/if}
+      {#if room.unread > 0 || room.markedUnread}<button role="menuitem" onclick={() => run(() => chat.markRead(room.id))}><Icon name="checks" size={15} />{t("Mark as read")}</button>
+      {:else}<button role="menuitem" onclick={() => run(() => chat.setMarkedUnread(room.id, true))}><Icon name="bell" size={15} />{t("Mark as unread")}</button>{/if}
       {#if room.notifs === 'mute'}
-        <button role="menuitem" onclick={() => run(() => chat.setRoomNotifs(room.id, 'all'))}><Icon name="bell" size={15} />Unmute</button>
+        <button role="menuitem" onclick={() => run(() => chat.setRoomNotifs(room.id, 'all'))}><Icon name="bell" size={15} />{t("Unmute")}</button>
       {:else}
-        <button role="menuitem" onclick={() => run(() => chat.setRoomNotifs(room.id, 'mute'))}><Icon name="bellOff" size={15} />Mute</button>
+        <button role="menuitem" onclick={() => run(() => chat.setRoomNotifs(room.id, 'mute'))}><Icon name="bellOff" size={15} />{t("Mute")}</button>
       {/if}
       {#if room.notifs === 'mentions'}
-        <button role="menuitem" onclick={() => run(() => chat.setRoomNotifs(room.id, 'all'))}><Icon name="bell" size={15} />Notify for all messages</button>
+        <button role="menuitem" onclick={() => run(() => chat.setRoomNotifs(room.id, 'all'))}><Icon name="bell" size={15} />{t("Notify for all messages")}</button>
       {:else}
-        <button role="menuitem" onclick={() => run(() => chat.setRoomNotifs(room.id, 'mentions'))}><Icon name="at" size={15} />Mentions only</button>
+        <button role="menuitem" onclick={() => run(() => chat.setRoomNotifs(room.id, 'mentions'))}><Icon name="at" size={15} />{t("Mentions only")}</button>
       {/if}
       <button role="menuitem" onclick={() => run(() => chat.setQuiet(room.id, !chat.isQuiet(room.id)))}><Icon name="eyeOff" size={15} />{chat.isQuiet(room.id) ? 'Stop quiet reading' : 'Read quietly'}</button>
-      <button role="menuitem" onclick={() => run(() => chat.setLowPriority(room.id, !room.lowPriority))}><Icon name="bellOff" size={15} />{room.lowPriority ? 'Remove from low priority' : 'Low priority'}</button>
-      <button role="menuitem" onclick={() => run(() => chat.setFavourite(room.id, !room.favourite))}><Icon name="star" size={15} />{room.favourite ? 'Remove from favourites' : 'Add to favourites'}</button>
+      <button role="menuitem" onclick={() => run(() => chat.setLowPriority(room.id, !room.lowPriority))}><Icon name="bellOff" size={15} />{room.lowPriority ? t('Remove from low priority') : t('Low priority')}</button>
+      <button role="menuitem" onclick={() => run(() => chat.setFavourite(room.id, !room.favourite))}><Icon name="star" size={15} />{room.favourite ? t('Remove from favourites') : t('Add to favourites')}</button>
       <hr />
-      <button role="menuitem" onclick={copy}><Icon name="link" size={15} />Copy link</button>
-      <button role="menuitem" onclick={async () => { ui.roomMenu = null; await chat.openRoom(at.id); chat.closeThread(); ui.roomSearch = true }}><Icon name="search" size={15} />Search in room</button>
-      <button role="menuitem" onclick={details}><Icon name="info" size={15} />Room details</button>
+      <button role="menuitem" onclick={copy}><Icon name="link" size={15} />{t("Copy link")}</button>
+      <button role="menuitem" onclick={async () => { ui.roomMenu = null; await chat.openRoom(at.id); chat.closeThread(); ui.roomSearch = true }}><Icon name="search" size={15} />{t("Search in room")}</button>
+      <button role="menuitem" onclick={details}><Icon name="info" size={15} />{t("Room details")}</button>
       <hr />
-      <button role="menuitem" class="danger" onclick={() => (leaving = true)}><Icon name="logout" size={15} />Leave room</button>
+      <button role="menuitem" class="danger" onclick={() => (leaving = true)}><Icon name="logout" size={15} />{t("Leave room")}</button>
     {/if}
     {#if note}<p class="note" role="alert">{note}</p>{/if}
   </div>

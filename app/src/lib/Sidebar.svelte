@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from './i18n.svelte'
   import { chat } from './matrix.svelte'
   import { shortTime, ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
@@ -63,7 +64,7 @@
         {:else}
           <span class="viewicon" aria-hidden="true"><Icon name={VIEWS.find((v) => v[0] === view)![2]} size={16} /></span>
         {/if}
-        <span class="wsname">{title}</span>
+        <span class="wsname">{t(title)}</span>
         <Icon name="chevron" size={14} />
       </button>
       {#if switcher}
@@ -71,19 +72,19 @@
           <div role="group" aria-label="Views">
             {#each VIEWS as [v, label, icon] (v)}
               {@const on = !chat.activeSpace && view === v}
-              <button role="option" aria-selected={on} onclick={() => pickView(v)}><Icon name={icon} size={15} />{label}<span class="n">{v === 'all' ? '' : count(v) || ''}</span>{#if on}<Icon name="check" size={14} />{/if}</button>
+              <button role="option" aria-selected={on} onclick={() => pickView(v)}><Icon name={icon} size={15} />{t(label)}<span class="n">{v === 'all' ? '' : count(v) || ''}</span>{#if on}<Icon name="check" size={14} />{/if}</button>
             {/each}
           </div>
           <div role="group" aria-label="Read state">
-            <button role="option" aria-selected="false" disabled={!rooms.some((r) => r.unread > 0 || r.markedUnread)} onclick={async () => { switcher = false; await chat.markAllRead(rooms.map((r) => r.id)) }}><Icon name="checks" size={15} />Mark all as read{#if rooms.filter((r) => r.unread > 0 || r.markedUnread).length}<span class="n">{rooms.filter((r) => r.unread > 0 || r.markedUnread).length}</span>{/if}</button>
+            <button role="option" aria-selected="false" disabled={!rooms.some((r) => r.unread > 0 || r.markedUnread)} onclick={async () => { switcher = false; await chat.markAllRead(rooms.map((r) => r.id)) }}><Icon name="checks" size={15} />{t("Mark all as read")}{#if rooms.filter((r) => r.unread > 0 || r.markedUnread).length}<span class="n">{rooms.filter((r) => r.unread > 0 || r.markedUnread).length}</span>{/if}</button>
           </div>
-          <div role="group" aria-label="Sort by"><span class="grp" aria-hidden="true">Sort by</span>
+          <div role="group" aria-label="Sort by"><span class="grp" aria-hidden="true">{t("Sort by")}</span>
             {#each ORDERS as [o, label] (o)}
-              <button role="option" aria-selected={chat.roomOrder === o} onclick={() => { chat.setRoomOrder(o); switcher = false }}>{label}{#if chat.roomOrder === o}<Icon name="check" size={14} />{/if}</button>
+              <button role="option" aria-selected={chat.roomOrder === o} onclick={() => { chat.setRoomOrder(o); switcher = false }}>{t(label)}{#if chat.roomOrder === o}<Icon name="check" size={14} />{/if}</button>
             {/each}
           </div>
           {#if chat.spaces.length}
-            <div role="group" aria-label="Spaces"><span class="grp" aria-hidden="true">Spaces</span>
+            <div role="group" aria-label="Spaces"><span class="grp" aria-hidden="true">{t("Spaces")}</span>
               {#each chat.spaces as s (s.id)}
                 <button role="option" aria-selected={chat.activeSpace === s.id} onclick={() => pick(s.id)}><Avatar name={s.name} size={20} src={s.avatar} />{s.name}{#if chat.activeSpace === s.id}<Icon name="check" size={14} />{/if}</button>
               {/each}
@@ -95,15 +96,15 @@
     <button class="icon-btn" onclick={() => ui.open('room')} aria-label="New room or message" title="New room or message"><Icon name="plus" /></button>
   </header>
 
-  <button class="search" onclick={onsearch}><Icon name="search" size={15} /><span>Search</span><kbd class="mono">Ctrl K</kbd></button>
+  <button class="search" onclick={onsearch}><Icon name="search" size={15} /><span>{t("Search")}</span><kbd class="mono">Ctrl K</kbd></button>
 
 
   <nav class="list" aria-label="Rooms">
     {#each invites as r (r.id)}
       <div class="invite">
         <Avatar name={r.name} size={36} src={r.avatar} />
-        <div class="meta"><b>{r.name}</b><span>Invitation</span></div>
-        <button class="btn" onclick={() => chat.acceptInvite(r.id)}>Join</button>
+        <div class="meta"><b>{r.name}</b><span>{t("Invitation")}</span></div>
+        <button class="btn" onclick={() => chat.acceptInvite(r.id)}>{t("Join")}</button>
         <button class="icon-btn" onclick={() => chat.declineInvite(r.id)} aria-label="Decline invitation"><Icon name="x" size={16} /></button>
       </div>
     {/each}
@@ -121,7 +122,7 @@
               <span class="time">{r.lastTs ? shortTime(r.lastTs) : ''}</span>
             </span>
             <span class="bottom">
-              {#if r.typing}<span class="preview typing" aria-live="polite">typing<i></i><i></i><i></i></span>{:else}{#if r.draft && chat.activeRoom !== r.id}<span class="preview"><span class="draft">Draft:</span> {r.draft}</span>{:else}<span class="preview">{#if PREVIEW_ICON[r.previewKind]}<Icon name={PREVIEW_ICON[r.previewKind]!} size={13} />{/if}{r.preview || (r.previewLoading ? '' : r.topic ? r.topic : 'No messages yet')}</span>{/if}{/if}
+              {#if r.typing}<span class="preview typing" aria-live="polite">typing<i></i><i></i><i></i></span>{:else}{#if r.draft && chat.activeRoom !== r.id}<span class="preview"><span class="draft">{t("Draft:")}</span> {r.draft}</span>{:else}<span class="preview">{#if PREVIEW_ICON[r.previewKind]}<Icon name={PREVIEW_ICON[r.previewKind]!} size={13} />{/if}{r.preview || (r.previewLoading ? '' : r.topic ? r.topic : t('No messages yet'))}</span>{/if}{/if}
               {#if r.markedUnread && !r.unread}<span class="badge dotbadge" title="Marked as unread"><span class="sr">Marked as unread</span></span>{/if}
               {#if r.unread}<span class="badge" class:hl={r.highlight > 0 && r.notifs !== 'mute'} class:quiet={r.notifs === 'mute'}>{r.unread}</span>{/if}
             </span>
@@ -133,7 +134,7 @@
     {#if !chat.ready && !chat.rooms.length}
       <Skeleton variant="list" />
     {:else if !rooms.length && !invites.length}
-      <p class="empty">{view === 'unread' ? 'You are all caught up.' : view === 'mentions' ? 'No one has mentioned you.' : view === 'favourites' ? 'Star a room in its details to find it here.' : 'Nothing here yet.'}</p>
+      <p class="empty">{view === 'unread' ? t('You are all caught up.') : view === 'mentions' ? t('No one has mentioned you.') : view === 'favourites' ? 'Star a room in its details to find it here.' : t('Nothing here yet.')}</p>
     {/if}
   </nav>
 
@@ -144,21 +145,21 @@
       </button>
       {#if status}
         <div class="menu up" role="menu">
-          {#each STATUSES as [v, t] (v)}
-            <button role="menuitemradio" aria-checked={chat.myStatus === v} onclick={() => setStatus(v)}><span class="pip {v}"></span>{t}{#if chat.myStatus === v}<Icon name="check" size={14} />{/if}</button>
+          {#each STATUSES as [v, lbl] (v)}
+            <button role="menuitemradio" aria-checked={chat.myStatus === v} onclick={() => setStatus(v)}><span class="pip {v}"></span>{t(lbl)}{#if chat.myStatus === v}<Icon name="check" size={14} />{/if}</button>
           {/each}
-          <h3 class="grp">Do not disturb</h3>
+          <h3 class="grp">{t("Do not disturb")}</h3>
           {#if chat.quietNow && !chat.manualDnd}<p class="dndnow" role="status">Quiet hours are on until {chat.schedule.to}</p>{/if}
           {#if chat.manualDnd}
             <p class="dndnow" role="status">On {chat.dnd?.until ? `until ${untilLabel(chat.dnd.until)}` : 'until you turn it off'}</p>
-            <button role="menuitem" onclick={() => { chat.endDnd(); status = false }}><Icon name="bell" size={14} />Turn off</button>
+            <button role="menuitem" onclick={() => { chat.endDnd(); status = false }}><Icon name="bell" size={14} />{t("Turn off")}</button>
           {:else}
             {#each DND_CHOICES as [label, until] (label)}
               <button role="menuitem" onclick={() => { chat.setDnd(until()); status = false }}><Icon name="moon" size={14} />{label}</button>
             {/each}
           {/if}
           <hr />
-          <button role="menuitem" onclick={() => { status = false; ui.modal = 'settings' }}><Icon name="sliders" size={14} />Profile and settings</button>
+          <button role="menuitem" onclick={() => { status = false; ui.modal = 'settings' }}><Icon name="sliders" size={14} />{t("Profile and settings")}</button>
         </div>
       {/if}
     </div>

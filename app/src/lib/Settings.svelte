@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { LANGUAGES, i18n, t } from './i18n.svelte'
   import { keywordProblem } from './keywords'
   import Icon from './Icon.svelte'
   import Sessions from './Sessions.svelte'
@@ -76,12 +77,17 @@
 <Modal title="Settings" onclose={() => (ui.modal = null)}>
   <div class="tabs" role="tablist">
     {#each [['look', 'Appearance'], ['security', 'Security'], ['notify', 'Notifications'], ['privacy', 'Privacy'], ['sessions', 'Sessions'], ['account', 'Account'], ['about', 'About']] as [k, label] (k)}
-      <button role="tab" aria-selected={tab === k} class:on={tab === k} onclick={() => (tab = k as typeof tab)}>{label}</button>
+      <button role="tab" aria-selected={tab === k} class:on={tab === k} onclick={() => (tab = k as typeof tab)}>{t(label)}</button>
     {/each}
   </div>
 
   {#if tab === 'look'}
-    <h3 class="label">Theme</h3>
+    <h3 class="label">{t("Language")}</h3>
+    <select class="lang" aria-label={t("Language")} value={i18n.lang} onchange={(e) => i18n.set(e.currentTarget.value as never)}>
+      {#each LANGUAGES as l (l.id)}<option value={l.id}>{l.name}</option>{/each}
+    </select>
+    <p class="hint">Menus, the sidebar and the sign-in page are translated; the rest of Tessera is still in English.</p>
+    <h3 class="label">{t("Theme")}</h3>
     <div class="themes" role="radiogroup" aria-label="Theme">
       {#each THEMES as t (t.id)}
         <button class="theme" role="radio" aria-checked={ui.theme === t.id} class:on={ui.theme === t.id} onclick={() => ui.setTheme(t.id)}>
@@ -296,4 +302,5 @@
   .key { padding: 14px 0; } code { display: block; word-break: break-all; margin: 10px 0 14px; padding: 12px; background: var(--tile); font-family: var(--mono); font-size: 13px; }
   .err { color: var(--danger); font-size: 13px; margin-top: 12px; }
   .kwform { display: flex; gap: 8px; } .kwform input { flex: 1; font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; } .kws { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; } .kws li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 14px; background: var(--tile); }
+  .lang { font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; min-width: 180px; }
 </style>

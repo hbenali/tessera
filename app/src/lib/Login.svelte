@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from './i18n.svelte'
   import Avatar from './Avatar.svelte'
   import { loginOptions, probeRegistration, registerAccount, startSso, type LoginOptions, type RegisterProbe } from './discover'
   type Mod = typeof import('./matrix.svelte')
@@ -65,8 +66,8 @@
 <main>
   <section class="card">
     <div class="brand"><Avatar name="Tessera" size={40} /><span>Tessera</span></div>
-    <h1>{mode === 'in' ? 'Sign in' : 'Create an account'}</h1>
-    <p class="lede">Use your Matrix account on any homeserver.</p>
+    <h1>{mode === 'in' ? t('Sign in') : t('Create an account')}</h1>
+    <p class="lede">{t("Use your Matrix account on any homeserver.")}</p>
     {#if options?.sso.length}
       <div class="sso">
         {#each options.sso as p (p.id)}<button type="button" class="btn ghost" onclick={() => startSso(options!.baseUrl, p.id)}>Continue with {p.name}</button>{/each}
@@ -90,14 +91,14 @@
       <p class="switchmode">Already have one? <button type="button" class="link" onclick={() => { mode = 'in'; error = '' }}>Sign in</button></p>
     {:else if !options || options.password}
     <form onsubmit={submit}>
-      <label>Homeserver<input bind:value={server} oninput={probe} placeholder="matrix.example.org" required /></label>
-      <label>Username<input bind:value={user} autocomplete="username" required /></label>
-      <label>Password<input type="password" bind:value={password} autocomplete="current-password" required /></label>
+      <label>{t("Homeserver")}<input bind:value={server} oninput={probe} placeholder="matrix.example.org" required /></label>
+      <label>{t("Username")}<input bind:value={user} autocomplete="username" required /></label>
+      <label>{t("Password")}<input type="password" bind:value={password} autocomplete="current-password" required /></label>
       {#if error}<div class="err" role="alert">{error}</div>{/if}
-      <button class="btn" disabled={busy}>{busy ? 'Signing in…' : 'Continue'}</button>
+      <button class="btn" disabled={busy}>{busy ? t('Signing in…') : t('Continue')}</button>
     </form>
     {/if}
-    {#if mode === 'in'}<p class="switchmode">New here? <button type="button" class="link" onclick={chooseUp}>Create an account</button></p>{/if}
+    {#if mode === 'in'}<p class="switchmode">{t("New here?")} <button type="button" class="link" onclick={chooseUp}>{t("Create an account")}</button></p>{/if}
   </section>
 </main>
 
