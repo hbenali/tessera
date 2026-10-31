@@ -108,6 +108,6 @@ export async function signIn(page, url, user) {
   await page.getByLabel('Homeserver').fill(SYNAPSE)
   await page.getByLabel('Username').fill(user.name)
   await page.getByLabel('Password').fill(PASSWORD)
-  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.getByRole('navigation', { name: 'Rooms' }).waitFor({ timeout: 30_000 })
 }

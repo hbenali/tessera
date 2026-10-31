@@ -45,4 +45,20 @@ describe('creating an account from the sign-in page', () => {
     await fresh.getByRole('button', { name: 'Create account' }).click()
     await fresh.getByText('That user name is taken').waitFor({ timeout: 15_000 })
   })
+
+  it('does not show sign-in options of a server you have already moved away from', async () => {
+    const slow = await (await browser.newContext()).newPage()
+    // a homeserver that offers single sign-on and answers late
+    await slow.route('http://slow.test:8008/_matrix/client/v3/login', async (route) => {
+      await new Promise((r) => setTimeout(r, 2500))
+      await route.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ flows: [{ type: 'm.login.sso', identity_providers: [{ id: 'x', name: 'Slow IdP' }] }] }) })
+    })
+    await slow.goto(server.url)
+    await slow.getByLabel('Homeserver').fill('http://slow.test:8008')
+    await slow.waitForTimeout(800) // the probe for the slow server is now in flight
+    await slow.getByLabel('Homeserver').fill(SYNAPSE)
+    await slow.waitForTimeout(3500) // the slow answer arrives after the change
+    assert.equal(await slow.getByRole('button', { name: /Slow IdP/ }).count(), 0)
+    await slow.getByRole('button', { name: 'Continue', exact: true }).waitFor()
+  })
 })

@@ -17,12 +17,18 @@
   let probing: ReturnType<typeof setTimeout> | undefined
 
   // Ask the homeserver how people can sign in, once the address stops changing.
+  let probeSeq = 0
   function probe() {
     clearTimeout(probing)
     options = null
+    const seq = ++probeSeq // an answer for an address that has since been changed must not be shown
     if (server.trim().length < 4) return
     probing = setTimeout(async () => {
-      try { options = await loginOptions(server) } catch { options = null }
+      const asked = server
+      try {
+        const o = await loginOptions(asked)
+        if (seq === probeSeq) options = o
+      } catch { if (seq === probeSeq) options = null }
     }, 500)
   }
   probe()
