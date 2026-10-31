@@ -14,6 +14,9 @@ function write(all: Record<string, string>) {
   try { localStorage.setItem(KEY, JSON.stringify(all)) } catch { /* storage may be blocked */ }
 }
 
+/** Every draft that is waiting, by room (memory first, then storage). */
+export const allDrafts = (): Record<string, string> => ({ ...read(), ...Object.fromEntries(memory) })
+
 export const getDraft = (room: string): string => memory.get(room) ?? read()[room] ?? ''
 
 export function setDraft(room: string, text: string, persist = true) {

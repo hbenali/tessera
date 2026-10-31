@@ -1,4 +1,5 @@
-import { clearDrafts } from './drafts'
+import { allDrafts, clearDrafts } from './drafts'
+import { describe as describePreview, isPreviewable, previewLine, sortRooms, type PreviewKind, type RoomOrder } from './roompreview'
 import { inviteTarget } from './commands'
 import { safeFileName } from './files'
 import { mentionPills, mentionsUser, plainMentions, type MentionPill } from './mentions'
@@ -74,6 +75,10 @@ export interface RoomItem {
   encrypted: boolean
   invited: boolean
   preview: string
+  previewKind: PreviewKind
+  /** Unsent text in the message box for this room. */
+  draft: string
+  lowPriority: boolean
   topic: string
   memberCount: number
   avatar?: string
@@ -87,6 +92,15 @@ export interface RoomItem {
 }
 
 export type Presence = 'online' | 'unavailable' | 'offline'
+const ORDER_KEY = 'tessera.roomOrder'
+const readOrder = (): RoomOrder => {
+  try {
+    const v = localStorage.getItem(ORDER_KEY)
+    return v === 'unread' || v === 'name' ? v : 'activity'
+  } catch {
+    return 'activity'
+  }
+}
 const PRESENCE_KEY = 'tessera.presence'
 const readPresence = (): Presence => {
   try {
@@ -134,6 +148,13 @@ class Chat {
   ready = $state(false)
   error = $state('')
   rooms = $state<RoomItem[]>([])
+  /** How the room list is ordered (activity, unread first, or A to Z). Favourites stay on top. */
+  roomOrder = $state<RoomOrder>(readOrder())
+  setRoomOrder(o: RoomOrder) {
+    this.roomOrder = o
+    try { localStorage.setItem(ORDER_KEY, o) } catch { /* storage may be blocked */ }
+    this.refreshRooms()
+  }
   activeSpace = $state<string | null>(null)
   activeRoom = $state<string | null>(null)
   /** A room named in the URL that this account has not joined; the timeline offers to join it. */
@@ -307,28 +328,24 @@ class Chat {
     return new Set(Object.values(direct).flat() as string[])
   }
 
-  private previewOf(room: sdk.Room): string {
-    const ev = room
-      .getLiveTimeline()
-      .getEvents()
-      .findLast((e) => ['m.room.message', 'm.room.encrypted'].includes(e.getType()) && !e.isRedacted())
-    if (!ev) return ''
-    const c = ev.getContent()
-    if (ev.getType() === 'm.room.encrypted' || c.msgtype === 'm.bad.encrypted') return 'Encrypted message'
-    const who = ev.getSender() === this.userId ? 'You' : (room.getMember(ev.getSender() ?? '')?.name ?? '')
-    const what = c.msgtype === 'm.image' ? 'Photo' : c.msgtype === 'm.audio' ? (c['org.matrix.msc3245.voice'] ? 'Voice message' : 'Audio') : c.msgtype === 'm.file' ? 'File' : plainMentions(c.body ?? '', (id) => room.getMember(id)?.name)
-    return `${who}: ${what}`
+  private previewOf(room: sdk.Room): { line: string; kind: PreviewKind; ts: number } {
+    const ev = room.getLiveTimeline().getEvents().findLast((e) => isPreviewable({ type: e.getType(), sender: e.getSender() ?? '', content: e.getContent(), redacted: e.isRedacted() }))
+    if (!ev) return { line: '', kind: 'none', ts: 0 }
+    const p = describePreview({ type: ev.getType(), sender: ev.getSender() ?? '', content: ev.getContent() }, this.userId, (id) => room.getMember(id)?.name, (b) => plainMentions(b, (id) => room.getMember(id)?.name))
+    return { line: previewLine(p, this.dmRoomIds().has(room.roomId)), kind: p.kind, ts: ev.getTs() }
   }
 
   refreshRooms() {
     const c = this.client
     if (!c) return
     const dms = this.dmRoomIds()
+    const drafts = allDrafts()
     const items: RoomItem[] = []
     for (const room of c.getRooms()) {
       const membership = room.getMyMembership()
       if (membership !== 'join' && membership !== 'invite') continue
       const create = room.currentState.getStateEvents('m.room.create', '')
+      const pv = this.previewOf(room)
       const parents = room.currentState
         .getStateEvents('m.space.parent')
         .map((e) => e.getStateKey() as string)
@@ -337,13 +354,16 @@ class Chat {
         name: room.name,
         unread: room.getUnreadNotificationCount(sdk.NotificationCountType.Total) ?? 0,
         highlight: room.getUnreadNotificationCount(sdk.NotificationCountType.Highlight) ?? 0,
-        lastTs: room.getLastActiveTimestamp(),
+        lastTs: pv.ts || room.getLastActiveTimestamp(),
         isSpace: create?.getContent().type === 'm.space',
         parents,
         isDM: dms.has(room.roomId),
         encrypted: c.isRoomEncrypted(room.roomId),
         invited: membership === 'invite',
-        preview: this.previewOf(room),
+        preview: pv.line,
+        previewKind: pv.kind,
+        draft: drafts[room.roomId] ?? '',
+        lowPriority: !!room.tags['m.lowpriority'],
         topic: room.currentState.getStateEvents('m.room.topic', '')?.getContent().topic ?? '',
         memberCount: room.getJoinedMemberCount(),
         dmUser: dms.has(room.roomId) ? this.otherMember(room)?.userId : undefined,
@@ -353,7 +373,7 @@ class Chat {
         avatar: room.getMxcAvatarUrl() ?? (dms.has(room.roomId) ? this.otherMember(room)?.getMxcAvatarUrl() : undefined) ?? undefined,
       })
     }
-    items.sort((a, b) => b.lastTs - a.lastTs)
+    const sorted = sortRooms(items, this.roomOrder)
     // Children of a space are declared on the space via m.space.child
     for (const sp of items.filter((i) => i.isSpace)) {
       const room = c.getRoom(sp.id)!
@@ -363,7 +383,7 @@ class Chat {
           child.parents.push(sp.id)
       }
     }
-    this.rooms = items
+    this.rooms = sorted
   }
 
   /** Rooms visible for the current space filter, DMs shown under "Home". */
@@ -443,6 +463,7 @@ class Chat {
   }
 
   async openRoom(id: string, push = true) {
+    this.refreshRooms() // shows or clears the draft line of the room just left
     this.activeRoom = id
     this.routeMissing = null
     if (push) this.pushRoute({ room: id })

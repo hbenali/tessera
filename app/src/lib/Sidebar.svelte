@@ -24,6 +24,8 @@
   ]
   const setStatus = (p: (typeof STATUSES)[number][0]) => { chat.setStatus(p); status = false }
 
+  const PREVIEW_ICON: Partial<Record<RoomItem['previewKind'], ComponentProps<typeof Icon>['name']>> = { image: 'file', video: 'play', voice: 'mic', audio: 'mic', file: 'clip', encrypted: 'lock' }
+  const ORDERS = [['activity', 'Latest activity'], ['unread', 'Unread first'], ['name', 'A to Z']] as const
   const invites = $derived(chat.rooms.filter((r) => r.invited))
   const current = $derived(chat.spaces.find((s) => s.id === chat.activeSpace))
   const rooms = $derived(
@@ -72,6 +74,11 @@
               <button role="option" aria-selected={on} onclick={() => pickView(v)}><Icon name={icon} size={15} />{label}<span class="n">{v === 'all' ? '' : count(v) || ''}</span>{#if on}<Icon name="check" size={14} />{/if}</button>
             {/each}
           </div>
+          <div role="group" aria-label="Sort by"><h3 class="grp">Sort by</h3>
+            {#each ORDERS as [o, label] (o)}
+              <button role="option" aria-selected={chat.roomOrder === o} onclick={() => { chat.setRoomOrder(o); switcher = false }}>{label}{#if chat.roomOrder === o}<Icon name="check" size={14} />{/if}</button>
+            {/each}
+          </div>
           {#if chat.spaces.length}
             <div role="group" aria-label="Spaces"><h3 class="grp">Spaces</h3>
               {#each chat.spaces as s (s.id)}
@@ -111,7 +118,7 @@
               <span class="time">{r.lastTs ? shortTime(r.lastTs) : ''}</span>
             </span>
             <span class="bottom">
-              {#if r.typing}<span class="preview typing" aria-live="polite">typing<i></i><i></i><i></i></span>{:else}<span class="preview">{r.preview || (r.topic ? r.topic : 'No messages yet')}</span>{/if}
+              {#if r.typing}<span class="preview typing" aria-live="polite">typing<i></i><i></i><i></i></span>{:else}{#if r.draft && chat.activeRoom !== r.id}<span class="preview"><span class="draft">Draft:</span> {r.draft}</span>{:else}<span class="preview">{#if PREVIEW_ICON[r.previewKind]}<Icon name={PREVIEW_ICON[r.previewKind]!} size={13} />{/if}{r.preview || (r.topic ? r.topic : 'No messages yet')}</span>{/if}{/if}
               {#if r.unread}<span class="badge" class:hl={r.highlight > 0 && r.notifs !== 'mute'} class:quiet={r.notifs === 'mute'}>{r.unread}</span>{/if}
             </span>
           </span>
@@ -187,6 +194,7 @@
   .empty { padding: 24px 12px; color: var(--muted); text-align: center; }
   footer { display: flex; align-items: center; gap: 2px; padding: 8px 10px; border-top: 1px solid var(--line); }
   .mewrap { position: relative; flex: 1; min-width: 0; } .menu.up { top: auto; bottom: calc(100% + 6px); min-width: 200px; } .pip { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); } .pip.online { background: var(--ok); } .pip.unavailable { background: #e0a100; } .pip.offline { background: transparent; border: 2px solid var(--muted); box-sizing: border-box; }
+  .draft { color: var(--danger, #e5484d); font-weight: 600; } .preview :global(svg) { vertical-align: -2px; margin-right: 4px; }
   .typing { color: var(--accent); } .typing i { display: inline-block; width: 3px; height: 3px; margin-left: 2px; border-radius: 50%; background: currentColor; animation: blip 1.2s infinite; } .typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; } @keyframes blip { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } } @media (prefers-reduced-motion: reduce) { .typing i { animation: none; } }
   .me { flex: 1;width: 100%; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: 8px; text-align: left; color: var(--muted); } .me:hover { background: var(--tile); color: var(--text); } .me span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 </style>
