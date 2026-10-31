@@ -72,7 +72,15 @@ describe('the page itself never scrolls', () => {
       await page.waitForTimeout(150)
       // Gaps between neighbouring rows are independent of scrolling, so any change is a layout shift.
       const gaps = () => page.evaluate(() => { const t = [...document.querySelectorAll('.scroll article')].map((a) => a.getBoundingClientRect().top); return t.slice(1).map((v, i) => Math.round((v - t[i]) * 10) / 10) })
-      const before = await gaps()
+      // Images and rows skipped by content-visibility settle their height late on a slow runner (CI), which is not a hover
+      // shift: wait until two readings agree before treating a difference as one.
+      let before = await gaps()
+      for (let k = 0; k < 20; k++) {
+        await page.waitForTimeout(150)
+        const again = await gaps()
+        if (JSON.stringify(again) === JSON.stringify(before)) break
+        before = again
+      }
       await row.hover()
       await page.waitForTimeout(250)
       assert.deepEqual(await gaps(), before, `hovering continuation row ${i} moved the rows around it`)

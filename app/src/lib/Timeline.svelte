@@ -16,6 +16,7 @@
   import { highlight } from './highlight'
   import { fromComposer, mentionRanges, plainMentions, toComposer, type Picked } from './mentions'
   import { getDraft, setDraft } from './drafts'
+  import MessageMore from './MessageMore.svelte'
   import Icon from './Icon.svelte'
   import EmojiPicker from './EmojiPicker.svelte'
 
@@ -547,6 +548,7 @@
             <button class="icon-btn" onclick={() => chat.openThread(m.id)} aria-label="Reply in thread"><Icon name="thread" size={16} /></button>
             {#if m.mine && !m.undecryptable}<button class="icon-btn" onclick={() => { editing = m; replyTo = null; setComposer(m.body) }} aria-label="Edit"><Icon name="edit" size={16} /></button>{/if}
             {#if m.mine}<button class="icon-btn" onclick={() => chat.deleteMessage(m.id)} aria-label="Delete message"><Icon name="trash" size={16} /></button>{/if}
+            <MessageMore {m} />
           </div>
         </article>
       {/each}

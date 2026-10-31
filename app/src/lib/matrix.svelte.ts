@@ -1,5 +1,5 @@
 import { allDrafts, clearDrafts } from './drafts'
-import { describe as describePreview, isPreviewable, previewLine, sortRooms, type PreviewKind, type RoomOrder } from './roompreview'
+import { describe as describePreview, isPreviewable, previewLine, sortRooms, stripReplyFallback, type PreviewKind, type RoomOrder } from './roompreview'
 import { inviteTarget } from './commands'
 import { safeFileName } from './files'
 import { mentionPills, mentionsUser, plainMentions, type MentionPill } from './mentions'
@@ -879,6 +879,34 @@ class Chat {
     }
     this.ignored = this.client?.getIgnoredUsers() ?? []
   }
+
+  private eventOf(id: string): sdk.MatrixEvent | undefined {
+    return this.client?.getRoom(this.activeRoom ?? '')?.findEventById(id)
+  }
+  /** Copy a message into another room. Replies, threads and edit markers are left behind. */
+  async forwardMessage(id: string, toRoom: string) {
+    const ev = this.eventOf(id)
+    if (!ev) throw new Error('That message is not loaded any more')
+    const content = { ...ev.getContent() } as Record<string, unknown>
+    delete content['m.relates_to']
+    delete content['m.new_content']
+    if (typeof content.body === 'string') content.body = stripReplyFallback(content.body)
+    delete content.formatted_body // a reply's HTML still carries the quote
+    delete content.format
+    await this.client!.sendMessage(toRoom, content as never)
+  }
+  /** The event as the server has it (and, once decrypted, its clear content), for the View source dialog. */
+  sourceOf(id: string): string {
+    const ev = this.eventOf(id)
+    if (!ev) return ''
+    const out: Record<string, unknown> = { ...ev.getEffectiveEvent() }
+    if (ev.isEncrypted()) out.encrypted_as = ev.getWireContent()
+    return JSON.stringify(out, null, 2)
+  }
+  async removeMessage(id: string, reason?: string) {
+    await this.client!.redactEvent(this.activeRoom!, id, undefined, reason?.trim() ? { reason: reason.trim() } : undefined)
+  }
+  mayRemoveOthers = () => canRedactOthers(this.powerLevels, this.userId)
 
   mayKick = (id: string) => canKick(this.powerLevels, this.userId, id)
   mayBan = (id: string) => canBan(this.powerLevels, this.userId, id)
