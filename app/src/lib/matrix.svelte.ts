@@ -7,6 +7,8 @@ import { toggled } from './pins'
 import type { Device } from './devices'
 import { rank, splitServer, toPublicRoom, type PublicRoom } from './directory'
 import { firstUnread } from './jump'
+import { parsePollStart, pollContent, tally, type PollStart, type Tally } from './poll'
+import { parseGeo } from './location'
 import { firstUrl, toPreview, type Preview as LinkCard } from './linkpreview'
 import { decryptKeyFile, encryptKeyFile } from './keyfile'
 import { canBan, canKick, canRedactOthers, canSetLevel, canSetState, levelOf, withLevel, type History, type JoinRule, type PowerLevels } from './moderation'
@@ -67,6 +69,10 @@ export interface Msg {
   emote?: boolean
   /** People mentioned by name in the text (messages from other clients), to draw as pills. */
   pills?: MentionPill[]
+  poll?: { start: PollStart; tally: Tally; creator: boolean }
+  location?: { lat: number; lon: number; label: string }
+  /** A sticker is shown as an image without a bubble. */
+  sticker?: boolean
 }
 
 export interface RoomItem {
@@ -100,6 +106,9 @@ export interface RoomItem {
 }
 
 export type Presence = 'online' | 'unavailable' | 'offline'
+const POLL_START = ['m.poll.start', 'org.matrix.msc3381.poll.start']
+const POLL_RESPONSE = ['m.poll.response', 'org.matrix.msc3381.poll.response']
+const POLL_END = ['m.poll.end', 'org.matrix.msc3381.poll.end']
 const ORDER_KEY = 'tessera.roomOrder'
 const readOrder = (): RoomOrder => {
   try {
@@ -795,10 +804,28 @@ class Chat {
         }
       }
     }
+    const pollVotes = new Map<string, { sender: string; ts: number; selections: string[] }[]>()
+    const pollEnds = new Map<string, number>()
+    const starters = new Map(events.filter((e) => POLL_START.includes(e.getType())).map((e) => [e.getId(), e]))
+    for (const ev of events) {
+      const t = ev.getType()
+      const target = ev.getContent()['m.relates_to']?.event_id as string | undefined
+      if (!target || ev.isRedacted()) continue
+      if (POLL_RESPONSE.includes(t)) {
+        const sel = ev.getContent()['m.selections'] ?? ev.getContent()['org.matrix.msc3381.poll.response']?.answers
+        ;(pollVotes.get(target) ?? pollVotes.set(target, []).get(target)!).push({ sender: ev.getSender() ?? '', ts: ev.getTs(), selections: Array.isArray(sel) ? sel.filter((x: unknown) => typeof x === 'string') : [] })
+      } else if (POLL_END.includes(t)) {
+        const starter = starters.get(target)
+        const by = ev.getSender() ?? ''
+        // only the poll's author, or someone who may remove messages, can end it
+        if (starter && (starter.getSender() === by || canRedactOthers(room.currentState.getStateEvents('m.room.power_levels', '')?.getContent() ?? {}, by))) pollEnds.set(target, Math.min(pollEnds.get(target) ?? Infinity, ev.getTs()))
+      }
+    }
     const out: Msg[] = []
     for (const ev of events) {
       const encrypted = ev.getType() === 'm.room.encrypted'
-      if ((ev.getType() !== 'm.room.message' && !encrypted) || ev.isRedacted()) continue
+      const kind = ev.getType()
+      if ((kind !== 'm.room.message' && kind !== 'm.sticker' && !POLL_START.includes(kind) && !encrypted) || ev.isRedacted()) continue
       const content = ev.getContent()
       if (content['m.relates_to']?.rel_type === 'm.replace') continue
       const id = ev.getId() ?? ev.getTxnId() ?? String(ev.getTs())
@@ -807,7 +834,9 @@ class Chat {
       // A plain attachment has `url`; one in an encrypted room has `file` (url plus key).
       const file = isEncryptedFile(content.file) ? content.file : undefined
       const mediaMxc: string | undefined = typeof content.url === 'string' ? content.url : file?.url
-      const imageMxc: string | undefined = content.msgtype === 'm.image' ? mediaMxc : undefined
+      const imageMxc: string | undefined = content.msgtype === 'm.image' || kind === 'm.sticker' ? mediaMxc : undefined
+      const pollStart = POLL_START.includes(kind) ? parsePollStart(content) : undefined
+      const geo = content.msgtype === 'm.location' ? parseGeo(content.geo_uri) : undefined
       const filename = typeof content.filename === 'string' ? content.filename : undefined
       const attachment: Msg['attachment'] =
         (content.msgtype === 'm.file' || content.msgtype === 'm.video') && mediaMxc
@@ -855,6 +884,9 @@ class Chat {
         imageFile: imageMxc ? file : undefined,
         attachment,
         audio,
+        poll: pollStart ? { start: pollStart, tally: tally(pollStart, pollVotes.get(id) ?? [], pollEnds.get(id), this.userId), creator: sender === this.userId } : undefined,
+        location: geo ? { ...geo, label: typeof content.body === 'string' ? content.body : 'Location' } : undefined,
+        sticker: kind === 'm.sticker',
         threadReplies: ev.isThreadRoot ? (ev.getThread()?.length ?? 0) : 0,
         senderAvatar: room.getMember(sender)?.getMxcAvatarUrl() ?? undefined,
         emote: content.msgtype === 'm.emote',
@@ -1661,6 +1693,21 @@ class Chat {
     const at = room.findEventById(event_id)?.getTs() ?? ts
     const target = this.messages.find((m) => !m.pending && m.ts >= at) ?? this.messages.at(-1)
     this.focusEvent = target?.id ?? null
+  }
+
+  async createPoll(question: string, answers: string[], disclosed: boolean, max: number) {
+    await this.client!.sendEvent(this.activeRoom!, 'm.poll.start' as never, pollContent(question.trim(), answers.map((a) => a.trim()), disclosed, max) as never)
+  }
+  async votePoll(pollId: string, selections: string[]) {
+    await this.client!.sendEvent(this.activeRoom!, 'm.poll.response' as never, { 'm.relates_to': { rel_type: 'm.reference', event_id: pollId }, 'm.selections': selections } as never)
+  }
+  async endPoll(pollId: string) {
+    await this.client!.sendEvent(this.activeRoom!, 'm.poll.end' as never, { 'm.relates_to': { rel_type: 'm.reference', event_id: pollId }, 'm.text': [{ mimetype: 'text/plain', body: 'The poll has ended.' }] } as never)
+  }
+  /** Send where I am, as a standard location message. */
+  async sendLocation(lat: number, lon: number, accuracy?: number) {
+    const geo = `geo:${lat.toFixed(6)},${lon.toFixed(6)}${accuracy ? `;u=${Math.round(accuracy)}` : ''}`
+    await this.client!.sendMessage(this.activeRoom!, { msgtype: 'm.location', body: `Location ${lat.toFixed(5)}, ${lon.toFixed(5)}`, geo_uri: geo } as never)
   }
 
   async leaveRoom(id: string) {

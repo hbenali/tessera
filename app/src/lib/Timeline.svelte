@@ -11,6 +11,9 @@
   import FileCard from './FileCard.svelte'
   import LinkPreview from './LinkPreview.svelte'
   import JumpMenu from './JumpMenu.svelte'
+  import PollCard from './PollCard.svelte'
+  import ComposerMore from './ComposerMore.svelte'
+  import { mapLink } from './location'
   import { render } from './markdown'
   import { dayLabel, ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
@@ -514,8 +517,8 @@
           <div class="body">
             {#if !cont}<div class="head"><button class="who" onclick={(e) => card(m.sender, e)} aria-haspopup="dialog"><b>{m.senderName}</b></button><time>{fmt(m.ts)}</time>{#if m.pinned}<span class="pinned" title="Pinned"><Icon name="pin" size={12} /> Pinned</span>{/if}</div>{/if}
             {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {plainMentions(byId(m.replyTo)?.body ?? 'earlier message', chat.nameOf)}</div>{/if}
-            {#if m.attachment}<FileCard {...m.attachment} sender={m.senderName} ts={m.ts} />{#if m.attachment.caption}<div class="text caption">{@html render(m.attachment.caption, { name: chat.nameOf, me: chat.userId })}</div>{/if}{:else if m.audio}<AudioPlayer mxc={m.audio.mxc} file={m.audio.file} duration={m.audio.duration} waveform={m.audio.waveform} voice={m.audio.voice} name={m.audio.name} />{:else if m.imageMxc}<Photo mxc={m.imageMxc} file={m.imageFile} alt={m.body} onopen={(opener) => (ui.viewer = { id: m.id, opener })} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} class:emote={m.emote} use:pills>{#if m.emote}<span class="who-emote">* {m.senderName}</span>{" "}{/if}{@html render(m.body, { name: chat.nameOf, me: chat.userId, pills: m.pills })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
-            {#if m.body && !m.attachment && !m.imageMxc && !m.audio && !m.undecryptable}<LinkPreview body={m.body} encrypted={!!chat.active?.encrypted} />{/if}
+            {#if m.attachment}<FileCard {...m.attachment} sender={m.senderName} ts={m.ts} />{#if m.attachment.caption}<div class="text caption">{@html render(m.attachment.caption, { name: chat.nameOf, me: chat.userId })}</div>{/if}{:else if m.audio}<AudioPlayer mxc={m.audio.mxc} file={m.audio.file} duration={m.audio.duration} waveform={m.audio.waveform} voice={m.audio.voice} name={m.audio.name} />{:else if m.poll}<PollCard {m} />{:else if m.location}<a class="loc" href={mapLink(m.location.lat, m.location.lon)} target="_blank" rel="noopener noreferrer"><Icon name="pin" size={16} /><span><b>{m.location.label}</b><small>Open in a map</small></span></a>{:else if m.imageMxc}<Photo mxc={m.imageMxc} file={m.imageFile} alt={m.body} onopen={(opener) => (ui.viewer = { id: m.id, opener })} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} class:emote={m.emote} use:pills>{#if m.emote}<span class="who-emote">* {m.senderName}</span>{" "}{/if}{@html render(m.body, { name: chat.nameOf, me: chat.userId, pills: m.pills })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
+            {#if m.body && !m.attachment && !m.imageMxc && !m.audio && !m.poll && !m.location && !m.undecryptable}<LinkPreview body={m.body} encrypted={!!chat.active?.encrypted} />{/if}
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
             {#if m.seenBy?.length}
               {@const who = m.seenBy}
@@ -600,7 +603,7 @@
           {:else if voiceProgress !== null}
             <div class="sendingvoice" role="status"><span class="spin" aria-hidden="true"></span> Sending voice message… {Math.round(voiceProgress * 100)}%</div>
           {:else}
-          <button class="icon-btn" title="Attach files" aria-label="Attach files" onclick={() => fileInput?.click()}><Icon name="clip" /></button>
+          <ComposerMore onfiles={() => fileInput?.click()} />
           <input type="file" multiple hidden bind:this={fileInput} onchange={pick} />
           <div class="field"><div class="mirror" aria-hidden="true" bind:this={mirror}>{#each pieces as p, i (i)}{#if p.pill}<span class="pill">{p.t}</span>{:else}{p.t}{/if}{/each}</div>
           <textarea rows="1" bind:this={area} bind:value={text} onscroll={syncScroll} onkeydown={keydown} onpaste={paste} oninput={() => (caret = area?.selectionStart ?? 0)} onclick={() => (caret = area?.selectionStart ?? 0)} role="combobox" aria-expanded={suggestions.length > 0} aria-controls="mention-list" aria-autocomplete="list" placeholder="Message {chat.active.name}" aria-label="Message"></textarea></div>
@@ -620,6 +623,7 @@
 </main>
 
 <style>
+  .loc { display: inline-flex; align-items: center; gap: 10px; margin-top: 4px; padding: 8px 12px; border-radius: 10px; background: var(--tile); border-left: 3px solid var(--accent); color: var(--text); text-decoration: none; } .loc span { display: grid; } .loc small { color: var(--muted); }
   main { position: relative; display: flex; flex-direction: column; min-width: 0; height: 100%; background: var(--bg); }
   .empty { margin: auto; padding: 24px; text-align: center; color: var(--muted); display: grid; justify-items: center; gap: 4px; } .empty h1 { margin: 10px 0 0; font-size: 20px; color: var(--text); } .empty p { margin: 0; }
   header { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; border-bottom: 1px solid var(--line); flex: none; }
