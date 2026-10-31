@@ -112,6 +112,10 @@ docker run -p 8080:8080 tessera
 
 Either way the app holds no secrets or state: the browser talks to your homeserver directly, so the homeserver must allow the origin where Tessera is hosted (Synapse does by default).
 
+## Releases
+
+Releases are signed tags (`git tag -v 0.1`). A tag builds the app from that exact commit, runs the checks and attaches the static build (`tessera-X.Y.tar.gz`, with its `.sha256`) to a draft release, which is then published with notes by hand. The tarball is the same files the Docker image and GitHub Pages serve: unpack it behind any web server that sends the headers in `security-headers.conf`.
+
 ## Security
 
 See [SECURITY.md](SECURITY.md) to report a vulnerability. Messages are rendered with an escaping Markdown renderer covered by XSS regression tests; the session, including the access token (and those of any other saved account), is kept in the browser's `localStorage` and is only sent to your homeserver (so an XSS bug would be serious, which is why the CSP is strict).

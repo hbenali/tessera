@@ -1,0 +1,60 @@
+name: Release
+
+# A signed tag (X.Y) builds the app from that exact commit and leaves a DRAFT release with the build attached. The draft is
+# published by hand with notes, because releases here are immutable once published (never force-retag a published version).
+on:
+  push:
+    tags: ['[0-9]+.[0-9]+']
+
+# Read-only by default; only the job that creates the draft release gets to write.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run build
+      - name: Package the static build
+        run: |
+          set -euo pipefail
+          mkdir -p ../out
+          tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='UTC 2020-01-01' -czf "../out/tessera-${GITHUB_REF_NAME}.tar.gz" -C dist .
+          cd ../out && sha256sum "tessera-${GITHUB_REF_NAME}.tar.gz" > "tessera-${GITHUB_REF_NAME}.tar.gz.sha256"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: out/*
+          if-no-files-found: error
+
+  draft:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the draft release
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: out
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" out/* --repo "${GITHUB_REPOSITORY}" --draft --verify-tag --title "${GITHUB_REF_NAME}" --notes "Draft: notes are added when it is published."
