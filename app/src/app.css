@@ -47,3 +47,7 @@ input:not([type='checkbox']):focus, textarea:focus { border-color: var(--accent)
 .btn.ghost { background: var(--tile); color: var(--text); } .btn.ghost:hover { filter: none; background: var(--line); }
 .link { text-decoration: underline; text-underline-offset: 3px; } .link:hover { color: var(--accent); }
 .icon-btn { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: var(--muted); } .icon-btn:hover { background: var(--tile); color: var(--text); } .icon-btn.on { color: var(--accent); }
+
+/* Message density and text size (Settings > Appearance) */
+:root[data-textsize='small'] .text { font-size: 13px; } :root[data-textsize='large'] .text { font-size: 17px; }
+:root[data-density='compact'] article { margin-top: 4px !important; padding-top: 1px !important; padding-bottom: 1px !important; } :root[data-density='compact'] article.cont { margin-top: 0 !important; }

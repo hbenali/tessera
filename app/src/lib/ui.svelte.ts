@@ -43,7 +43,27 @@ function readTheme(): ThemeId {
   }
 }
 
+export type Density = 'comfortable' | 'compact'
+export type TextSize = 'small' | 'normal' | 'large'
+const read = <T extends string>(key: string, ok: readonly T[], dflt: T): T => {
+  try { const v = localStorage.getItem(key); return ok.includes(v as T) ? (v as T) : dflt } catch { return dflt }
+}
+
 class Ui {
+  /** How tightly messages are packed, and how big their text is. Per browser. */
+  density = $state<Density>(read('tessera.density', ['comfortable', 'compact'], 'comfortable'))
+  textSize = $state<TextSize>(read('tessera.textsize', ['small', 'normal', 'large'], 'normal'))
+  setLook(patch: { density?: Density; textSize?: TextSize }) {
+    if (patch.density) this.density = patch.density
+    if (patch.textSize) this.textSize = patch.textSize
+    try { localStorage.setItem('tessera.density', this.density); localStorage.setItem('tessera.textsize', this.textSize) } catch { /* private mode */ }
+    this.applyLook()
+  }
+  applyLook() {
+    if (typeof document === 'undefined') return
+    document.documentElement.dataset.density = this.density
+    document.documentElement.dataset.textsize = this.textSize
+  }
   modal = $state<null | 'settings' | 'new'>(null)
   newTab = $state<'room' | 'dm' | 'join' | 'explore' | 'space'>('room')
   open(tab: 'room' | 'dm' | 'join' | 'explore' | 'space') {
@@ -84,3 +104,4 @@ class Ui {
 }
 export const ui = new Ui()
 ui.setTheme(ui.theme)
+ui.applyLook()

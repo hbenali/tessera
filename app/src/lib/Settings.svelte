@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { keywordProblem } from './keywords'
+  import Icon from './Icon.svelte'
   import Sessions from './Sessions.svelte'
   import KeyBackup from './KeyBackup.svelte'
   import AccountManage from './AccountManage.svelte'
@@ -64,6 +66,8 @@
     profileErr = ''
     try { await chat.setMyName(name); name = '' } catch (x) { profileErr = x instanceof Error ? x.message : 'Could not save' }
   }
+  let kw = $state('')
+  let kwErr = $state('')
   let password = $state('')
   let recovery = $state('')
   $effect(() => { security.refresh() })
@@ -84,6 +88,17 @@
           <span class="swatch" style="background:{t.bg};color:{t.fg}"><i style="background:{t.ac}"></i><b>Aa</b></span>
           <span>{t.label}</span>
         </button>
+      {/each}
+    </div>
+    <h3 class="label">Messages</h3>
+    <div class="seg" role="radiogroup" aria-label="Message density">
+      {#each [['comfortable', 'Comfortable'], ['compact', 'Compact']] as [v, t] (v)}
+        <button role="radio" aria-checked={ui.density === v} class:on={ui.density === v} onclick={() => ui.setLook({ density: v as 'compact' })}>{t}</button>
+      {/each}
+    </div>
+    <div class="seg" role="radiogroup" aria-label="Text size" style="margin-top:8px">
+      {#each [['small', 'Small text'], ['normal', 'Normal text'], ['large', 'Large text']] as [v, t] (v)}
+        <button role="radio" aria-checked={ui.textSize === v} class:on={ui.textSize === v} onclick={() => ui.setLook({ textSize: v as 'small' })}>{t}</button>
       {/each}
     </div>
   {:else if tab === 'security'}
@@ -113,6 +128,13 @@
     {/if}
     {#if security.message}<div class="err" role="alert">{security.message}</div>{/if}
   {:else if tab === 'notify'}
+    <h3 class="label">Keywords</h3>
+    <p class="hint">Get notified when a message contains one of these words, in any room. Stored as standard push rules, so other clients honour them too.</p>
+    <form class="kwform" onsubmit={async (e) => { e.preventDefault(); kwErr = keywordProblem(kw, chat.keywords) ?? ''; if (kwErr) return; try { await chat.addKeyword(kw); kw = '' } catch (x) { kwErr = x instanceof Error ? x.message : 'Could not add it' } }}>
+      <input aria-label="New keyword" placeholder="A word or phrase" bind:value={kw} maxlength="50" /><button class="btn">Add</button>
+    </form>
+    {#if kwErr}<p class="err" role="alert">{kwErr}</p>{/if}
+    <ul class="kws">{#each chat.keywords as w (w)}<li><span>{w}</span><button class="icon-btn" aria-label="Remove keyword {w}" onclick={() => chat.removeKeyword(w).catch((x) => (kwErr = x instanceof Error ? x.message : 'Could not remove it'))}><Icon name="x" size={14} /></button></li>{/each}</ul>
     <h3 class="label">Sound</h3>
     <div class="switches">
       <label class="switch"><span><b>Play a sound when a message arrives</b><small>Follows your notification settings: a muted room is silent, a room set to mentions only sounds only for a mention, and do not disturb or quiet hours silence it. A mention gets a longer sound. It is kept quiet and rare: one sound covers a burst, and a busy room sounds at most once a minute. Browsers allow sound only after you have clicked or typed in the page.</small></span>
@@ -273,4 +295,5 @@
   form { display: flex; gap: 12px; align-items: end; }
   .key { padding: 14px 0; } code { display: block; word-break: break-all; margin: 10px 0 14px; padding: 12px; background: var(--tile); font-family: var(--mono); font-size: 13px; }
   .err { color: var(--danger); font-size: 13px; margin-top: 12px; }
+  .kwform { display: flex; gap: 8px; } .kwform input { flex: 1; font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; } .kws { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; } .kws li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 14px; background: var(--tile); }
 </style>

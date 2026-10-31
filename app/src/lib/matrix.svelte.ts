@@ -5,6 +5,7 @@ import { safeFileName } from './files'
 import { mentionPills, mentionsUser, plainMentions, type MentionPill } from './mentions'
 import { toggled } from './pins'
 import type { Device } from './devices'
+import { keywordActions, keywordRuleId, normalizeKeyword, readKeywords } from './keywords'
 import { rank, splitServer, toPublicRoom, type PublicRoom } from './directory'
 import { firstUnread } from './jump'
 import { parsePollStart, pollContent, tally, type PollStart, type Tally } from './poll'
@@ -305,6 +306,7 @@ class Chat {
     client.on(sdk.ClientEvent.Sync, (state) => {
       if (state === 'PREPARED' || state === 'SYNCING') {
         this.ready = true
+        this.refreshKeywords()
         this.refreshRooms()
         this.refreshMessages()
         if (!this.routed) { this.routed = true; this.applyRoute(true) }
@@ -326,7 +328,7 @@ class Chat {
     client.on('Thread.new' as never, (() => this.scheduleRefresh()) as never)
     // Push rules and tags change from other devices too, and the list shows both.
     client.on(sdk.ClientEvent.AccountData, (ev) => {
-      if (ev.getType() === 'm.push_rules') this.refreshRooms()
+      if (ev.getType() === 'm.push_rules') { this.refreshRooms(); this.refreshKeywords() }
       if (ev.getType() === Chat.QUIET) this.loadQuiet()
       if (ev.getType() === Chat.PRIVACY) this.loadPrivacy()
       if (ev.getType() === Chat.DND) this.loadDnd()
@@ -1366,7 +1368,30 @@ class Chat {
     return todo.length
   }
 
+  /** Words that notify me wherever they appear (standard push rules). */
+  keywords = $state<string[]>([])
+  refreshKeywords() {
+    this.keywords = readKeywords(this.client?.pushRules?.global?.content as never)
+  }
+  async addKeyword(word: string) {
+    const k = normalizeKeyword(word)
+    await this.client!.addPushRule('global', 'content' as never, keywordRuleId(k), { pattern: k, actions: keywordActions() } as never)
+    this.keywords = [...this.keywords, k]
+  }
+  async removeKeyword(word: string) {
+    await this.client!.deletePushRule('global', 'content' as never, keywordRuleId(word))
+    this.keywords = this.keywords.filter((w) => w !== word)
+  }
+
+  async setLowPriority(roomId: string, on: boolean) {
+    if (on) {
+      await this.client!.setRoomTag(roomId, 'm.lowpriority', { order: 0.5 })
+      await this.client!.deleteRoomTag(roomId, 'm.favourite').catch(() => {}) // a room is either one or the other
+    } else await this.client!.deleteRoomTag(roomId, 'm.lowpriority')
+  }
+
   async setFavourite(roomId: string, on: boolean) {
+    if (on) await this.client!.deleteRoomTag(roomId, 'm.lowpriority').catch(() => {})
     if (on) await this.client!.setRoomTag(roomId, 'm.favourite', { order: 0.5 })
     else await this.client!.deleteRoomTag(roomId, 'm.favourite')
   }
