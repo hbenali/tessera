@@ -16,7 +16,7 @@ describe('room layouts at every width', () => {
     server = await app()
     browser = await launch()
     alice = await register(`resp_a_${Math.random().toString(36).slice(2, 7)}`)
-    bob = await register(`resp_b_${Math.random().toString(36).slice(2, 7)}`)
+    bob = await register(`resp_bob_with_a_rather_long_user_name_${Math.random().toString(36).slice(2, 7)}`)
     room = (await api(alice.token, 'POST', '/_matrix/client/v3/createRoom', { name: 'responsive room', invite: [bob.id], preset: 'private_chat' })).room_id
     await api(bob.token, 'POST', `/_matrix/client/v3/join/${enc(room)}`, {})
     const icon = new URL('../public/icon-512.png', import.meta.url).pathname

@@ -719,18 +719,19 @@
   /* The time on a continuation row is positioned out of the flow and only faded in: showing it must never change the row's height, or every message below it jumps. */
   .gutter { position: relative; flex: none; width: 36px; padding-top: 2px; } .gutter time { position: absolute; top: 2px; left: -8px; right: -8px; opacity: 0; pointer-events: none; white-space: nowrap; font-size: 10px; color: var(--muted); text-align: center; line-height: 21px; } article:hover .gutter time, article:focus-within .gutter time { opacity: 1; }
   .body { min-width: 0; flex: 1; }
-  .head { display: flex; align-items: baseline; gap: 8px; } .head b { font-weight: 650; } .head time { color: var(--muted); font-size: 11px; }
+  .head { display: flex; align-items: baseline; gap: 8px; min-width: 0; } .head b { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; } .head .who { min-width: 0; max-width: 100%; flex: 0 1 auto; overflow: hidden; } .head time { flex: none; } .head time { color: var(--muted); font-size: 11px; }
   .text { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 75ch; } .text.utd { color: var(--muted); font-style: italic; } .edited { color: var(--muted); font-size: 11px; }
   .emote { font-style: italic; } .who-emote { font-weight: 600; margin-right: .35em; }
   .who { padding: 0; font: inherit; color: inherit; border-radius: 4px; } .who:hover b { text-decoration: underline; } .avbtn { padding: 0; border-radius: 50%; display: block; }
   .text :global(.mention) { padding: 0 5px; border-radius: 5px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: color-mix(in srgb, var(--accent) 55%, var(--text)); font-weight: 600; white-space: nowrap; }
   .text :global(.mention i) { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 0; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bg) 70%, transparent); }
-  .text :global(.mention) { cursor: pointer; }
+  .text :global(.mention) { cursor: pointer; display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
   .text :global(.mention:hover) { background: color-mix(in srgb, var(--accent) 28%, transparent); }
   .text :global(.mention.me) { background: var(--accent); color: var(--accent-ink); } .text :global(.mention.me i) { box-shadow: 0 0 0 1.5px var(--accent-ink); }
   .mentions mark { background: transparent; color: var(--accent); font-weight: 700; }
   .text :global(code) { background: var(--tile); padding: 1px 5px; border-radius: 4px; font-family: var(--mono); font-size: 12.5px; } .text :global(pre) { margin: 6px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; } .text :global(pre code) { padding: 0; background: none; }
   .text :global(blockquote) { margin: 2px 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); } .text :global(a) { color: var(--accent); text-underline-offset: 3px; }
+  .quote b { flex: 0 1 auto; min-width: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; }
   .quote { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; margin: 2px 0 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-left: 8px; border-left: 2px solid var(--accent); }
   .thread-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 2px 8px; border-radius: 6px; color: var(--accent); font-size: 12px; font-weight: 600; } .thread-link:hover { background: var(--tile); }
   .pinbar { position: relative; display: flex; align-items: center; gap: 8px; padding: 6px 16px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: 12px; }
@@ -823,9 +824,9 @@
   [data-layout='lines'] article { padding: 0 16px; margin-top: 0; gap: 8px; }
   [data-layout='lines'] .gutter { display: none; }
   [data-layout='lines'] .body { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
-  [data-layout='lines'] .head { flex: none; flex-direction: row-reverse; gap: 8px; }
+  [data-layout='lines'] .head { flex: 0 1 auto; min-width: 0; max-width: 100%; flex-direction: row-reverse; gap: 8px; }
   [data-layout='lines'] .head time { font-family: var(--mono); font-size: 11px; }
-  [data-layout='lines'] .line { flex: 1 1 0; min-width: 8ch; }
+  [data-layout='lines'] .line { flex: 1 1 18ch; min-width: 0; }
   [data-layout='lines'] .text { max-width: none; }
   [data-layout='lines'] .quote, [data-layout='lines'] .reacts, [data-layout='lines'] .seen, [data-layout='lines'] .thread-link { flex-basis: 100%; }
   [data-layout='lines'] :global(.poll), [data-layout='lines'] :global(.filecard) { flex-basis: 100%; }
