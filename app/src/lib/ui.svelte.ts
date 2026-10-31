@@ -63,6 +63,11 @@ class Ui {
   }
   /** Text shared into Tessera from another app, waiting for a room to be picked. */
   shared = $state<string | null>(null)
+  /** How many shared files wait for a room, and the files once a room has been chosen. */
+  sharedFiles = $state(0)
+  /** Bumped when a draft is written for the room that is already open (a share into it), so its message box shows it. */
+  draftRev = $state(0)
+  incomingFiles = $state.raw<File[]>([])
   /** How tightly messages are packed, and how big their text is. Per browser. */
   density = $state<Density>(read('tessera.density', ['comfortable', 'compact'], 'comfortable'))
   textSize = $state<TextSize>(read('tessera.textsize', ['small', 'normal', 'large'], 'normal'))
@@ -122,7 +127,9 @@ class Ui {
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor(this.theme, dark))
   }
   /** A shortcut or link that asked for a screen, waiting for the app to be ready to show it. */
-  pending = $state<{ action?: import('./shortcuts').Action; view?: import('./shortcuts').ListView } | null>(null)
+  pending = $state<{ action?: import('./shortcuts').Action; view?: import('./shortcuts').ListView; matrix?: string } | null>(null)
+  /** A person (from a matrix:u/ link) to fill into the direct message box, for you to confirm. */
+  newPrefill = $state<string | null>(null)
 }
 export const ui = new Ui()
 ui.setTheme(ui.theme)

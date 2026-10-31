@@ -155,6 +155,8 @@
   })
   let mirror: HTMLElement | undefined = $state()
   const syncScroll = () => { if (mirror && area) mirror.scrollTop = area.scrollTop }
+  // A share into the room that is already open writes its draft after the box was filled: show it.
+  $effect(() => { if (ui.draftRev && chat.activeRoom) setComposer(getDraft(chat.activeRoom)) })
   let textRoom: string | null = null // the room `text` belongs to
   $effect(() => {
     const id = chat.activeRoom
@@ -435,6 +437,10 @@
   let nextId = 0
   let uploading = $state(false)
   let maxUpload = 0 // the server's limit in bytes, 0 until known
+  // Files shared into Tessera from another app, once a room was chosen for them: they wait in the tray like any attachment.
+  $effect(() => {
+    if (ui.incomingFiles.length && chat.activeRoom) { const f = ui.incomingFiles; ui.incomingFiles = []; void addFiles(f) }
+  })
   async function addFiles(files: Iterable<File>) {
     if (!maxUpload) maxUpload = await chat.maxUploadSize()
     for (const file of files) {

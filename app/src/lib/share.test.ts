@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readShare, withoutShare } from './share'
+import { MAX_FILES, readShare, readShareFiles, withoutShare } from './share'
 
 describe('share target', () => {
   it('joins title, text and link, without repeating the link', () => {
@@ -14,5 +14,19 @@ describe('share target', () => {
   it('removes the share parameters and keeps the rest', () => {
     expect(withoutShare('https://x.y/?share=1&title=a&text=b&url=c&keep=1#/room/!a')).toBe('/?keep=1#/room/!a')
     expect(withoutShare('https://x.y/?share=1')).toBe('/')
+  })
+})
+
+describe('shared files', () => {
+  it('reads how many files are waiting, and only a plausible number', () => {
+    expect(readShareFiles('?share=1&files=3')).toBe(3)
+    expect(readShareFiles(`?share=1&files=${MAX_FILES + 1}`)).toBe(0)
+    expect(readShareFiles('?share=1&files=0')).toBe(0)
+    expect(readShareFiles('?share=1&files=x')).toBe(0)
+    expect(readShareFiles('?files=2')).toBe(0)
+  })
+  it('a files-only share carries no text, and the address is cleaned of the count too', () => {
+    expect(readShare('?share=1&files=2')).toBeUndefined()
+    expect(withoutShare('https://x.y/?share=1&files=2&keep=1')).toBe('/?keep=1')
   })
 })

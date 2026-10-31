@@ -9,12 +9,15 @@ import { keywordActions, keywordRuleId, normalizeKeyword, readKeywords } from '.
 import { rank, splitServer, toPublicRoom, type PublicRoom } from './directory'
 import { firstUnread } from './jump'
 import { calls } from './calls.svelte'
+import { parseMatrixUri } from './matrixuri'
+import { ui } from './ui.svelte'
 import { mergeRoomTheme, parseRoomTheme, type Layout, type RoomTheme } from './layout'
 import { clearSnapshot, writeSnapshot } from './snapshot'
 import { forwardContent } from './forward'
 import { after, readAccounts, remove as removeAccount, save as saveAccounts, upsert, type Account } from './accounts'
 import { readBridge, type Bridge } from './bridge'
 import { SHARE_KEY } from './share'
+import { takeShared } from './sharedfiles'
 import { parsePollStart, pollContent, tally, type PollStart, type Tally } from './poll'
 import { parseGeo } from './location'
 import { firstUrl, toPreview, type Preview as LinkCard } from './linkpreview'
@@ -1299,6 +1302,18 @@ class Chat {
   /** No connection to the homeserver right now (the network is down, or its last sync failed). Messages wait in the outbox. */
   offline = $state(typeof navigator !== 'undefined' && !navigator.onLine)
 
+  /** A matrix: link opened in Tessera: go to the room (or event), or offer to message the person. It never acts without a click. */
+  async openMatrixLink(uri: string) {
+    const link = parseMatrixUri(uri)
+    if (!link) { this.error = 'That Matrix link is not one Tessera can open.'; return }
+    if (link.kind === 'user') { ui.newPrefill = link.id; ui.open('dm'); return }
+    let room = link.ref
+    if (room.startsWith('#')) {
+      try { room = (await this.client!.getRoomIdForAlias(room)).room_id } catch { this.error = `Could not find ${link.ref}.`; return }
+    }
+    location.hash = format({ room, event: link.event })
+  }
+
   /** The outbox: messages that could not be sent are sent again, oldest first, as soon as the connection is back. */
   async resendUnsent() {
     const c = this.client
@@ -1861,10 +1876,11 @@ class Chat {
   }
 
   /** Put text shared from another app into a room's message box, then open the room. */
-  async shareTo(roomId: string, text: string) {
+  async shareTo(roomId: string, text: string, files = false) {
     const encrypted = this.rooms.find((r) => r.id === roomId)?.encrypted
-    setDraft(roomId, text, !encrypted)
-    try { sessionStorage.removeItem(SHARE_KEY) } catch { /* nothing to clear */ }
+    if (text) { setDraft(roomId, text, !encrypted); ui.draftRev++ }
+    try { sessionStorage.removeItem(SHARE_KEY); sessionStorage.removeItem('tessera.share.files') } catch { /* nothing to clear */ }
+    if (files) ui.incomingFiles = await takeShared()
     await this.openRoom(roomId)
   }
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import Modal from './Modal.svelte'
   import Avatar from './Avatar.svelte'
   import { chat } from './matrix.svelte'
@@ -14,7 +15,8 @@
 
   $effect(() => {
     ui.newTab
-    value = ''
+    // read and clear the prefill without making this effect depend on it (clearing it would run the effect again and empty the box)
+    value = untrack(() => { const v = ui.newTab === 'dm' && ui.newPrefill ? ui.newPrefill : ''; ui.newPrefill = null; return v })
     error = ''
     results = []
   })

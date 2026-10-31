@@ -20,9 +20,43 @@ self.addEventListener('activate', (e) => {
   )
 })
 
+// ---- Share target: text, links and files sent to Tessera from another app's share sheet --------------------------------------
+// The files arrive in a POST. The worker keeps them in IndexedDB (the page cannot receive a POST), then sends the person to the
+// app with the text in the address; the app takes the files out when a room is chosen. The limits match share.ts.
+const MAX_FILES = 10
+const MAX_FILE_BYTES = 100 * 1024 * 1024
+async function receiveShare(req) {
+  let form
+  try { form = await req.formData() } catch { return Response.redirect('/', 303) }
+  const q = new URLSearchParams({ share: '1' })
+  for (const k of ['title', 'text', 'url']) { const v = form.get(k); if (typeof v === 'string' && v.trim()) q.set(k, v.slice(0, 4000)) }
+  const files = form.getAll('files').filter((f) => typeof f !== 'string' && f.size > 0 && f.size <= MAX_FILE_BYTES).slice(0, MAX_FILES)
+  if (files.length) {
+    await new Promise((resolve) => {
+      const r = indexedDB.open('tessera-share', 1)
+      r.onupgradeneeded = () => r.result.createObjectStore('files', { autoIncrement: true })
+      r.onerror = () => resolve()
+      r.onsuccess = () => {
+        const tx = r.result.transaction('files', 'readwrite')
+        const st = tx.objectStore('files')
+        st.clear() // a new share replaces one that was never used
+        for (const f of files) st.add({ name: f.name, type: f.type, blob: f })
+        tx.oncomplete = () => { r.result.close(); resolve() }
+        tx.onerror = () => resolve()
+      }
+    })
+    q.set('files', String(files.length))
+  }
+  return Response.redirect('/?' + q.toString(), 303)
+}
+
 self.addEventListener('fetch', (e) => {
   const req = e.request
   const url = new URL(req.url)
+  if (req.method === 'POST' && url.origin === self.location.origin && url.pathname === '/share-target') {
+    e.respondWith(receiveShare(req))
+    return
+  }
   if (req.method !== 'GET' || url.origin !== self.location.origin) return
   if (req.mode === 'navigate') {
     // Network first so a new deploy shows up; fall back to the cached shell offline.
@@ -84,11 +118,42 @@ async function likeEvent(roomId, eventId) {
   if (!res.ok) throw new Error(String(res.status))
 }
 
+// Reply from the notification: a quote-reply to the message, in a readable room only (the worker cannot encrypt).
+async function replyEvent(roomId, eventId, text) {
+  const s = await storedSession()
+  const body = String(text ?? '').trim().slice(0, 4000)
+  if (!s || !body) throw new Error('nothing to send')
+  const txn = `tessera-reply-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const content = { msgtype: 'm.text', body }
+  if (eventId) content['m.relates_to'] = { 'm.in_reply_to': { event_id: eventId } }
+  const res = await fetch(`${s.baseUrl}/_matrix/client/v3/rooms/${enc(roomId)}/send/m.room.message/${txn}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${s.accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(content),
+  })
+  if (!res.ok) throw new Error(String(res.status))
+}
+
+// Mark as read from the notification. A private receipt: it clears the unread count on every device without telling anyone
+// you have read it (which also matches "read quietly"). It works for encrypted rooms too, since it needs only the event id.
+async function readEvent(roomId, eventId) {
+  const s = await storedSession()
+  if (!s) throw new Error('no session')
+  const res = await fetch(`${s.baseUrl}/_matrix/client/v3/rooms/${enc(roomId)}/receipt/m.read.private/${enc(eventId)}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${s.accessToken}`, 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+  if (!res.ok) throw new Error(String(res.status))
+}
+
 self.addEventListener('message', (e) => {
   // Only this app's own pages may ask the worker to act with the stored session.
   if (e.origin !== self.location.origin) return
   const d = e.data
   if (d?.type === 'warm') e.waitUntil(warm().catch(() => {}))
+  if (d?.type === 'read' && typeof d.room_id === 'string' && typeof d.event_id === 'string') e.waitUntil(readEvent(d.room_id, d.event_id).catch(() => {}))
+  if (d?.type === 'reply' && typeof d.room_id === 'string' && typeof d.text === 'string') e.waitUntil(replyEvent(d.room_id, typeof d.event_id === 'string' ? d.event_id : undefined, d.text).catch(() => {}))
   if (d?.type === 'like' && typeof d.room_id === 'string' && typeof d.event_id === 'string') e.waitUntil(likeEvent(d.room_id, d.event_id).catch(() => {}))
 })
 
@@ -195,7 +260,7 @@ async function describePush(n) {
   } catch {
     icon = null // the app icon is used instead
   }
-  return { title: room?.name ? `${who} in ${room.name}` : who, body, canLike: event.type === 'm.room.message', icon }
+  return { title: room?.name ? `${who} in ${room.name}` : who, body, canLike: event.type === 'm.room.message', canRead: true, icon }
 }
 
 // Quiet hours (a copy of inSchedule in src/lib/dnd.ts: keep them in step). A browser requires every push to show a
@@ -230,7 +295,7 @@ self.addEventListener('push', (e) => {
       // The window the person is looking at already shows the message.
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       if (wins.some((w) => w.visibilityState === 'visible' && w.focused)) return
-      const [{ title, body, canLike, icon }, quiet] = await Promise.all([describePush(n), quietNow()])
+      const [{ title, body, canLike, canRead, icon }, quiet] = await Promise.all([describePush(n), quietNow()])
       await self.registration.showNotification(title, {
         body,
         icon: icon || '/icon-192.png',
@@ -239,7 +304,12 @@ self.addEventListener('push', (e) => {
         renotify: !quiet,
         silent: quiet,
         data: { room_id: n.room_id, event_id: n.event_id },
-        actions: canLike ? [{ action: 'like', title: '👍 Like' }] : [],
+        // A browser shows only as many as it has room for (often two), so the most useful come first.
+        actions: [
+          ...(canLike ? [{ action: 'reply', type: 'text', title: 'Reply', placeholder: 'Write a reply…' }] : []),
+          ...(canRead && n.room_id && n.event_id ? [{ action: 'read', title: 'Mark as read' }] : []),
+          ...(canLike ? [{ action: 'like', title: '👍 Like' }] : []),
+        ],
       })
     })(),
   )
@@ -251,6 +321,22 @@ self.addEventListener('notificationclick', (e) => {
   const hash = room ? `#/room/${enc(room)}${event ? '/' + enc(event) : ''}` : ''
   e.waitUntil(
     (async () => {
+      if (e.action === 'read' && room && event) {
+        try {
+          await readEvent(room, event)
+          return
+        } catch {
+          /* could not mark it: open the room so the person can */
+        }
+      }
+      if (e.action === 'reply' && room && typeof e.reply === 'string' && e.reply.trim()) {
+        try {
+          await replyEvent(room, event, e.reply)
+          return
+        } catch {
+          /* could not send: open the room, the person can write it there */
+        }
+      }
       if (e.action === 'like' && room && event) {
         try {
           await likeEvent(room, event)

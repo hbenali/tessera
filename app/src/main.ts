@@ -2,7 +2,7 @@ import { mount } from 'svelte'
 import './app.css'
 import App from './App.svelte'
 import { install } from './lib/install.svelte'
-import { SHARE_KEY, readShare, withoutShare } from './lib/share'
+import { SHARE_KEY, readShare, readShareFiles, withoutShare } from './lib/share'
 import { readShortcut, withoutShortcut } from './lib/shortcuts'
 import { ui } from './lib/ui.svelte'
 
@@ -11,14 +11,17 @@ install.listen()
 // Opened from another app's share sheet: keep the text (it survives signing in) and clean the address.
 {
   const shared = readShare(location.search)
-  if (shared) {
-    try { sessionStorage.setItem(SHARE_KEY, shared) } catch { /* private mode: it is kept in memory below */ }
+  const nFiles = readShareFiles(location.search)
+  if (nFiles) try { sessionStorage.setItem('tessera.share.files', String(nFiles)) } catch { /* kept in memory below */ }
+  ui.sharedFiles = nFiles || Number((() => { try { return sessionStorage.getItem('tessera.share.files') } catch { return 0 } })() ?? 0) || 0
+  if (shared || nFiles) {
+    if (shared) try { sessionStorage.setItem(SHARE_KEY, shared) } catch { /* private mode: it is kept in memory below */ }
     history.replaceState(null, '', withoutShare(location.href))
   }
   try { ui.shared = shared ?? sessionStorage.getItem(SHARE_KEY) } catch { ui.shared = shared ?? null }
   // Opened from an app shortcut (long-press the icon) or a link that names a screen.
   const sc = readShortcut(location.search)
-  if (sc.action || sc.view) { ui.pending = sc; history.replaceState(null, '', withoutShortcut(location.href)) }
+  if (sc.action || sc.view || sc.matrix) { ui.pending = sc; history.replaceState(null, '', withoutShortcut(location.href)) }
 }
 
 // Already open when a shortcut or share is used: the installed app is focused instead of reloaded, and told what to show.
@@ -27,7 +30,7 @@ type LaunchQueue = { setConsumer(f: (p: { targetURL?: string }) => void): void }
   if (!targetURL) return
   const q = new URL(targetURL).search
   const sc = readShortcut(q)
-  if (sc.action || sc.view) ui.pending = sc
+  if (sc.action || sc.view || sc.matrix) ui.pending = sc
   const text = readShare(q)
   if (text) { try { sessionStorage.setItem(SHARE_KEY, text) } catch { /* kept in memory */ } ui.shared = text }
 })

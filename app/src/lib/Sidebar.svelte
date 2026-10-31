@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from './i18n.svelte'
+  import { clearShared } from './sharedfiles'
   import { chat } from './matrix.svelte'
   import { shortTime, ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
@@ -102,8 +103,8 @@
   <button class="search" onclick={onsearch}><Icon name="search" size={15} /><span>{t("Search")}</span><kbd class="mono">Ctrl K</kbd></button>
 
 
-  {#if ui.shared}
-    <div class="share" role="status"><b>Share to…</b><span class="what">{ui.shared.slice(0, 120)}</span><span class="hint">Pick a conversation below.</span><button class="btn ghost sm" onclick={() => { ui.shared = null; try { sessionStorage.removeItem('tessera.share') } catch { /* nothing */ } }}>Cancel</button></div>
+  {#if ui.shared || ui.sharedFiles}
+    <div class="share" role="status"><b>Share to…</b><span class="what">{(ui.shared ?? '').slice(0, 120)}{#if ui.sharedFiles}{ui.shared ? ' · ' : ''}{ui.sharedFiles} {ui.sharedFiles === 1 ? 'file' : 'files'}{/if}</span><span class="hint">Pick a conversation below.</span><button class="btn ghost sm" onclick={() => { ui.shared = null; ui.sharedFiles = 0; clearShared(); try { sessionStorage.removeItem('tessera.share'); sessionStorage.removeItem('tessera.share.files') } catch { /* nothing */ } }}>Cancel</button></div>
   {/if}
   <nav class="list" aria-label="Rooms">
     {#each invites as r (r.id)}
@@ -116,7 +117,7 @@
     {/each}
     {#each rooms as r (r.id)}
       <div class="item">
-        <button class="row" class:active={chat.activeRoom === r.id} class:unread={(r.unread > 0 && r.notifs !== 'mute') || r.markedUnread} class:muted={r.notifs === 'mute'} onclick={() => { if (ui.shared) { const text = ui.shared; ui.shared = null; chat.shareTo(r.id, text) } else chat.openRoom(r.id) }} oncontextmenu={(e) => { e.preventDefault(); ui.openRoomMenu(r.id, e.clientX, e.clientY, e.currentTarget) }}>
+        <button class="row" class:active={chat.activeRoom === r.id} class:unread={(r.unread > 0 && r.notifs !== 'mute') || r.markedUnread} class:muted={r.notifs === 'mute'} onclick={() => { if (ui.shared || ui.sharedFiles) { const text = ui.shared ?? ''; const files = ui.sharedFiles > 0; ui.shared = null; ui.sharedFiles = 0; chat.shareTo(r.id, text, files) } else chat.openRoom(r.id) }} oncontextmenu={(e) => { e.preventDefault(); ui.openRoomMenu(r.id, e.clientX, e.clientY, e.currentTarget) }}>
           <Avatar name={r.name} size={38} round={r.isDM} src={r.avatar} presence={r.dmUser ? (chat.presenceOf(r.dmUser) ?? 'offline') : undefined} />
           <span class="body">
             <span class="top">

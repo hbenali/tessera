@@ -33,9 +33,9 @@
     else if (p.action === 'new') ui.open('room')
     else if (p.action === 'explore') ui.open('explore')
     else if (p.action === 'join') ui.open('join')
+    if (p.matrix) void chat.openMatrixLink(p.matrix)
     // a view is applied by the list itself (Sidebar); leave it there until it has
-    if (!p.view) ui.pending = null
-    else ui.pending = { view: p.view }
+    ui.pending = p.view ? { view: p.view } : null
   })
   function key(e: KeyboardEvent) {
     // Ctrl+Shift+F searches the open room; plain Ctrl+F stays the browser's own find.

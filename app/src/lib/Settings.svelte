@@ -14,6 +14,8 @@
   import About from './About.svelte'
   import { STYLES, beep, setSoundOn, setSoundStyle, soundOn, soundStyle, type Style } from './sound'
   import { install } from './install.svelte'
+  import { installHelp, isStandalone } from './installhelp'
+  const help = installHelp(navigator.userAgent, isStandalone(), navigator.maxTouchPoints > 1)
   import { loadPushConfig, pushSupported, type PushConfig } from './push'
 
   let tab = $state<'look' | 'security' | 'notify' | 'privacy' | 'sessions' | 'account' | 'about'>('security')
@@ -235,6 +237,10 @@
       <button class="btn" onclick={() => install.ask()}>Install Tessera</button>
     {:else if install.installed}
       <p class="status ok">Installed.</p>
+    {:else if help}
+      <p class="hint"><b>{help.title}</b></p>
+      <ol class="hint steps">{#each help.steps as st (st)}<li>{st}</li>{/each}</ol>
+      {#if help.note}<p class="hint">{help.note}</p>{/if}
     {:else}
       <p class="hint">Your browser offers installing from its menu or address bar when this is supported.</p>
     {/if}
@@ -307,4 +313,5 @@
   .err { color: var(--danger); font-size: 13px; margin-top: 12px; }
   .kwform { display: flex; gap: 8px; } .kwform input { flex: 1; font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; } .kws { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; } .kws li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 14px; background: var(--tile); }
   .lang { font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; min-width: 180px; }
+  .steps { margin: 4px 0 8px; padding-left: 20px; display: grid; gap: 2px; }
 </style>

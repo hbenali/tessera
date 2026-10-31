@@ -151,9 +151,40 @@ describe('web push and PWA', () => {
     assert.match(note.title, /e2e room/)
     assert.equal(note.body, 'lunch at noon?')
     assert.equal(note.data.room_id, data.room)
-    assert.deepEqual(note.actions, ['like'], 'readable messages offer a Like action')
+    // a browser shows only as many actions as it has room for (two on desktop Chrome), so the most useful come first
+    assert.deepEqual(note.actions.slice(0, 2), ['reply', 'read'], 'readable messages offer Reply and Mark as read first')
     assert.match(note.icon, /^data:image\/png;base64,/, "the sender's avatar is the notification icon")
     await blank.close()
+  })
+
+  it('marks the message as read from the notification, with a private receipt', async () => {
+    const sent = await send(data.bob, data.room, { msgtype: 'm.text', body: 'please mark me read' })
+    await page.evaluate(async ([room, event]) => (await navigator.serviceWorker.ready).active.postMessage({ type: 'read', room_id: room, event_id: event }), [data.room, sent.event_id])
+    // the unread count the server keeps for alice drops to nothing
+    const before = (await api(data.alice.token, 'GET', '/_matrix/client/v3/sync?timeout=0')).rooms?.join?.[data.room]?.unread_notifications?.notification_count
+    let count = before
+    for (let i = 0; i < 30 && count !== 0; i++) {
+      count = (await api(data.alice.token, 'GET', '/_matrix/client/v3/sync?timeout=0')).rooms?.join?.[data.room]?.unread_notifications?.notification_count
+      if (count !== 0) await new Promise((r) => setTimeout(r, 300))
+    }
+    assert.equal(count, 0, 'the unread count was not cleared')
+    const seen = true
+    const pub = await api(data.bob.token, 'GET', '/_matrix/client/v3/sync?timeout=0')
+    const shown = (pub.rooms?.join?.[data.room]?.ephemeral?.events ?? []).some((e) => e.type === 'm.receipt' && e.content?.[sent.event_id]?.['m.read']?.[data.alice.id])
+    assert.equal(shown, false, 'nobody else sees that alice read it')
+  })
+
+  it('replies to the message from the notification, as a reply to it', async () => {
+    const sent = await send(data.bob, data.room, { msgtype: 'm.text', body: 'can you answer from the notification?' })
+    await page.evaluate(async ([room, event]) => (await navigator.serviceWorker.ready).active.postMessage({ type: 'reply', room_id: room, event_id: event, text: 'answered from the notification' }), [data.room, sent.event_id])
+    let reply
+    for (let i = 0; i < 30 && !reply; i++) {
+      const m = await api(data.alice.token, 'GET', `/_matrix/client/v3/rooms/${enc(data.room)}/messages?dir=b&limit=10`)
+      reply = m.chunk.find((e) => e.sender === data.alice.id && e.content?.body === 'answered from the notification')
+      if (!reply) await new Promise((r) => setTimeout(r, 300))
+    }
+    assert.ok(reply, 'the reply was not sent')
+    assert.equal(reply.content['m.relates_to']?.['m.in_reply_to']?.event_id, sent.event_id, 'it is a reply to that message')
   })
 
   it('likes the message from the notification with the stored session', async () => {
@@ -168,7 +199,7 @@ describe('web push and PWA', () => {
     assert.ok(mine, 'the reaction was not sent')
   })
 
-  it('offers no Like for an event the worker cannot read, such as an encrypted one', async () => {
+  it('offers no Reply or Like for an event the worker cannot read, such as an encrypted one', async () => {
     const { room_id } = await api(data.bob.token, 'POST', '/_matrix/client/v3/createRoom', { name: 'secret', invite: [data.alice.id], preset: 'private_chat', initial_state: [{ type: 'm.room.encryption', state_key: '', content: { algorithm: 'm.megolm.v1.aes-sha2' } }] })
     await api(data.alice.token, 'POST', `/_matrix/client/v3/join/${enc(room_id)}`, {})
     const sent = await api(data.bob.token, 'PUT', `/_matrix/client/v3/rooms/${enc(room_id)}/send/m.room.encrypted/enc1`, { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'x', device_id: 'X', sender_key: 'Y', session_id: 'Z' })
@@ -193,7 +224,7 @@ describe('web push and PWA', () => {
       return null
     })
     assert.ok(note, 'no notification for the encrypted event')
-    assert.deepEqual(note.actions, [])
+    assert.deepEqual(note.actions, ['read'], 'an encrypted message can be marked read but not replied to or liked: the worker cannot encrypt')
     await blank.close()
   })
 

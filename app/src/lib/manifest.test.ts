@@ -31,8 +31,21 @@ describe('web app manifest', () => {
       expect(sc.action || sc.view, s.name).toBeTruthy()
     }
   })
+  it('opens matrix: links, handing the whole link to a screen the app understands', () => {
+    expect(m.protocol_handlers.map((h: { protocol: string }) => h.protocol).sort()).toEqual(['matrix', 'web+matrix'])
+    for (const h of m.protocol_handlers as { url: string }[]) {
+      expect(h.url).toContain('%s')
+      const q = new URL(h.url.replace('%s', encodeURIComponent('matrix:r/a:b.org')), 'https://x.example').search
+      expect(readShortcut(q).matrix).toBe('matrix:r/a:b.org')
+    }
+  })
   it('reuses an open window and keeps the share target', () => {
     expect(m.launch_handler.client_mode[0]).toBe('focus-existing')
     expect(m.share_target.params.text).toBe('text')
+    // files arrive by POST, which the service worker receives
+    expect(m.share_target.method).toBe('POST')
+    expect(m.share_target.enctype).toBe('multipart/form-data')
+    expect(m.share_target.params.files[0].name).toBe('files')
+    expect(m.share_target.action).toBe('/share-target')
   })
 })

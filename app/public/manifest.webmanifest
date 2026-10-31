@@ -35,12 +35,31 @@
   ],
   "orientation": "any",
   "share_target": {
-    "action": "/",
-    "method": "GET",
+    "action": "/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
     "params": {
       "title": "title",
       "text": "text",
-      "url": "url"
+      "url": "url",
+      "files": [
+        {
+          "name": "files",
+          "accept": [
+            "image/*",
+            "video/*",
+            "audio/*",
+            "application/pdf",
+            "text/*",
+            "application/zip",
+            "application/json",
+            "application/vnd.openxmlformats-officedocument.*",
+            "application/msword",
+            "application/vnd.ms-excel",
+            "application/vnd.ms-powerpoint"
+          ]
+        }
+      ]
     }
   },
   "display_override": [
@@ -108,6 +127,16 @@
       "type": "image/png",
       "form_factor": "narrow",
       "label": "A conversation on a phone"
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+matrix",
+      "url": "/?matrix=%s"
+    },
+    {
+      "protocol": "matrix",
+      "url": "/?matrix=%s"
     }
   ]
 }
