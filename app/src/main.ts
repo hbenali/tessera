@@ -2,8 +2,20 @@ import { mount } from 'svelte'
 import './app.css'
 import App from './App.svelte'
 import { install } from './lib/install.svelte'
+import { SHARE_KEY, readShare, withoutShare } from './lib/share'
+import { ui } from './lib/ui.svelte'
 
 install.listen()
+
+// Opened from another app's share sheet: keep the text (it survives signing in) and clean the address.
+{
+  const shared = readShare(location.search)
+  if (shared) {
+    try { sessionStorage.setItem(SHARE_KEY, shared) } catch { /* private mode: it is kept in memory below */ }
+    history.replaceState(null, '', withoutShare(location.href))
+  }
+  try { ui.shared = shared ?? sessionStorage.getItem(SHARE_KEY) } catch { ui.shared = shared ?? null }
+}
 
 const app = mount(App, {
   target: document.getElementById('app')!,

@@ -1,4 +1,4 @@
-import { allDrafts, clearDrafts } from './drafts'
+import { allDrafts, clearDrafts, setDraft } from './drafts'
 import { describe as describePreview, isPreviewable, previewLine, sortRooms, stripReplyFallback, type PreviewKind, type RoomOrder } from './roompreview'
 import { inviteTarget } from './commands'
 import { safeFileName } from './files'
@@ -9,6 +9,8 @@ import { keywordActions, keywordRuleId, normalizeKeyword, readKeywords } from '.
 import { rank, splitServer, toPublicRoom, type PublicRoom } from './directory'
 import { firstUnread } from './jump'
 import { calls } from './calls.svelte'
+import { readBridge, type Bridge } from './bridge'
+import { SHARE_KEY } from './share'
 import { parsePollStart, pollContent, tally, type PollStart, type Tally } from './poll'
 import { parseGeo } from './location'
 import { firstUrl, toPreview, type Preview as LinkCard } from './linkpreview'
@@ -103,6 +105,7 @@ export interface RoomItem {
   /** Notification level for this room, from my push rules. */
   notifs: 'all' | 'mentions' | 'mute'
   favourite: boolean
+  bridge?: Bridge
   /** Flagged unread by hand ("Mark as unread"), shared with other clients through room account data. */
   markedUnread: boolean
   /** Someone else is typing here right now. */
@@ -452,6 +455,7 @@ class Chat {
         dmUser: dms.has(room.roomId) ? this.otherMember(room)?.userId : undefined,
         notifs: this.roomNotifs(room.roomId),
         favourite: !!room.tags['m.favourite'],
+        bridge: readBridge([...room.currentState.getStateEvents('m.bridge'), ...room.currentState.getStateEvents('uk.half-shot.bridge')].map((e) => e.getContent())),
         markedUnread: !!(room.getAccountData('m.marked_unread')?.getContent().unread ?? room.getAccountData('com.famedly.marked_unread')?.getContent().unread),
         typing: room.getMembers().some((m) => m.typing && m.userId !== this.userId),
         avatar: room.getMxcAvatarUrl() ?? (dms.has(room.roomId) ? this.otherMember(room)?.getMxcAvatarUrl() : undefined) ?? undefined,
@@ -1757,6 +1761,14 @@ class Chat {
   async sendLocation(lat: number, lon: number, accuracy?: number) {
     const geo = `geo:${lat.toFixed(6)},${lon.toFixed(6)}${accuracy ? `;u=${Math.round(accuracy)}` : ''}`
     await this.client!.sendMessage(this.activeRoom!, { msgtype: 'm.location', body: `Location ${lat.toFixed(5)}, ${lon.toFixed(5)}`, geo_uri: geo } as never)
+  }
+
+  /** Put text shared from another app into a room's message box, then open the room. */
+  async shareTo(roomId: string, text: string) {
+    const encrypted = this.rooms.find((r) => r.id === roomId)?.encrypted
+    setDraft(roomId, text, !encrypted)
+    try { sessionStorage.removeItem(SHARE_KEY) } catch { /* nothing to clear */ }
+    await this.openRoom(roomId)
   }
 
   async leaveRoom(id: string) {

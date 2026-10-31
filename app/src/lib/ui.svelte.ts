@@ -50,6 +50,8 @@ const read = <T extends string>(key: string, ok: readonly T[], dflt: T): T => {
 }
 
 class Ui {
+  /** Text shared into Tessera from another app, waiting for a room to be picked. */
+  shared = $state<string | null>(null)
   /** How tightly messages are packed, and how big their text is. Per browser. */
   density = $state<Density>(read('tessera.density', ['comfortable', 'compact'], 'comfortable'))
   textSize = $state<TextSize>(read('tessera.textsize', ['small', 'normal', 'large'], 'normal'))

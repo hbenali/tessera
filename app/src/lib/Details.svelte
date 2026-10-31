@@ -3,6 +3,7 @@
   import { ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
   import Icon from './Icon.svelte'
+  import { bridgeLabel } from './bridge'
   import { HISTORY, JOIN_RULES, roleLabel } from './moderation'
   const r = $derived(chat.active)
   let confirm = $state(false)
@@ -54,6 +55,7 @@
         <div class="row"><button class="btn" type="submit">Save</button><button class="btn ghost" type="button" onclick={() => (editing = false)}>Cancel</button></div>
       </form>
     {/if}
+    {#if r.bridge}<div class="enc"><Icon name="link" size={16} />{bridgeLabel(r.bridge)}</div>{/if}
     <div class="enc" class:on={r.encrypted}><Icon name={r.encrypted ? 'shield' : 'info'} size={16} />{r.encrypted ? 'End-to-end encrypted' : 'Not encrypted'}</div>
     <button class="btn ghost fav" aria-pressed={r.favourite} onclick={() => chat.setFavourite(r.id, !r.favourite)}><Icon name="star" size={15} /> {r.favourite ? 'Remove from favourites' : 'Add to favourites'}</button>
     <label class="quiet"><input type="checkbox" checked={chat.isQuiet(r.id)} onchange={(e) => chat.setQuiet(r.id, e.currentTarget.checked)} /> <span><b>Read quietly</b><small>Open this room and read everything without showing people that you have. Your unread count still clears.</small></span></label>

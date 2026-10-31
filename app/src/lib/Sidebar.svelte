@@ -99,6 +99,9 @@
   <button class="search" onclick={onsearch}><Icon name="search" size={15} /><span>{t("Search")}</span><kbd class="mono">Ctrl K</kbd></button>
 
 
+  {#if ui.shared}
+    <div class="share" role="status"><b>Share to…</b><span class="what">{ui.shared.slice(0, 120)}</span><span class="hint">Pick a conversation below.</span><button class="btn ghost sm" onclick={() => { ui.shared = null; try { sessionStorage.removeItem('tessera.share') } catch { /* nothing */ } }}>Cancel</button></div>
+  {/if}
   <nav class="list" aria-label="Rooms">
     {#each invites as r (r.id)}
       <div class="invite">
@@ -110,7 +113,7 @@
     {/each}
     {#each rooms as r (r.id)}
       <div class="item">
-        <button class="row" class:active={chat.activeRoom === r.id} class:unread={(r.unread > 0 && r.notifs !== 'mute') || r.markedUnread} class:muted={r.notifs === 'mute'} onclick={() => chat.openRoom(r.id)} oncontextmenu={(e) => { e.preventDefault(); ui.openRoomMenu(r.id, e.clientX, e.clientY, e.currentTarget) }}>
+        <button class="row" class:active={chat.activeRoom === r.id} class:unread={(r.unread > 0 && r.notifs !== 'mute') || r.markedUnread} class:muted={r.notifs === 'mute'} onclick={() => { if (ui.shared) { const text = ui.shared; ui.shared = null; chat.shareTo(r.id, text) } else chat.openRoom(r.id) }} oncontextmenu={(e) => { e.preventDefault(); ui.openRoomMenu(r.id, e.clientX, e.clientY, e.currentTarget) }}>
           <Avatar name={r.name} size={38} round={r.isDM} src={r.avatar} presence={r.dmUser ? (chat.presenceOf(r.dmUser) ?? 'offline') : undefined} />
           <span class="body">
             <span class="top">
@@ -202,6 +205,7 @@
   .mewrap { position: relative; flex: 1; min-width: 0; } .menu.up { top: auto; bottom: calc(100% + 6px); min-width: 200px; } .pip { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); } .pip.online { background: var(--ok); } .pip.unavailable { background: #e0a100; } .pip.offline { background: transparent; border: 2px solid var(--muted); box-sizing: border-box; }
   .draft { color: var(--danger, #e5484d); font-weight: 600; } .preview :global(svg) { vertical-align: -2px; margin-right: 4px; }
   .dotbadge { min-width: 10px; width: 10px; height: 10px; padding: 0; line-height: 10px; background: var(--accent); }
+  .share { display: grid; gap: 4px; margin: 0 12px 8px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--accent); background: var(--tile); } .share .what { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; } .share .hint { font-size: 12px; color: var(--muted); } .share .sm { justify-self: start; padding: 3px 10px; }
   .typing { color: var(--accent); } .typing i { display: inline-block; width: 3px; height: 3px; margin-left: 2px; border-radius: 50%; background: currentColor; animation: blip 1.2s infinite; } .typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; } @keyframes blip { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } } @media (prefers-reduced-motion: reduce) { .typing i { animation: none; } }
   .me { flex: 1;width: 100%; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: 8px; text-align: left; color: var(--muted); } .me:hover { background: var(--tile); color: var(--text); } .me span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 </style>
