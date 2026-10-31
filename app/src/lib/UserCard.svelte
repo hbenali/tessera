@@ -3,6 +3,7 @@
   import { ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
   import Icon from './Icon.svelte'
+  import { ROLE_LEVEL, roleLabel, roleOf } from './moderation'
 
   const at = ui.userCard!
   const member = $derived(chat.members.find((m) => m.id === at.id))
@@ -18,6 +19,15 @@
   let top = $state(at.y)
   let copied = $state(false)
   let err = $state('')
+  let confirm = $state<null | 'kick' | 'ban'>(null)
+  let reason = $state('')
+  const level = $derived(chat.levelOf(at.id))
+  const showMod = $derived(!me && !!member && (chat.mayKick(at.id) || chat.mayBan(at.id)))
+  const roles = [['member', 'Member'], ['moderator', 'Moderator'], ['admin', 'Admin']] as const
+  async function act(f: () => Promise<unknown>, done = false) {
+    err = ''
+    try { await f(); if (done) ui.userCard = null } catch (e) { err = e instanceof Error ? e.message : 'That did not work' }
+  }
 
   // Someone mentioned who is not in this room: ask the homeserver who they are.
   $effect(() => {
@@ -42,7 +52,7 @@
   function key(e: KeyboardEvent) {
     if (e.key === 'Escape') { e.preventDefault(); close() }
     else if (e.key === 'Tab') {
-      const f = [...(card?.querySelectorAll<HTMLElement>('button') ?? [])]
+      const f = [...(card?.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), input') ?? [])]
       if (!f.length) return
       const i = f.indexOf(document.activeElement as HTMLElement)
       e.preventDefault()
@@ -79,6 +89,35 @@
     {/if}
     <button class="btn ghost" onclick={copy}><Icon name={copied ? 'check' : 'link'} size={15} /> {copied ? 'Copied' : 'Copy ID'}</button>
   </div>
+  {#if !me && !!member}
+    <div class="mod">
+      <label class="role">Role
+        <select value={roleOf(level)} disabled={!chat.settings?.can.powerLevels} onchange={(e) => { const r = e.currentTarget.value as keyof typeof ROLE_LEVEL; act(() => chat.setLevel(at.id, ROLE_LEVEL[r])) }}>
+          {#each roles as [v, t] (v)}<option value={v} disabled={!chat.maySetLevel(at.id, ROLE_LEVEL[v])}>{t}</option>{/each}
+          {#if roleOf(level) === 'custom'}<option value="custom" disabled>{roleLabel(level)}</option>{/if}
+        </select>
+      </label>
+    </div>
+  {:else if me}<p class="rolemine">{roleLabel(level)}</p>{/if}
+  {#if !me}
+    <div class="acts safe">
+      <button class="btn ghost" onclick={() => act(() => chat.ignoreUser(at.id, !chat.isIgnored(at.id)))}><Icon name="eyeOff" size={15} /> {chat.isIgnored(at.id) ? 'Stop ignoring' : 'Ignore'}</button>
+    </div>
+  {/if}
+  {#if showMod}
+    {#if confirm}
+      <label class="role">Reason (shown to them)<input bind:value={reason} maxlength="200" /></label>
+      <div class="acts">
+        <button class="btn danger" onclick={() => act(() => (confirm === 'kick' ? chat.kick(at.id, reason) : chat.ban(at.id, reason)), true)}>{confirm === 'kick' ? 'Remove from room' : 'Ban from room'}</button>
+        <button class="btn ghost" onclick={() => (confirm = null)}>Cancel</button>
+      </div>
+    {:else}
+      <div class="acts">
+        {#if chat.mayKick(at.id)}<button class="btn ghost" onclick={() => (confirm = 'kick')}>Remove…</button>{/if}
+        {#if chat.mayBan(at.id)}<button class="btn ghost" onclick={() => (confirm = 'ban')}>Ban…</button>{/if}
+      </div>
+    {/if}
+  {/if}
   {#if err}<p class="err" role="alert">{err}</p>{/if}
 </div>
 
@@ -90,4 +129,7 @@
   .state { font-size: 12px; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); } .state::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); } .state.online::before { background: var(--ok); } .state.unavailable::before { background: #e0a100; } .state.offline::before { background: transparent; box-shadow: inset 0 0 0 2px var(--muted); }
   .acts { display: flex; flex-wrap: wrap; gap: 8px; } .acts .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; }
   .err { color: var(--danger); font-size: 12px; margin: 8px 0 0; }
+  .mod, .safe, .rolemine { margin-top: 10px; } .rolemine { font-size: 12px; color: var(--muted); }
+  .role { display: grid; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 8px; } .role select, .role input { font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+  .btn.danger { background: var(--danger); color: var(--bg); }
 </style>

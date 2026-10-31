@@ -4,6 +4,7 @@ import { inviteTarget } from './commands'
 import { safeFileName } from './files'
 import { mentionPills, mentionsUser, plainMentions, type MentionPill } from './mentions'
 import { toggled } from './pins'
+import { canBan, canKick, canRedactOthers, canSetLevel, canSetState, levelOf, withLevel, type History, type JoinRule, type PowerLevels } from './moderation'
 import * as sdk from 'matrix-js-sdk'
 import { security } from './security.svelte'
 import { discover } from './discover'
@@ -140,6 +141,15 @@ export interface Member {
   id: string
   name: string
   avatar?: string
+  level: number
+}
+
+/** What the active room is set to, and what I may change in it. */
+export interface RoomSettings {
+  joinRule: JoinRule
+  history: History
+  banned: { id: string; name: string; reason?: string }[]
+  can: { joinRules: boolean; history: boolean; encrypt: boolean; powerLevels: boolean; redact: boolean }
 }
 
 class Chat {
@@ -178,6 +188,9 @@ class Chat {
   threadRoot = $state<string | null>(null)
   threadMessages = $state<Msg[]>([])
   members = $state<Member[]>([])
+  settings = $state<RoomSettings | null>(null)
+  powerLevels = $state<PowerLevels>({})
+  ignored = $state<string[]>([])
 
   loadSession(): Session | null {
     try {
@@ -841,10 +854,74 @@ class Chat {
     this.olderAvailable = this.hasOlder()
     this.members = room
       .getJoinedMembers()
-      .map((m) => ({ id: m.userId, name: m.name, avatar: m.getMxcAvatarUrl() ?? undefined }))
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((m) => ({ id: m.userId, name: m.name, avatar: m.getMxcAvatarUrl() ?? undefined, level: m.powerLevel }))
+      .sort((a, b) => b.level - a.level || a.name.localeCompare(b.name))
+    this.refreshSettings(room)
     this.refreshThread()
   }
+
+  private refreshSettings(room: sdk.Room) {
+    const st = room.currentState
+    const pl = (st.getStateEvents('m.room.power_levels', '')?.getContent() ?? {}) as PowerLevels
+    this.powerLevels = pl
+    const me = this.userId
+    this.settings = {
+      joinRule: ((st.getStateEvents('m.room.join_rules', '')?.getContent().join_rule as string) === 'public' ? 'public' : (st.getStateEvents('m.room.join_rules', '')?.getContent().join_rule as string) === 'knock' ? 'knock' : 'invite') as JoinRule,
+      history: ((st.getStateEvents('m.room.history_visibility', '')?.getContent().history_visibility as History | undefined) ?? 'shared'),
+      banned: room.getMembersWithMembership('ban').map((m) => ({ id: m.userId, name: m.name, reason: m.events.member?.getContent().reason })),
+      can: {
+        joinRules: canSetState(pl, me, 'm.room.join_rules'),
+        history: canSetState(pl, me, 'm.room.history_visibility'),
+        encrypt: canSetState(pl, me, 'm.room.encryption'),
+        powerLevels: canSetState(pl, me, 'm.room.power_levels'),
+        redact: canRedactOthers(pl, me),
+      },
+    }
+    this.ignored = this.client?.getIgnoredUsers() ?? []
+  }
+
+  mayKick = (id: string) => canKick(this.powerLevels, this.userId, id)
+  mayBan = (id: string) => canBan(this.powerLevels, this.userId, id)
+  maySetLevel = (id: string, level: number) => canSetLevel(this.powerLevels, this.userId, id, level)
+  levelOf = (id: string) => levelOf(this.powerLevels, id)
+
+  async kick(userId: string, reason?: string) {
+    await this.client!.kick(this.activeRoom!, userId, reason?.trim() || undefined)
+  }
+  async ban(userId: string, reason?: string) {
+    await this.client!.ban(this.activeRoom!, userId, reason?.trim() || undefined)
+  }
+  async unban(userId: string) {
+    await this.client!.unban(this.activeRoom!, userId)
+  }
+  async setLevel(userId: string, level: number) {
+    await this.client!.sendStateEvent(this.activeRoom!, 'm.room.power_levels' as never, withLevel(this.powerLevels, userId, level) as never, '')
+  }
+  async setJoinRule(rule: JoinRule) {
+    await this.client!.sendStateEvent(this.activeRoom!, 'm.room.join_rules' as never, { join_rule: rule } as never, '')
+  }
+  async setHistory(v: History) {
+    await this.client!.sendStateEvent(this.activeRoom!, 'm.room.history_visibility' as never, { history_visibility: v } as never, '')
+  }
+  /** Turns on end-to-end encryption. It cannot be turned off again. */
+  async enableEncryption() {
+    await this.client!.sendStateEvent(this.activeRoom!, 'm.room.encryption' as never, { algorithm: 'm.megolm.v1.aes-sha2' } as never, '')
+  }
+  async ignoreUser(userId: string, on: boolean) {
+    const c = this.client!
+    const next = on ? [...new Set([...c.getIgnoredUsers(), userId])] : c.getIgnoredUsers().filter((u) => u !== userId)
+    await c.setIgnoredUsers(next)
+    this.ignored = next
+  }
+  /** Tell the homeserver administrators about a message (they decide what to do). */
+  async reportEvent(eventId: string, reason: string) {
+    await this.client!.reportEvent(this.activeRoom!, eventId, -100, reason.trim())
+  }
+  async reportRoom(reason: string) {
+    await this.client!.http.authedRequest(sdk.Method.Post, `/rooms/${encodeURIComponent(this.activeRoom!)}/report`, undefined, { reason: reason.trim() } as never)
+  }
+  isIgnored = (id: string) => this.ignored.includes(id)
+
 
   refreshThread() {
     const room = this.activeRoom ? this.client?.getRoom(this.activeRoom) : null

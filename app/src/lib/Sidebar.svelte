@@ -25,7 +25,7 @@
   const setStatus = (p: (typeof STATUSES)[number][0]) => { chat.setStatus(p); status = false }
 
   const PREVIEW_ICON: Partial<Record<RoomItem['previewKind'], ComponentProps<typeof Icon>['name']>> = { image: 'file', video: 'play', voice: 'mic', audio: 'mic', file: 'clip', encrypted: 'lock' }
-  const ORDERS = [['activity', 'Latest activity'], ['unread', 'Unread first'], ['name', 'A to Z']] as const
+  const ORDERS = [['activity', 'Latest activity'], ['unread', 'Needs attention first'], ['name', 'A to Z']] as const
   const invites = $derived(chat.rooms.filter((r) => r.invited))
   const current = $derived(chat.spaces.find((s) => s.id === chat.activeSpace))
   const rooms = $derived(
@@ -74,13 +74,13 @@
               <button role="option" aria-selected={on} onclick={() => pickView(v)}><Icon name={icon} size={15} />{label}<span class="n">{v === 'all' ? '' : count(v) || ''}</span>{#if on}<Icon name="check" size={14} />{/if}</button>
             {/each}
           </div>
-          <div role="group" aria-label="Sort by"><h3 class="grp">Sort by</h3>
+          <div role="group" aria-label="Sort by"><span class="grp" aria-hidden="true">Sort by</span>
             {#each ORDERS as [o, label] (o)}
               <button role="option" aria-selected={chat.roomOrder === o} onclick={() => { chat.setRoomOrder(o); switcher = false }}>{label}{#if chat.roomOrder === o}<Icon name="check" size={14} />{/if}</button>
             {/each}
           </div>
           {#if chat.spaces.length}
-            <div role="group" aria-label="Spaces"><h3 class="grp">Spaces</h3>
+            <div role="group" aria-label="Spaces"><span class="grp" aria-hidden="true">Spaces</span>
               {#each chat.spaces as s (s.id)}
                 <button role="option" aria-selected={chat.activeSpace === s.id} onclick={() => pick(s.id)}><Avatar name={s.name} size={20} src={s.avatar} />{s.name}{#if chat.activeSpace === s.id}<Icon name="check" size={14} />{/if}</button>
               {/each}
@@ -187,7 +187,7 @@
   .badge { flex: none; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--muted); color: var(--bg); font-size: 11px; font-weight: 700; text-align: center; line-height: 20px; } .badge.hl { background: var(--accent); color: var(--accent-ink); }
   .invite { display: flex; align-items: center; gap: 10px; padding: 8px; margin: 0 0 4px; border-radius: 10px; border: 1px dashed var(--accent); } .invite .meta { flex: 1; display: grid; min-width: 0; } .invite .meta span { color: var(--muted); font-size: 12px; } .invite .btn { padding: 5px 12px; }
   .muted .name, .muted .preview { opacity: .6; } .badge.quiet { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--muted); } .fav { color: var(--accent); }
-  .grp { margin: 8px 8px 2px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .grp { display: block; margin: 8px 8px 2px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
   .dnd { margin-left: auto; display: inline-flex; color: var(--accent); flex: none; } .dndnow { margin: 2px 10px 6px; font-size: 12px; color: var(--muted); } .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
   .n { margin-left: auto; color: var(--muted); font-size: 12px; } .menu .n + :global(svg) { margin-left: 8px; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
