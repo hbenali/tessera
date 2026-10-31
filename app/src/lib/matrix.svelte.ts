@@ -101,6 +101,8 @@ export interface RoomItem {
   /** Notification level for this room, from my push rules. */
   notifs: 'all' | 'mentions' | 'mute'
   favourite: boolean
+  /** Flagged unread by hand ("Mark as unread"), shared with other clients through room account data. */
+  markedUnread: boolean
   /** Someone else is typing here right now. */
   typing: boolean
 }
@@ -332,6 +334,7 @@ class Chat {
       if (ev.getType() === Chat.AUTO_REPLY) this.loadAutoReply()
     })
     client.on(sdk.RoomEvent.Tags, () => this.refreshRooms())
+    client.on(sdk.RoomEvent.AccountData, (ev) => { if (/marked_unread$/.test(ev.getType())) this.refreshRooms() })
     client.on(sdk.RoomMemberEvent.Typing, () => { this.refreshTyping(); this.refreshRooms() })
     client.on(sdk.UserEvent.Presence, (_e, u) => { this.presence[u.userId] = u.presence as Presence })
     client.on(sdk.RoomEvent.LocalEchoUpdated, () => this.refreshMessages())
@@ -445,6 +448,7 @@ class Chat {
         dmUser: dms.has(room.roomId) ? this.otherMember(room)?.userId : undefined,
         notifs: this.roomNotifs(room.roomId),
         favourite: !!room.tags['m.favourite'],
+        markedUnread: !!(room.getAccountData('m.marked_unread')?.getContent().unread ?? room.getAccountData('com.famedly.marked_unread')?.getContent().unread),
         typing: room.getMembers().some((m) => m.typing && m.userId !== this.userId),
         avatar: room.getMxcAvatarUrl() ?? (dms.has(room.roomId) ? this.otherMember(room)?.getMxcAvatarUrl() : undefined) ?? undefined,
       })
@@ -539,6 +543,7 @@ class Chat {
   }
 
   async openRoom(id: string, push = true) {
+    if (this.rooms.find((r) => r.id === id)?.markedUnread) void this.setMarkedUnread(id, false).catch(() => {}) // opening a room is reading it
     this.refreshRooms() // shows or clears the draft line of the room just left
     this.activeRoom = id
     this.routeMissing = null
@@ -1339,9 +1344,26 @@ class Chat {
   async markRead(roomId: string) {
     const room = this.client?.getRoom(roomId)
     const last = room?.getLiveTimeline().getEvents().at(-1)
-    if (!room || !last) return
+    if (!room) return
+    if (this.rooms.find((r) => r.id === roomId)?.markedUnread) await this.setMarkedUnread(roomId, false)
+    if (!last) return
     await this.sendRead(roomId, last)
     this.refreshRooms()
+  }
+
+  /** Flag a room as unread (or clear it) without touching read receipts. */
+  async setMarkedUnread(roomId: string, on: boolean) {
+    const c = this.client!
+    await c.setRoomAccountData(roomId, 'm.marked_unread' as never, { unread: on } as never)
+    await c.setRoomAccountData(roomId, 'com.famedly.marked_unread' as never, { unread: on } as never).catch(() => {})
+    this.refreshRooms()
+  }
+
+  /** Mark many rooms as read, a few at a time so the homeserver is not flooded. Returns how many were cleared. */
+  async markAllRead(roomIds: string[]): Promise<number> {
+    const todo = roomIds.filter((id) => { const r = this.rooms.find((x) => x.id === id); return r && (r.unread > 0 || r.markedUnread) })
+    for (let i = 0; i < todo.length; i += 4) await Promise.all(todo.slice(i, i + 4).map((id) => this.markRead(id).catch(() => {})))
+    return todo.length
   }
 
   async setFavourite(roomId: string, on: boolean) {

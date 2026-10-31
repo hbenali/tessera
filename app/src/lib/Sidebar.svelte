@@ -35,7 +35,7 @@
       .filter((r) => matches(view, r)),
   )
   const matches = (v: View, r: RoomItem) =>
-    v === 'unread' ? r.unread > 0 && r.notifs !== 'mute' : v === 'mentions' ? r.highlight > 0 : v === 'favourites' ? r.favourite : v === 'people' ? r.isDM : v === 'rooms' ? !r.isDM : true
+    v === 'unread' ? (r.unread > 0 && r.notifs !== 'mute') || r.markedUnread : v === 'mentions' ? r.highlight > 0 : v === 'favourites' ? r.favourite : v === 'people' ? r.isDM : v === 'rooms' ? !r.isDM : true
   const chats = $derived(chat.rooms.filter((r) => !r.isSpace && !r.invited))
   const count = (v: View) => chats.filter((r) => matches(v, r)).length
   const VIEWS: [View, string, ComponentProps<typeof Icon>['name']][] = [
@@ -74,6 +74,9 @@
               <button role="option" aria-selected={on} onclick={() => pickView(v)}><Icon name={icon} size={15} />{label}<span class="n">{v === 'all' ? '' : count(v) || ''}</span>{#if on}<Icon name="check" size={14} />{/if}</button>
             {/each}
           </div>
+          <div role="group" aria-label="Read state">
+            <button role="option" aria-selected="false" disabled={!rooms.some((r) => r.unread > 0 || r.markedUnread)} onclick={async () => { switcher = false; await chat.markAllRead(rooms.map((r) => r.id)) }}><Icon name="checks" size={15} />Mark all as read{#if rooms.filter((r) => r.unread > 0 || r.markedUnread).length}<span class="n">{rooms.filter((r) => r.unread > 0 || r.markedUnread).length}</span>{/if}</button>
+          </div>
           <div role="group" aria-label="Sort by"><span class="grp" aria-hidden="true">Sort by</span>
             {#each ORDERS as [o, label] (o)}
               <button role="option" aria-selected={chat.roomOrder === o} onclick={() => { chat.setRoomOrder(o); switcher = false }}>{label}{#if chat.roomOrder === o}<Icon name="check" size={14} />{/if}</button>
@@ -106,7 +109,7 @@
     {/each}
     {#each rooms as r (r.id)}
       <div class="item">
-        <button class="row" class:active={chat.activeRoom === r.id} class:unread={r.unread > 0 && r.notifs !== 'mute'} class:muted={r.notifs === 'mute'} onclick={() => chat.openRoom(r.id)} oncontextmenu={(e) => { e.preventDefault(); ui.openRoomMenu(r.id, e.clientX, e.clientY, e.currentTarget) }}>
+        <button class="row" class:active={chat.activeRoom === r.id} class:unread={(r.unread > 0 && r.notifs !== 'mute') || r.markedUnread} class:muted={r.notifs === 'mute'} onclick={() => chat.openRoom(r.id)} oncontextmenu={(e) => { e.preventDefault(); ui.openRoomMenu(r.id, e.clientX, e.clientY, e.currentTarget) }}>
           <Avatar name={r.name} size={38} round={r.isDM} src={r.avatar} presence={r.dmUser ? (chat.presenceOf(r.dmUser) ?? 'offline') : undefined} />
           <span class="body">
             <span class="top">
@@ -119,6 +122,7 @@
             </span>
             <span class="bottom">
               {#if r.typing}<span class="preview typing" aria-live="polite">typing<i></i><i></i><i></i></span>{:else}{#if r.draft && chat.activeRoom !== r.id}<span class="preview"><span class="draft">Draft:</span> {r.draft}</span>{:else}<span class="preview">{#if PREVIEW_ICON[r.previewKind]}<Icon name={PREVIEW_ICON[r.previewKind]!} size={13} />{/if}{r.preview || (r.previewLoading ? '' : r.topic ? r.topic : 'No messages yet')}</span>{/if}{/if}
+              {#if r.markedUnread && !r.unread}<span class="badge dotbadge" title="Marked as unread"><span class="sr">Marked as unread</span></span>{/if}
               {#if r.unread}<span class="badge" class:hl={r.highlight > 0 && r.notifs !== 'mute'} class:quiet={r.notifs === 'mute'}>{r.unread}</span>{/if}
             </span>
           </span>
@@ -196,6 +200,7 @@
   footer { display: flex; align-items: center; gap: 2px; padding: 8px 10px; border-top: 1px solid var(--line); }
   .mewrap { position: relative; flex: 1; min-width: 0; } .menu.up { top: auto; bottom: calc(100% + 6px); min-width: 200px; } .pip { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); } .pip.online { background: var(--ok); } .pip.unavailable { background: #e0a100; } .pip.offline { background: transparent; border: 2px solid var(--muted); box-sizing: border-box; }
   .draft { color: var(--danger, #e5484d); font-weight: 600; } .preview :global(svg) { vertical-align: -2px; margin-right: 4px; }
+  .dotbadge { min-width: 10px; width: 10px; height: 10px; padding: 0; line-height: 10px; background: var(--accent); }
   .typing { color: var(--accent); } .typing i { display: inline-block; width: 3px; height: 3px; margin-left: 2px; border-radius: 50%; background: currentColor; animation: blip 1.2s infinite; } .typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; } @keyframes blip { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } } @media (prefers-reduced-motion: reduce) { .typing i { animation: none; } }
   .me { flex: 1;width: 100%; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: 8px; text-align: left; color: var(--muted); } .me:hover { background: var(--tile); color: var(--text); } .me span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 </style>

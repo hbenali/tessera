@@ -67,7 +67,8 @@
       <button role="menuitem" class="danger" onclick={() => run(() => chat.leaveRoom(room.id))}><Icon name="logout" size={15} />Leave room</button>
       <button role="menuitem" onclick={close}><Icon name="x" size={15} />Cancel</button>
     {:else}
-      {#if room.unread > 0}<button role="menuitem" onclick={() => run(() => chat.markRead(room.id))}><Icon name="checks" size={15} />Mark as read</button>{/if}
+      {#if room.unread > 0 || room.markedUnread}<button role="menuitem" onclick={() => run(() => chat.markRead(room.id))}><Icon name="checks" size={15} />Mark as read</button>
+      {:else}<button role="menuitem" onclick={() => run(() => chat.setMarkedUnread(room.id, true))}><Icon name="bell" size={15} />Mark as unread</button>{/if}
       {#if room.notifs === 'mute'}
         <button role="menuitem" onclick={() => run(() => chat.setRoomNotifs(room.id, 'all'))}><Icon name="bell" size={15} />Unmute</button>
       {:else}
