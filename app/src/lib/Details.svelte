@@ -80,6 +80,15 @@
       {/if}
       {#if err}<p class="err" role="alert">{err}</p>{:else if note}<p class="ok" role="status">{note}</p>{/if}
     {/if}
+    {#if chat.spaces.length && !r.isDM}
+      {@const sp = chat.spacesFor(r.id)}
+      <h4 class="label">Spaces</h4>
+      <ul>
+        {#each sp as s (s.id)}
+          <li><label class="mrow"><input type="checkbox" checked={s.has} disabled={!s.can} onchange={(e) => run(() => chat.setInSpace(s.id, r.id, e.currentTarget.checked))} /><span class="n">{s.name}</span>{#if !s.can}<small>no permission</small>{/if}</label></li>
+        {/each}
+      </ul>
+    {/if}
     <h4 class="label">Notifications</h4>
     <div class="seg" role="radiogroup" aria-label="Notifications for this room">
       {#each [['all', 'All'], ['mentions', 'Mentions'], ['mute', 'Mute']] as [v, t] (v)}

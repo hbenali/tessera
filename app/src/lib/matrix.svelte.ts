@@ -5,6 +5,7 @@ import { safeFileName } from './files'
 import { mentionPills, mentionsUser, plainMentions, type MentionPill } from './mentions'
 import { toggled } from './pins'
 import type { Device } from './devices'
+import { rank, splitServer, toPublicRoom, type PublicRoom } from './directory'
 import { firstUnread } from './jump'
 import { firstUrl, toPreview, type Preview as LinkCard } from './linkpreview'
 import { decryptKeyFile, encryptKeyFile } from './keyfile'
@@ -224,6 +225,17 @@ class Chat {
       this.error = e instanceof Error ? e.message : String(e)
     }
     return true
+  }
+
+  /** Start with a session made elsewhere (sign-up). */
+  async adopt(session: Session) {
+    this.error = ''
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+      await this.start(session)
+    } catch (e) {
+      this.error = friendlyError(e)
+    }
   }
 
   async login(server: string, user: string, password: string) {
@@ -1692,6 +1704,38 @@ class Chat {
 
   async declineInvite(id: string) {
     await this.client!.leave(id)
+  }
+
+  /** Search the homeserver's public room directory (or another server's, with "term @ server"). */
+  async searchDirectory(input: string): Promise<PublicRoom[]> {
+    const { term, server } = splitServer(input)
+    const r = await this.client!.publicRooms({ limit: 40, server, filter: term ? { generic_search_term: term } : undefined })
+    return rank(r.chunk.map((x) => toPublicRoom(x as never)), new Set(this.rooms.map((x) => x.id)))
+  }
+
+  /** Ask to join a room that is not open to everyone; a moderator has to accept. */
+  async knock(roomIdOrAlias: string, reason?: string) {
+    await this.client!.knockRoom(roomIdOrAlias, reason?.trim() ? { reason: reason.trim() } : undefined)
+  }
+
+  async createSpace(name: string) {
+    const r = await this.client!.createRoom({ name, preset: sdk.Preset.PrivateChat, creation_content: { type: 'm.space' }, power_level_content_override: { events_default: 100, invite: 50 } })
+    this.activeSpace = r.room_id
+  }
+
+  /** Spaces where I may add or remove rooms, and whether the active room is in each. */
+  spacesFor(roomId: string): { id: string; name: string; has: boolean; can: boolean }[] {
+    const c = this.client
+    if (!c) return []
+    return this.spaces.map((sp) => {
+      const sr = c.getRoom(sp.id)
+      return { id: sp.id, name: sp.name, has: this.rooms.find((r) => r.id === roomId)?.parents.includes(sp.id) ?? false, can: !!sr?.currentState.maySendStateEvent('m.space.child', this.userId) }
+    })
+  }
+  async setInSpace(spaceId: string, roomId: string, on: boolean) {
+    const c = this.client!
+    const via = [this.userId.split(':').slice(1).join(':')]
+    await c.sendStateEvent(spaceId, 'm.space.child' as never, (on ? { via } : {}) as never, roomId)
   }
 
   async joinRoom(alias: string) {

@@ -31,3 +31,14 @@ describe('homeserver discovery', () => {
     expect(o.sso).toEqual([{ id: '', name: 'Single sign-on' }])
   })
 })
+
+import { planRegistration } from './discover'
+describe('planRegistration', () => {
+  it('takes a flow of only doable steps', () => {
+    expect(planRegistration([{ stages: ['m.login.dummy'] }])).toEqual({ stages: ['m.login.dummy'], needsToken: false })
+    expect(planRegistration([{ stages: ['m.login.recaptcha', 'm.login.dummy'] }, { stages: ['m.login.registration_token', 'm.login.dummy'] }])).toEqual({ stages: ['m.login.registration_token', 'm.login.dummy'], needsToken: true })
+  })
+  it('gives up when email, captcha or terms are required', () => {
+    expect(planRegistration([{ stages: ['m.login.recaptcha'] }, { stages: ['m.login.email.identity', 'm.login.dummy'] }])).toBeUndefined()
+  })
+})

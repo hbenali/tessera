@@ -158,6 +158,7 @@
         </div>
       {/if}
     </div>
+    <button class="icon-btn" onclick={() => ui.open('explore')} aria-label="Explore public rooms" title="Explore public rooms"><Icon name="users" /></button>
     <button class="icon-btn" onclick={() => ui.open('join')} aria-label="Join a room by address" title="Join a room"><Icon name="hash" /></button>
     <button class="icon-btn" onclick={() => (ui.modal = 'settings')} aria-label="Settings" title="Settings"><Icon name="sliders" /></button>
   </footer>

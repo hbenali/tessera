@@ -72,6 +72,9 @@ jobs:
           rc_registration: {per_second: 1000, burst_count: 10000}
           rc_joins: {local: {per_second: 1000, burst_count: 10000}}
           presence: {enabled: true}
+          # The sign-up test creates an account from the sign-in page.
+          enable_registration: true
+          enable_registration_without_verification: true
           # The push test runs a stand-in push gateway on the runner, which Synapse reaches over the Docker bridge.
           ip_range_whitelist: ['172.17.0.0/16']
           EOF
