@@ -162,6 +162,12 @@
             {/each}
           {/if}
           <hr />
+          <h3 class="grp">{t("Accounts")}</h3>
+          {#each chat.accounts.filter((a) => a.userId !== chat.userId) as a (a.userId)}
+            <button role="menuitem" onclick={() => chat.switchTo(a.userId)}><Avatar name={a.name || a.userId} size={20} round />{t("Switch to")} {a.name || a.userId}</button>
+          {/each}
+          <button role="menuitem" onclick={() => chat.addAccount()}><Icon name="plus" size={14} />{t("Add an account")}</button>
+          <hr />
           <button role="menuitem" onclick={() => { status = false; ui.modal = 'settings' }}><Icon name="sliders" size={14} />{t("Profile and settings")}</button>
         </div>
       {/if}

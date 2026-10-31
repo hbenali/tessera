@@ -16,4 +16,5 @@ export const fr: Record<string, string> = {
   'Member': 'Membre', 'Moderator': 'Modérateur', 'Admin': 'Administrateur', 'Invite only': 'Sur invitation', 'Ask to join': 'Demander à rejoindre', 'Public': 'Public', 'Explore': 'Explorer', 'New room': 'Nouveau salon', 'Message someone': 'Écrire à quelqu’un', 'New space': 'Nouvel espace',
   'Jump to…': 'Aller à…', 'First unread message': 'Premier message non lu', 'Jump to a date': 'Aller à une date', 'Go': 'Aller', 'Poll': 'Sondage', 'My location': 'Ma position', 'Files': 'Fichiers', 'Create poll': 'Créer le sondage', 'End poll': 'Terminer le sondage',
   'Online': 'En ligne', 'Away': 'Absent', 'Invisible': 'Invisible', 'Do not disturb': 'Ne pas déranger', 'Turn off': 'Désactiver', 'Profile and settings': 'Profil et paramètres',
+  'Accounts': 'Comptes', 'Switch to': 'Passer à', 'Add an account': 'Ajouter un compte', 'Back to': 'Retour à',
 }

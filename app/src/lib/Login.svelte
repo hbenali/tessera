@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from './i18n.svelte'
   import Avatar from './Avatar.svelte'
+  import { SESSION_KEY, readAccounts } from './accounts'
   import { loginOptions, probeRegistration, registerAccount, startSso, type LoginOptions, type RegisterProbe } from './discover'
   type Mod = typeof import('./matrix.svelte')
   let { load }: { load: () => Promise<Mod> } = $props()
@@ -26,6 +27,16 @@
   }
   probe()
 
+  // Adding an account: the saved ones stay signed in, and Back returns to the one that was open.
+  const saved = readAccounts()
+  const cameFrom = (() => { try { return sessionStorage.getItem('tessera.adding') } catch { return null } })()
+  const back = saved.find((a) => a.userId === cameFrom) ?? saved[0]
+  function goBack() {
+    if (!back) return
+    try { sessionStorage.removeItem('tessera.adding') } catch { /* nothing to clear */ }
+    localStorage.setItem(SESSION_KEY, JSON.stringify(back))
+    location.reload()
+  }
   let mode = $state<'in' | 'up'>('in')
   let token = $state('')
   let again = $state('')
@@ -66,6 +77,7 @@
 <main>
   <section class="card">
     <div class="brand"><Avatar name="Tessera" size={40} /><span>Tessera</span></div>
+    {#if back}<button type="button" class="link goback" onclick={goBack}>← {t("Back to")} {back.name || back.userId}</button>{/if}
     <h1>{mode === 'in' ? t('Sign in') : t('Create an account')}</h1>
     <p class="lede">{t("Use your Matrix account on any homeserver.")}</p>
     {#if options?.sso.length}
@@ -112,4 +124,5 @@
   .or { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; color: var(--muted); font-size: 12px; } .or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
   .btn { padding: 10px; margin-top: 4px; } .err { color: var(--danger); font-size: 13px; }
   .switchmode { margin: 16px 0 0; text-align: center; color: var(--muted); font-size: 13px; } .link { color: var(--accent); text-decoration: underline; }
+  .goback { display: block; margin: -8px 0 12px; font-size: 13px; }
 </style>

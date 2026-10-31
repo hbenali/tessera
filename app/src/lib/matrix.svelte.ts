@@ -9,6 +9,7 @@ import { keywordActions, keywordRuleId, normalizeKeyword, readKeywords } from '.
 import { rank, splitServer, toPublicRoom, type PublicRoom } from './directory'
 import { firstUnread } from './jump'
 import { calls } from './calls.svelte'
+import { after, readAccounts, remove as removeAccount, save as saveAccounts, upsert, type Account } from './accounts'
 import { readBridge, type Bridge } from './bridge'
 import { SHARE_KEY } from './share'
 import { parsePollStart, pollContent, tally, type PollStart, type Tally } from './poll'
@@ -275,6 +276,8 @@ class Chat {
 
   async start(s: Session) {
     this.userId = s.userId
+    saveAccounts(upsert(readAccounts(), s))
+    this.accounts = readAccounts()
     // A tapped notification asks the open window to show its room. Listen from the very start: the room list can
     // appear from the local cache well before the first sync, and the hash is read again when it completes.
     navigator.serviceWorker?.addEventListener('message', (e) => {
@@ -368,8 +371,35 @@ class Chat {
     }
     this.client?.stopClient()
     await this.client?.clearStores().catch(() => {})
+    // Other saved accounts stay signed in: carry on with the next one instead of showing the sign-in page.
+    const all = readAccounts()
+    const next = after(all, this.userId)
+    saveAccounts(removeAccount(all, this.userId))
+    if (next) localStorage.setItem(SESSION_KEY, JSON.stringify(next))
+    else localStorage.removeItem(SESSION_KEY)
+    if (!next) clearDrafts()
+    history.replaceState(null, '', location.pathname)
+    location.reload()
+  }
+
+  /** Every account saved in this browser (the active one included). */
+  accounts = $state<Account[]>([])
+  private activeAccount(): Account | undefined {
+    return readAccounts().find((a) => a.userId === this.userId)
+  }
+  /** Carry on as another saved account. The page reloads: one account runs at a time. */
+  switchTo(userId: string) {
+    const a = readAccounts().find((x) => x.userId === userId)
+    if (!a || userId === this.userId) return
+    localStorage.setItem(SESSION_KEY, JSON.stringify(a))
+    history.replaceState(null, '', location.pathname)
+    location.reload()
+  }
+  /** Show the sign-in page to add another account, remembering which one to come back to. */
+  addAccount() {
+    try { sessionStorage.setItem('tessera.adding', this.userId) } catch { /* the page still works without a way back */ }
     localStorage.removeItem(SESSION_KEY)
-    clearDrafts()
+    history.replaceState(null, '', location.pathname)
     location.reload()
   }
 
@@ -1456,6 +1486,8 @@ class Chat {
     try {
       const p = await this.client!.getProfileInfo(this.userId)
       this.me = { name: p.displayname || this.userId, avatar: p.avatar_url }
+      saveAccounts(upsert(readAccounts(), { ...this.activeAccount()!, name: this.me.name, avatar: this.me.avatar }))
+      this.accounts = readAccounts()
     } catch {
       this.me = { name: this.userId }
     }
