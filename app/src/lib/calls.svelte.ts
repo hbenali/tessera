@@ -3,7 +3,7 @@ import * as sdk from 'matrix-js-sdk'
 import { CallErrorCode, CallEvent, CallState, CallType, createNewMatrixCall, type MatrixCall } from 'matrix-js-sdk/lib/webrtc/call'
 import { CallEventHandlerEvent } from 'matrix-js-sdk/lib/webrtc/callEventHandler'
 import { beep } from './sound'
-import { phaseOf, whyEnded, type CallPhase } from './callstate'
+import { phaseOf, ringPolicy, whyEnded, type CallPhase } from './callstate'
 
 export interface ActiveCall {
   roomId: string
@@ -25,6 +25,9 @@ class Calls {
   private client: sdk.MatrixClient | null = null
   private ring: ReturnType<typeof setInterval> | undefined
 
+  /** Set by the app: is do not disturb on right now? */
+  dnd: () => boolean = () => false
+
   attach(client: sdk.MatrixClient) {
     this.client = client
     client.on(CallEventHandlerEvent.Incoming, (call) => this.take(call, true))
@@ -45,10 +48,12 @@ class Calls {
 
   private take(call: MatrixCall, incoming: boolean, video = call.type === CallType.Video) {
     if (this.call) { if (incoming) call.reject(); return } // already on a call: decline the second one
+    const policy = incoming ? ringPolicy(this.client?.getIgnoredUsers() ?? [], call.getOpponentMember()?.userId ?? '', this.dnd()) : 'ring'
+    if (policy === 'reject') { call.reject(); return }
     this.call = call
     const peer = call.getOpponentMember()?.userId ?? ''
     this.active = { roomId: call.roomId, peer, incoming, video, phase: phaseOf(call.state, incoming), micMuted: false, camOff: false, startedAt: null, note: '' }
-    if (incoming) {
+    if (incoming && policy === 'ring') {
       this.ring = setInterval(() => beep('mention', { force: true }), 2500)
       beep('mention', { force: true })
     }

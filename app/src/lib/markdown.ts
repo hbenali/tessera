@@ -23,7 +23,7 @@ const pill = (id: string, label: string, me?: string) =>
 export function render(src: string, opts: RenderOptions = {}): string {
   const blocks: string[] = []
   // Fenced code first so its contents are not touched by inline rules.
-  let s = esc(src).replace(/```(?:\w+)?\n?([\s\S]*?)```/g, (_, code) => {
+  let s = esc(src.replace(/\u0000/g, '')).replace(/```(?:\w+)?\n?([\s\S]*?)```/g, (_, code) => {
     blocks.push(`<pre><code>${code.replace(/\n$/, '')}</code></pre>`)
     return `\u0000${blocks.length - 1}\u0000`
   })

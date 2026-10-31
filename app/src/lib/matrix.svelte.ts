@@ -9,6 +9,7 @@ import { keywordActions, keywordRuleId, normalizeKeyword, readKeywords } from '.
 import { rank, splitServer, toPublicRoom, type PublicRoom } from './directory'
 import { firstUnread } from './jump'
 import { calls } from './calls.svelte'
+import { forwardContent } from './forward'
 import { after, readAccounts, remove as removeAccount, save as saveAccounts, upsert, type Account } from './accounts'
 import { readBridge, type Bridge } from './bridge'
 import { SHARE_KEY } from './share'
@@ -302,6 +303,9 @@ class Chat {
     await client.initRustCrypto({ cryptoDatabasePrefix: `tessera-crypto-${s.userId}` })
     security.attach(client)
     calls.attach(client)
+    // The server ended this session (signed out from another device, or its token was revoked): do not sit on a dead sync.
+    client.on(sdk.HttpApiEvent.SessionLoggedOut, () => void this.sessionEnded())
+    calls.dnd = () => this.dndActive
     setThumbLoader((m, s, method) => this.thumb(m, s, method))
     setOriginalLoader((m, f, k) => this.original(m, f, k))
     security.refresh()
@@ -381,6 +385,22 @@ class Chat {
     history.replaceState(null, '', location.pathname)
     location.reload()
   }
+
+  private async sessionEnded() {
+    if (this.ending) return
+    this.ending = true
+    this.client?.stopClient()
+    await this.client?.clearStores().catch(() => {})
+    const all = readAccounts()
+    const next = after(all, this.userId)
+    saveAccounts(removeAccount(all, this.userId))
+    if (next) localStorage.setItem(SESSION_KEY, JSON.stringify(next))
+    else { localStorage.removeItem(SESSION_KEY); clearDrafts() }
+    try { sessionStorage.setItem('tessera.ended', this.userId) } catch { /* the notice is optional */ }
+    history.replaceState(null, '', location.pathname)
+    location.reload()
+  }
+  private ending = false
 
   /** Every account saved in this browser (the active one included). */
   accounts = $state<Account[]>([])
@@ -1095,13 +1115,9 @@ class Chat {
   async forwardMessage(id: string, toRoom: string) {
     const ev = this.eventOf(id)
     if (!ev) throw new Error('That message is not loaded any more')
-    const content = { ...ev.getContent() } as Record<string, unknown>
-    delete content['m.relates_to']
-    delete content['m.new_content']
-    if (typeof content.body === 'string') content.body = stripReplyFallback(content.body)
-    delete content.formatted_body // a reply's HTML still carries the quote
-    delete content.format
-    await this.client!.sendMessage(toRoom, content as never)
+    const r = forwardContent(ev.getContent(), !!this.client!.isRoomEncrypted(toRoom))
+    if ('error' in r) throw new Error(r.error)
+    await this.client!.sendMessage(toRoom, r.content as never)
   }
   /** The event as the server has it (and, once decrypted, its clear content), for the View source dialog. */
   sourceOf(id: string): string {
@@ -1486,8 +1502,8 @@ class Chat {
     try {
       const p = await this.client!.getProfileInfo(this.userId)
       this.me = { name: p.displayname || this.userId, avatar: p.avatar_url }
-      saveAccounts(upsert(readAccounts(), { ...this.activeAccount()!, name: this.me.name, avatar: this.me.avatar }))
-      this.accounts = readAccounts()
+      const mine = this.activeAccount() // gone if the account was just signed out: never write a half account back
+      if (mine) { saveAccounts(upsert(readAccounts(), { ...mine, name: this.me.name, avatar: this.me.avatar })); this.accounts = readAccounts() }
     } catch {
       this.me = { name: this.userId }
     }

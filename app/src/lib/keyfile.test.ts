@@ -24,3 +24,15 @@ describe('room key file', () => {
     expect(await encryptKeyFile(json, 'pw', 1000)).not.toBe(await encryptKeyFile(json, 'pw', 1000))
   })
 })
+
+describe('key file limits', () => {
+  it('refuses a file that asks for an absurd number of key-derivation rounds, without trying them', async () => {
+    const bytes = new Uint8Array(1 + 16 + 16 + 4 + 8 + 32)
+    bytes[0] = 1
+    new DataView(bytes.buffer).setUint32(33, 3_000_000)
+    const file = `-----BEGIN MEGOLM SESSION DATA-----\n${btoa(String.fromCharCode(...bytes))}\n-----END MEGOLM SESSION DATA-----`
+    const t = Date.now()
+    await expect(decryptKeyFile(file, 'pw')).rejects.toThrow(/damaged/)
+    expect(Date.now() - t).toBeLessThan(1000)
+  })
+})

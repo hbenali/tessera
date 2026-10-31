@@ -65,3 +65,11 @@ describe('mentions by name', () => {
     expect(out).toContain('&lt;img')
   })
 })
+
+describe('placeholder injection', () => {
+  it('a message containing the renderer\'s own placeholder cannot pull in other output', () => {
+    const out = render('`code` and \u00000\u0000 and \u00009\u0000')
+    expect(out).not.toContain('undefined')
+    expect(out.match(/<code>code<\/code>/g)).toHaveLength(1)
+  })
+})

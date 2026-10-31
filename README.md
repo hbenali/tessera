@@ -112,7 +112,7 @@ Either way the app holds no secrets or state: the browser talks to your homeserv
 
 ## Security
 
-See [SECURITY.md](SECURITY.md) to report a vulnerability. Messages are rendered with an escaping Markdown renderer covered by XSS regression tests; the session, including the access token, is kept in the browser's `localStorage` and is only sent to your homeserver (so an XSS bug would be serious, which is why the CSP is strict).
+See [SECURITY.md](SECURITY.md) to report a vulnerability. Messages are rendered with an escaping Markdown renderer covered by XSS regression tests; the session, including the access token (and those of any other saved account), is kept in the browser's `localStorage` and is only sent to your homeserver (so an XSS bug would be serious, which is why the CSP is strict).
 
 ## License
 

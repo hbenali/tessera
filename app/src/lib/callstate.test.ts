@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clock, phaseLabel, phaseOf, whyEnded } from './callstate'
+import { clock, phaseLabel, phaseOf, ringPolicy, whyEnded } from './callstate'
 
 describe('call helpers', () => {
   it('formats the elapsed time', () => { expect(clock(0)).toBe('0:00'); expect(clock(65)).toBe('1:05'); expect(clock(3725)).toBe('1:02:05'); expect(clock(-3)).toBe('0:00') })
@@ -23,4 +23,9 @@ describe('call helpers', () => {
     expect(whyEnded('invite_timeout')).toBe('No answer')
     expect(whyEnded(undefined)).toBe('')
   })
+})
+
+describe('ringPolicy', () => {
+  it('rejects an ignored caller, even in do not disturb', () => expect(ringPolicy(['@a:x'], '@a:x', true)).toBe('reject'))
+  it('is silent in do not disturb and rings otherwise', () => { expect(ringPolicy([], '@b:x', true)).toBe('silent'); expect(ringPolicy([], '@b:x', false)).toBe('ring') })
 })

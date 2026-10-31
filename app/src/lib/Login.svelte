@@ -37,6 +37,7 @@
     localStorage.setItem(SESSION_KEY, JSON.stringify(back))
     location.reload()
   }
+  const ended = (() => { try { const v = sessionStorage.getItem('tessera.ended'); sessionStorage.removeItem('tessera.ended'); return v } catch { return null } })()
   let mode = $state<'in' | 'up'>('in')
   let token = $state('')
   let again = $state('')
@@ -79,6 +80,7 @@
     <div class="brand"><Avatar name="Tessera" size={40} /><span>Tessera</span></div>
     {#if back}<button type="button" class="link goback" onclick={goBack}>← {t("Back to")} {back.name || back.userId}</button>{/if}
     <h1>{mode === 'in' ? t('Sign in') : t('Create an account')}</h1>
+    {#if ended}<p class="err" role="status">You were signed out: this session was ended from another device or by your server. Sign in again to carry on.</p>{/if}
     <p class="lede">{t("Use your Matrix account on any homeserver.")}</p>
     {#if options?.sso.length}
       <div class="sso">

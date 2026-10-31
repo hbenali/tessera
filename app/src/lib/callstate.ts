@@ -39,3 +39,6 @@ export function whyEnded(code: string | undefined): string {
     default: return code && code !== 'user_hangup' ? 'The call ended' : ''
   }
 }
+
+/** An incoming call is dropped when the caller is ignored; it rings silently during do not disturb. */
+export const ringPolicy = (ignored: readonly string[], peer: string, dnd: boolean): 'reject' | 'silent' | 'ring' => (ignored.includes(peer) ? 'reject' : dnd ? 'silent' : 'ring')

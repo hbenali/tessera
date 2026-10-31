@@ -40,7 +40,7 @@ export async function decryptKeyFile(file: string, pass: string): Promise<string
   try { data = unb64(t.slice(HEAD.length, t.length - TAIL.length).replace(/\s+/g, '')) } catch { throw new Error('The key file is damaged') }
   if (data.length < 37 + 32 || data[0] !== 1) throw new Error('This key file version is not supported')
   const rounds = new DataView(data.buffer, data.byteOffset).getUint32(33)
-  if (rounds < 1 || rounds > 5_000_000) throw new Error('The key file is damaged')
+  if (rounds < 1 || rounds > 2_000_000) throw new Error('The key file is damaged')
   const { aes, mac } = await keys(pass, data.slice(1, 17), rounds)
   const signed = data.subarray(0, data.length - 32)
   if (!(await crypto.subtle.verify('HMAC', mac, data.slice(data.length - 32) as BufferSource, signed as BufferSource))) throw new Error('Wrong passphrase, or the file is damaged')
