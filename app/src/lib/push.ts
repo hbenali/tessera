@@ -58,14 +58,14 @@ export function describe(sub: PushSubscription): WebSubscription {
 }
 
 export async function currentSubscription(): Promise<WebSubscription | null> {
-  const reg = await navigator.serviceWorker.ready
+  const reg = await swReady()
   const sub = await reg.pushManager.getSubscription()
   return sub ? describe(sub) : null
 }
 
 /** Subscribe this browser to the gateway's VAPID key; the browser shows its own prompt if permission is not yet given. */
 export async function subscribe(cfg: PushConfig): Promise<WebSubscription> {
-  const reg = await navigator.serviceWorker.ready
+  const reg = await swReady()
   let sub = await reg.pushManager.getSubscription()
   // A subscription made for another VAPID key cannot be reused.
   if (sub && toBase64Url(sub.options.applicationServerKey) !== cfg.vapidPublicKey) {
@@ -77,7 +77,7 @@ export async function subscribe(cfg: PushConfig): Promise<WebSubscription> {
 }
 
 export async function unsubscribe(): Promise<void> {
-  const reg = await navigator.serviceWorker.ready
+  const reg = await swReady()
   await (await reg.pushManager.getSubscription())?.unsubscribe()
 }
 
@@ -119,3 +119,14 @@ export interface WorkerDnd {
   schedule: Schedule
 }
 export const storeWorkerDnd = (d: WorkerDnd | null) => kvSet('dnd', d)
+
+
+/** Give up on a promise that may never settle (a blocked or failed service worker never becomes ready). */
+export function within<T>(p: Promise<T>, ms: number, what = 'That'): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>
+  const late = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`${what} took too long`)), ms) })
+  return Promise.race([p, late]).finally(() => clearTimeout(timer))
+}
+
+/** The service worker registration, or an error after a few seconds instead of waiting for ever. */
+export const swReady = (ms = 3000): Promise<ServiceWorkerRegistration> => within(navigator.serviceWorker.ready, ms, 'The service worker')

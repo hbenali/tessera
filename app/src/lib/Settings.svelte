@@ -298,7 +298,7 @@
   .me { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; } .grow { flex: 1; display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
   .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; border-radius: 8px; background: var(--tile); } .seg button { padding: 6px 0; border-radius: 6px; color: var(--muted); } .seg button.on { background: var(--bg); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
   .status { margin: 0; padding: 10px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; color: var(--danger); } .status.ok { color: var(--ok); } .status .mono { color: var(--muted); }
-  form { display: flex; gap: 12px; align-items: end; }
+  form { display: flex; gap: 12px; align-items: end; } form .btn { white-space: nowrap; flex: none; }
   .key { padding: 14px 0; } code { display: block; word-break: break-all; margin: 10px 0 14px; padding: 12px; background: var(--tile); font-family: var(--mono); font-size: 13px; }
   .err { color: var(--danger); font-size: 13px; margin-top: 12px; }
   .kwform { display: flex; gap: 8px; } .kwform input { flex: 1; font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; } .kws { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; } .kws li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 14px; background: var(--tile); }

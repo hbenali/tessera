@@ -41,4 +41,5 @@
   .pop .btn { display: inline-flex; gap: 8px; align-items: center; justify-content: center; }
   form { display: grid; gap: 6px; } label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); } input { font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
   p { margin: 0; font-size: 12px; color: var(--muted); }
+  @media (max-width: 640px) { .pop { position: fixed; left: 12px; right: 12px; top: 64px; width: auto; } }
 </style>

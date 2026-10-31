@@ -144,4 +144,5 @@
   .role { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
   .set { display: grid; gap: 4px; margin-top: 8px; font-size: 12px; color: var(--muted); } .set select, .set textarea { font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; } .set select:disabled { opacity: .6; }
   .warn { margin: 8px 0; font-size: 13px; color: var(--danger); } .ok { margin: 6px 0 0; font-size: 12px; color: var(--ok); } .err { margin: 6px 0 0; font-size: 12px; color: var(--danger); } .sm { padding: 3px 10px; } small { color: var(--muted); }
+  aside > .btn, aside > .enc, aside > .set, aside > .warn, aside > .row, aside > .quiet { margin-top: 8px; } aside > .enc + .enc { margin-top: 8px; } aside > .btn.fav { margin-top: 10px; }
 </style>

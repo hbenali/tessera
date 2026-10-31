@@ -37,8 +37,7 @@ describe('room views, muted and favourite rooms, and who reacted', () => {
     await page.locator('aside header .switch').click()
     for (const n of ['All conversations', 'Unread', 'Mentions', 'Favourites', 'People', 'Rooms'])
       await page.getByRole('option', { name: new RegExp(`^${n}`) }).waitFor()
-    await page.keyboard.press('Escape')
-    await page.locator('aside header .switch').click().catch(() => {})
+    await page.keyboard.press('Escape') // closes the menu
   })
 
   it('People shows only direct chats and Rooms only the rest', async () => {

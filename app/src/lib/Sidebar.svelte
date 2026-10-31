@@ -52,6 +52,8 @@
   const pick = (id: string) => { chat.activeSpace = id; view = 'all'; switcher = false }
 </script>
 
+<!-- Escape, or a press anywhere else, closes the view and status menus -->
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape' && (switcher || status)) { switcher = false; status = false } }} onpointerdown={(e) => { if ((switcher || status) && !(e.target as Element)?.closest?.('.ws, .mewrap')) { switcher = false; status = false } }} />
 <aside class="sidebar" aria-label="Conversations">
   <header>
     <div class="ws">
@@ -151,23 +153,23 @@
           {#each STATUSES as [v, lbl] (v)}
             <button role="menuitemradio" aria-checked={chat.myStatus === v} onclick={() => setStatus(v)}><span class="pip {v}"></span>{t(lbl)}{#if chat.myStatus === v}<Icon name="check" size={14} />{/if}</button>
           {/each}
-          <h3 class="grp">{t("Do not disturb")}</h3>
-          {#if chat.quietNow && !chat.manualDnd}<p class="dndnow" role="status">Quiet hours are on until {chat.schedule.to}</p>{/if}
+          <div class="grp" role="presentation" aria-hidden="true">{t("Do not disturb")}</div>
+          {#if chat.quietNow && !chat.manualDnd}<button role="menuitem" class="dndnow" aria-disabled="true" tabindex="-1">Quiet hours are on until {chat.schedule.to}</button>{/if}
           {#if chat.manualDnd}
-            <p class="dndnow" role="status">On {chat.dnd?.until ? `until ${untilLabel(chat.dnd.until)}` : 'until you turn it off'}</p>
+            <button role="menuitem" class="dndnow" aria-disabled="true" tabindex="-1">On {chat.dnd?.until ? `until ${untilLabel(chat.dnd.until)}` : 'until you turn it off'}</button>
             <button role="menuitem" onclick={() => { chat.endDnd(); status = false }}><Icon name="bell" size={14} />{t("Turn off")}</button>
           {:else}
             {#each DND_CHOICES as [label, until] (label)}
               <button role="menuitem" onclick={() => { chat.setDnd(until()); status = false }}><Icon name="moon" size={14} />{label}</button>
             {/each}
           {/if}
-          <hr />
-          <h3 class="grp">{t("Accounts")}</h3>
+          <div class="sep" role="separator"></div>
+          <div class="grp" role="presentation" aria-hidden="true">{t("Accounts")}</div>
           {#each chat.accounts.filter((a) => a.userId !== chat.userId) as a (a.userId)}
             <button role="menuitem" onclick={() => chat.switchTo(a.userId)}><Avatar name={a.name || a.userId} size={20} round />{t("Switch to")} {a.name || a.userId}</button>
           {/each}
           <button role="menuitem" onclick={() => chat.addAccount()}><Icon name="plus" size={14} />{t("Add an account")}</button>
-          <hr />
+          <div class="sep" role="separator"></div>
           <button role="menuitem" onclick={() => { status = false; ui.modal = 'settings' }}><Icon name="sliders" size={14} />{t("Profile and settings")}</button>
         </div>
       {/if}
@@ -190,7 +192,7 @@
   .menu { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; min-width: 220px; padding: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
   .menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border-radius: 6px; text-align: left; } .menu button:hover { background: var(--tile); } .menu :global(svg:last-child) { margin-left: auto; color: var(--accent); }
   .search { display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 8px 10px; border-radius: 8px; background: var(--tile); color: var(--muted); } .search:hover { color: var(--text); }
-  .search span { flex: 1; text-align: left; } kbd { font-size: 11px; }
+  .search span { flex: 1; text-align: left; } kbd { font-size: 11px; } @media (hover: none) { kbd { display: none; } }
   .list { position: relative; flex: 1; overflow-y: auto; padding: 0 6px 8px; }
   .item { position: relative; } .more { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); opacity: 0; background: var(--panel); box-shadow: 0 0 0 1px var(--line); width: 28px; height: 28px; } .item:hover .more, .item:focus-within .more, .more:focus-visible { opacity: 1; } @media (hover: none) { .more { opacity: 1; width: 24px; height: 24px; right: 2px; top: 10px; transform: none; background: none; box-shadow: none; } }
   .row { display: flex; gap: 10px; width: 100%; padding: 8px; border-radius: 10px; text-align: left; align-items: center; } .row:hover { background: var(--tile); } .row.active { background: var(--tile); box-shadow: inset 2px 0 0 var(--accent); }
@@ -203,7 +205,7 @@
   .invite { display: flex; align-items: center; gap: 10px; padding: 8px; margin: 0 0 4px; border-radius: 10px; border: 1px dashed var(--accent); } .invite .meta { flex: 1; display: grid; min-width: 0; } .invite .meta span { color: var(--muted); font-size: 12px; } .invite .btn { padding: 5px 12px; }
   .muted .name, .muted .preview { opacity: .6; } .badge.quiet { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--muted); } .fav { color: var(--accent); }
   .grp { display: block; margin: 8px 8px 2px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-  .dnd { margin-left: auto; display: inline-flex; color: var(--accent); flex: none; } .dndnow { margin: 2px 10px 6px; font-size: 12px; color: var(--muted); } .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
+  .dnd { margin-left: auto; display: inline-flex; color: var(--accent); flex: none; }  .menu .sep { border-top: 1px solid var(--line); margin: 4px 2px; } .menu button.dndnow { color: var(--muted); font-size: 12px; cursor: default; } .menu button.dndnow:hover { background: none; }
   .n { margin-left: auto; color: var(--muted); font-size: 12px; } .menu .n + :global(svg) { margin-left: 8px; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .empty { padding: 24px 12px; color: var(--muted); text-align: center; }

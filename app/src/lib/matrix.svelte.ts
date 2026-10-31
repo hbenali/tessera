@@ -9,6 +9,7 @@ import { keywordActions, keywordRuleId, normalizeKeyword, readKeywords } from '.
 import { rank, splitServer, toPublicRoom, type PublicRoom } from './directory'
 import { firstUnread } from './jump'
 import { calls } from './calls.svelte'
+import { clearSnapshot, writeSnapshot } from './snapshot'
 import { forwardContent } from './forward'
 import { after, readAccounts, remove as removeAccount, save as saveAccounts, upsert, type Account } from './accounts'
 import { readBridge, type Bridge } from './bridge'
@@ -25,7 +26,7 @@ import { setOriginalLoader, setThumbLoader } from './media'
 import { decryptAttachment, encryptAttachment, isEncryptedFile, type EncryptedFile } from './attachments'
 import { beep, unlockAudio } from './sound'
 import { format, parse, type Route } from './route'
-import { PUSH_APP_ID, currentSubscription, storePushSession, storeWorkerDnd, subscribe, unsubscribe, type PushConfig } from './push'
+import { within, PUSH_APP_ID, currentSubscription, storePushSession, storeWorkerDnd, subscribe, unsubscribe, type PushConfig } from './push'
 import { DEFAULT_REPLY, DEFAULT_SCHEDULE, inSchedule, parseAutoReply, parseSchedule, replyText, scheduleEnd, type AutoReply, type Schedule } from './dnd'
 
 const SESSION_KEY = 'tessera.session'
@@ -367,7 +368,7 @@ class Chat {
   }
 
   async logout() {
-    await this.disablePush().catch(() => {})
+    await within(this.disablePush(), 6000).catch(() => {}) // never let a stuck push cleanup keep you signed in
     try {
       await this.client?.logout(true)
     } catch {
@@ -379,6 +380,8 @@ class Chat {
     const all = readAccounts()
     const next = after(all, this.userId)
     saveAccounts(removeAccount(all, this.userId))
+    clearTimeout(this.snapTimer)
+    clearSnapshot(this.userId)
     if (next) localStorage.setItem(SESSION_KEY, JSON.stringify(next))
     else localStorage.removeItem(SESSION_KEY)
     if (!next) clearDrafts()
@@ -394,6 +397,8 @@ class Chat {
     const all = readAccounts()
     const next = after(all, this.userId)
     saveAccounts(removeAccount(all, this.userId))
+    clearTimeout(this.snapTimer)
+    clearSnapshot(this.userId)
     if (next) localStorage.setItem(SESSION_KEY, JSON.stringify(next))
     else { localStorage.removeItem(SESSION_KEY); clearDrafts() }
     try { sessionStorage.setItem('tessera.ended', this.userId) } catch { /* the notice is optional */ }
@@ -522,7 +527,13 @@ class Chat {
       }
     }
     this.rooms = sorted
+    // keep a small picture of the list for the next reload (see snapshot.ts); not before the first sync, which would save a partial one
+    if (this.ready) {
+      clearTimeout(this.snapTimer)
+      this.snapTimer = setTimeout(() => writeSnapshot(this.userId, this.rooms), 1500)
+    }
   }
+  private snapTimer: ReturnType<typeof setTimeout> | undefined
 
   /** Rooms visible for the current space filter, DMs shown under "Home". */
   get visibleRooms(): RoomItem[] {

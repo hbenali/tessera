@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from './i18n.svelte'
+  import { calls } from './calls.svelte'
   import { tick } from 'svelte'
   import { chat } from './matrix.svelte'
   import { ui } from './ui.svelte'
@@ -68,6 +69,10 @@
       <button role="menuitem" class="danger" onclick={() => run(() => chat.leaveRoom(room.id))}><Icon name="logout" size={15} />{t("Leave room")}</button>
       <button role="menuitem" onclick={close}><Icon name="x" size={15} />Cancel</button>
     {:else}
+      {#if room.isDM && calls.supported && !calls.active}
+        <button role="menuitem" class="phoneonly" onclick={() => { close(); calls.place(room.id, false).catch(() => {}) }}><Icon name="phone" size={15} />Voice call</button>
+        <button role="menuitem" class="phoneonly" onclick={() => { close(); calls.place(room.id, true).catch(() => {}) }}><Icon name="video" size={15} />Video call</button>
+      {/if}
       {#if room.unread > 0 || room.markedUnread}<button role="menuitem" onclick={() => run(() => chat.markRead(room.id))}><Icon name="checks" size={15} />{t("Mark as read")}</button>
       {:else}<button role="menuitem" onclick={() => run(() => chat.setMarkedUnread(room.id, true))}><Icon name="bell" size={15} />{t("Mark as unread")}</button>{/if}
       {#if room.notifs === 'mute'}
@@ -101,4 +106,5 @@
   hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
   .danger { color: var(--danger); }
   .ask { margin: 6px 10px 8px; font-weight: 600; } .note { margin: 6px 10px; color: var(--danger); font-size: 12px; }
+  .phoneonly { display: none; } @media (max-width: 520px) { .phoneonly { display: flex; } }
 </style>

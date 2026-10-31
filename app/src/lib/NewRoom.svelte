@@ -100,7 +100,7 @@
 </Modal>
 
 <style>
-  .tabs { display: flex; gap: 4px; margin-bottom: 16px; padding: 3px; background: var(--tile); border-radius: 8px; } .tabs button { flex: 1; padding: 6px 8px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--muted); } .tabs .on { background: var(--bg); color: var(--text); }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; padding: 3px; background: var(--tile); border-radius: 8px; } .tabs button { flex: 1 1 auto; white-space: nowrap; padding: 6px 8px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--muted); } .tabs .on { background: var(--bg); color: var(--text); }
   form { display: grid; gap: 14px; } .check { display: flex; gap: 10px; align-items: center; } input[type='checkbox'] { accent-color: var(--accent); width: 16px; height: 16px; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; } li button { display: flex; gap: 10px; align-items: center; width: 100%; padding: 7px 8px; border-radius: 8px; text-align: left; } li button:hover { background: var(--tile); } li span { display: grid; } small { color: var(--muted); }
   .err { color: var(--danger); font-size: 13px; }

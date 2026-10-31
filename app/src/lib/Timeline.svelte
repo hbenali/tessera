@@ -33,6 +33,14 @@
   let editing = $state<Msg | null>(null)
   let notice = $state('')
   let picker = $state<string | null>(null) // message id, or 'composer'
+  // On a touch screen there is no hover: a tap on a message shows its toolbar (react, reply, more), a tap on another message moves it.
+  let tapped = $state<string | null>(null)
+  $effect(() => { chat.activeRoom; tapped = null })
+  function tapMessage(e: MouseEvent, id: string) {
+    if (!matchMedia('(hover: none)').matches) return
+    if ((e.target as Element).closest('a, button, input, textarea, .tools, .mention, [role=button], [role=group]')) return
+    tapped = id // another message, or another room, takes it away
+  }
   let seenFor = $state<string | null>(null) // message whose list of readers is open
   let seenUp = $state(false) // open the list upward when there is no room below
   // The readers list closes on Escape, on a click anywhere else, and when the room changes.
@@ -533,7 +541,7 @@
       <Avatar name={chat.active.name} size={32} round={chat.active.isDM} src={chat.active.avatar} presence={chat.active.dmUser ? (chat.presenceOf(chat.active.dmUser) ?? 'offline') : undefined} />
       <div class="title"><h1>{chat.active.name}{#if chat.isQuiet(chat.active.id)}<span class="muted" title="Quiet reading: people are not shown that you read this room"><Icon name="eyeOff" size={14} /><span class="sr">Quiet reading</span></span>{/if}{#if chat.active.notifs === 'mute'}<span class="muted" title="Notifications are muted"><Icon name="bellOff" size={14} /><span class="sr">Muted</span></span>{/if}</h1>{#if chat.active.dmUser}<span class="topic">{({ online: 'Online', unavailable: 'Away', offline: 'Offline' })[chat.presenceOf(chat.active.dmUser) ?? 'offline']}</span>{:else if chat.active.topic}<span class="topic">{chat.active.topic}</span>{:else}<span class="topic">{chat.active.memberCount} {chat.active.memberCount === 1 ? 'member' : 'members'}</span>{/if}</div>
       {#if chat.active.encrypted}<span class="enc" title="End-to-end encrypted"><Icon name="lock" size={13} /> Encrypted</span>{/if}
-{#if chat.active.isDM && calls.supported && !calls.active}<button class="icon-btn" onclick={() => calls.place(chat.active!.id, false).catch(() => {})} aria-label="Voice call" title="Voice call"><Icon name="phone" /></button><button class="icon-btn" onclick={() => calls.place(chat.active!.id, true).catch(() => {})} aria-label="Video call" title="Video call"><Icon name="video" /></button>{/if}
+{#if chat.active.isDM && calls.supported && !calls.active}<button class="icon-btn callbtn" onclick={() => calls.place(chat.active!.id, false).catch(() => {})} aria-label="Voice call" title="Voice call"><Icon name="phone" /></button><button class="icon-btn callbtn" onclick={() => calls.place(chat.active!.id, true).catch(() => {})} aria-label="Video call" title="Video call"><Icon name="video" /></button>{/if}
 <JumpMenu />
  <button class="icon-btn" class:on={ui.roomSearch} onclick={() => { ui.roomSearch = !ui.roomSearch; if (ui.roomSearch) chat.closeThread() }} aria-label="Search in this room" aria-pressed={ui.roomSearch} title="Search in this room (Ctrl+Shift+F)"><Icon name="search" /></button>
       <button class="icon-btn" aria-label="Room menu" aria-haspopup="menu" onclick={(e) => { const b = e.currentTarget.getBoundingClientRect(); ui.openRoomMenu(chat.active!.id, b.right - 220, b.bottom + 4, e.currentTarget) }}><Icon name="more" /></button>
@@ -568,7 +576,8 @@
       {#if virt}<div class="vpad" style:height="{win.top}px" aria-hidden="true"></div>{/if}
       {#each shown as { m, newDay, cont } (m.id)}
         {#if newDay}<div class="day" role="separator"><span>{dayLabel(m.ts)}</span></div>{/if}
-        <article class:cont class:pending={m.pending} class:active={picker === m.id || seenFor === m.id} class:mention={m.mentionsMe} data-id={m.id}>
+        <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+        <article onclick={(e) => tapMessage(e, m.id)} class:cont class:pending={m.pending} class:active={picker === m.id || seenFor === m.id || tapped === m.id} class:mention={m.mentionsMe} data-id={m.id}>
           <div class="gutter">
             {#if !cont}<!-- a mouse shortcut: the sender's name beside it is the accessible way to open the same card --><button class="avbtn" onclick={(e) => card(m.sender, e)} tabindex="-1" aria-hidden="true"><Avatar name={m.senderName} size={36} round src={m.senderAvatar} presence={m.mine ? undefined : chat.presenceOf(m.sender)} /></button>{:else}<time>{fmt(m.ts)}</time>{/if}
           </div>
@@ -687,7 +696,10 @@
   .empty { margin: auto; padding: 24px; text-align: center; color: var(--muted); display: grid; justify-items: center; gap: 4px; } .empty h1 { margin: 10px 0 0; font-size: 20px; color: var(--text); } .empty p { margin: 0; }
   header { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; border-bottom: 1px solid var(--line); flex: none; }
   .back { display: none; } @media (max-width: 720px) { .back { display: grid; } }
-  .title { min-width: 0; display: grid; line-height: 1.25; } h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; } .topic { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* On a phone the header has no room for call buttons next to the title: they move into the room menu. */
+  @media (max-width: 520px) { .callbtn { display: none; } }
+  .title h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .title { flex: 1 1 0; min-width: 0; display: grid; line-height: 1.25; } h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; } .topic { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .enc { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ok); padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--ok) 14%, transparent); }
   .scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 8px 0 4px; }
   .note { text-align: center; color: var(--muted); font-size: 12px; padding: 8px; }
