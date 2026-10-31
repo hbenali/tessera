@@ -104,6 +104,9 @@
   form { display: grid; gap: 14px; } .check { display: flex; gap: 10px; align-items: center; } input[type='checkbox'] { accent-color: var(--accent); width: 16px; height: 16px; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; } li button { display: flex; gap: 10px; align-items: center; width: 100%; padding: 7px 8px; border-radius: 8px; text-align: left; } li button:hover { background: var(--tile); } li span { display: grid; } small { color: var(--muted); }
   .err { color: var(--danger); font-size: 13px; }
+  /* the people-search rule above makes every list button full width: the room buttons are small and sit beside the text */
+  .why > .btn { display: inline-flex; width: auto; flex: none; }
+  .room > .btn { display: inline-flex; width: auto; flex: none; align-self: center; }
   .dir { max-height: 320px; overflow: auto; } .room { display: flex; gap: 10px; align-items: center; padding: 6px 4px; } .info { flex: 1; min-width: 0; display: grid; } .info small { color: var(--muted); } .topic { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .why { display: flex; gap: 6px; padding: 0 4px 6px; } .why input { flex: 1; font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; } .sm { padding: 4px 12px; } .hint { color: var(--muted); font-size: 13px; margin: 0; }
 </style>
