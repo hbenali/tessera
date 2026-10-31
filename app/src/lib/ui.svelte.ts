@@ -22,6 +22,9 @@ export const shortTime = (ts: number) => {
 }
 export const tileBg = (n: string) => `background:var(--t${tone(n)})`
 
+/** The browser or status bar colour for a theme ("System" follows the device). */
+export const themeColor = (id: string, prefersDark: boolean): string => (id === 'auto' ? (prefersDark ? '#0d0f14' : '#f1f2f5') : (THEMES.find((t) => t.id === id)?.bg ?? '#0d0f14'))
+
 export const THEMES = [
   { id: 'auto', label: 'System', bg: '#0d0f14', fg: '#f3f4f8', ac: '#ffd23f' },
   { id: 'dark', label: 'Dark', bg: '#0d0f14', fg: '#f3f4f8', ac: '#ffd23f' },
@@ -110,8 +113,18 @@ class Ui {
     if (typeof document === 'undefined') return
     if (t === 'auto') document.documentElement.removeAttribute('data-theme')
     else document.documentElement.dataset.theme = t
+    this.paintBar()
   }
+  /** Keep the browser's address and status bar the colour of the page. */
+  paintBar() {
+    if (typeof document === 'undefined') return
+    const dark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor(this.theme, dark))
+  }
+  /** A shortcut or link that asked for a screen, waiting for the app to be ready to show it. */
+  pending = $state<{ action?: import('./shortcuts').Action; view?: import('./shortcuts').ListView } | null>(null)
 }
 export const ui = new Ui()
 ui.setTheme(ui.theme)
+if (typeof matchMedia !== 'undefined') matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => ui.paintBar())
 ui.applyLook()

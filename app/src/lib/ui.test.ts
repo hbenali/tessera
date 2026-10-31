@@ -22,3 +22,14 @@ describe('ui helpers', () => {
     expect(dayLabel(Date.now() - 5 * 86_400_000)).not.toMatch(/Today|Yesterday/)
   })
 })
+
+import { themeColor } from './ui.svelte'
+describe('themeColor', () => {
+  it('follows the chosen theme, and the device for System', () => {
+    expect(themeColor('sand', true)).toBe('#ece4d3')
+    expect(themeColor('midnight', false)).toBe('#000000')
+    expect(themeColor('auto', true)).toBe('#0d0f14')
+    expect(themeColor('auto', false)).toBe('#f1f2f5')
+    expect(themeColor('nope', false)).toBe('#0d0f14')
+  })
+})

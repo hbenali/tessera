@@ -48,6 +48,7 @@
     ['rooms', 'Rooms', 'users'],
   ]
   const title = $derived(current?.name ?? VIEWS.find((v) => v[0] === view)![1])
+  $effect(() => { const p = ui.pending; if (p?.view && chat.ready) { pickView(p.view); ui.pending = null } })
   const pickView = (v: View) => { view = v; chat.activeSpace = null; switcher = false }
   const pick = (id: string) => { chat.activeSpace = id; view = 'all'; switcher = false }
 </script>

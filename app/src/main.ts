@@ -3,6 +3,7 @@ import './app.css'
 import App from './App.svelte'
 import { install } from './lib/install.svelte'
 import { SHARE_KEY, readShare, withoutShare } from './lib/share'
+import { readShortcut, withoutShortcut } from './lib/shortcuts'
 import { ui } from './lib/ui.svelte'
 
 install.listen()
@@ -15,7 +16,21 @@ install.listen()
     history.replaceState(null, '', withoutShare(location.href))
   }
   try { ui.shared = shared ?? sessionStorage.getItem(SHARE_KEY) } catch { ui.shared = shared ?? null }
+  // Opened from an app shortcut (long-press the icon) or a link that names a screen.
+  const sc = readShortcut(location.search)
+  if (sc.action || sc.view) { ui.pending = sc; history.replaceState(null, '', withoutShortcut(location.href)) }
 }
+
+// Already open when a shortcut or share is used: the installed app is focused instead of reloaded, and told what to show.
+type LaunchQueue = { setConsumer(f: (p: { targetURL?: string }) => void): void }
+;(window as unknown as { launchQueue?: LaunchQueue }).launchQueue?.setConsumer(({ targetURL }) => {
+  if (!targetURL) return
+  const q = new URL(targetURL).search
+  const sc = readShortcut(q)
+  if (sc.action || sc.view) ui.pending = sc
+  const text = readShare(q)
+  if (text) { try { sessionStorage.setItem(SHARE_KEY, text) } catch { /* kept in memory */ } ui.shared = text }
+})
 
 const app = mount(App, {
   target: document.getElementById('app')!,

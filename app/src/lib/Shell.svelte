@@ -14,12 +14,28 @@
   import UserCard from './UserCard.svelte'
   import CallPanel from './CallPanel.svelte'
   import ImageViewer from './ImageViewer.svelte'
+  import { applyBadge, badgeCount } from './badge'
 
   let palette = $state(false)
   const unread = $derived(chat.rooms.reduce((n, r) => n + (r.isSpace || r.invited ? 0 : r.unread), 0))
   $effect(() => {
     // The unread count stays first: the Tessera extension for eXo reads it from the start of the title.
     document.title = `${unread ? `(${unread}) ` : ''}${chat.active ? `${chat.active.name} · ` : ''}Tessera`
+  })
+  // The count on the installed app's icon (where the browser supports it): rooms that notify me, not muted ones.
+  const badge = $derived(badgeCount(chat.rooms))
+  $effect(() => { void applyBadge(chat.ready ? badge : 0) })
+  // A shortcut or link asked for a screen: show it once the app is ready.
+  $effect(() => {
+    const p = ui.pending
+    if (!p || !chat.ready) return
+    if (p.action === 'search') palette = true
+    else if (p.action === 'new') ui.open('room')
+    else if (p.action === 'explore') ui.open('explore')
+    else if (p.action === 'join') ui.open('join')
+    // a view is applied by the list itself (Sidebar); leave it there until it has
+    if (!p.view) ui.pending = null
+    else ui.pending = { view: p.view }
   })
   function key(e: KeyboardEvent) {
     // Ctrl+Shift+F searches the open room; plain Ctrl+F stays the browser's own find.
