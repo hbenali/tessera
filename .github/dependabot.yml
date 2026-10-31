@@ -12,6 +12,14 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       prefix-development: "chore(deps-dev)"
+    # Major versions that cannot be taken yet. Remove an entry to be offered that major again.
+    ignore:
+      # svelte-check does not accept TypeScript 7 yet (npm ci stops with ERESOLVE); reconsider when it does.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # The types must match the Node that CI and development run on (22), not the newest Node.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       dev-dependencies:
         dependency-type: "development"
