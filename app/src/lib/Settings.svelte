@@ -214,6 +214,8 @@
         <input type="checkbox" role="switch" checked={chat.privacy.typing} onchange={(e) => chat.setPrivacy({ typing: e.currentTarget.checked })} /></label>
       <label class="switch"><span><b>Send read receipts</b><small>People see that you have read their messages ("Seen"). When off, the server still clears your own unread count, and your other devices follow.</small></span>
         <input type="checkbox" role="switch" checked={chat.privacy.receipts} onchange={(e) => chat.setPrivacy({ receipts: e.currentTarget.checked })} /></label>
+      <label class="switch"><span><b>Show link previews</b><small>Your homeserver fetches a linked page to build a small card. It sees the link (never in encrypted rooms, where no previews are made).</small></span>
+        <input type="checkbox" role="switch" checked={chat.privacy.linkPreviews} onchange={(e) => chat.setPrivacy({ linkPreviews: e.currentTarget.checked })} /></label>
     </div>
     <p class="hint">Sending a message always shows that you were there. To read a single room without being seen, use <b>Read quietly</b> in its menu. Presence (online, away) is set from the sidebar.</p>
   {:else if tab === 'sessions'}

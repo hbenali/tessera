@@ -7,10 +7,20 @@ describe('forward, view source, report and remove', () => {
   const enc = encodeURIComponent
   const rooms = () => page.getByRole('navigation', { name: 'Rooms' })
   const msg = (text) => page.locator('article').filter({ hasText: text }).last()
+  // The hover toolbar can move while the room is still settling (images, rows skipped by content-visibility): try again.
   async function more(text, item) {
-    await msg(text).scrollIntoViewIfNeeded()
-    await msg(text).hover()
-    await msg(text).getByRole('button', { name: 'More actions' }).click()
+    for (let i = 0; ; i++) {
+      try {
+        await msg(text).scrollIntoViewIfNeeded()
+        await msg(text).hover()
+        await msg(text).getByRole('button', { name: 'More actions' }).click({ timeout: 5000 })
+        break
+      } catch (e) {
+        if (i >= 4) throw e
+        await page.mouse.move(5, 5)
+        await page.waitForTimeout(300)
+      }
+    }
     await page.getByRole('menuitem', { name: item }).click()
   }
 

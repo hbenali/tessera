@@ -9,6 +9,8 @@
   import Skeleton from './Skeleton.svelte'
   import AudioPlayer from './AudioPlayer.svelte'
   import FileCard from './FileCard.svelte'
+  import LinkPreview from './LinkPreview.svelte'
+  import JumpMenu from './JumpMenu.svelte'
   import { render } from './markdown'
   import { dayLabel, ui } from './ui.svelte'
   import Avatar from './Avatar.svelte'
@@ -472,6 +474,7 @@
       <Avatar name={chat.active.name} size={32} round={chat.active.isDM} src={chat.active.avatar} presence={chat.active.dmUser ? (chat.presenceOf(chat.active.dmUser) ?? 'offline') : undefined} />
       <div class="title"><h1>{chat.active.name}{#if chat.isQuiet(chat.active.id)}<span class="muted" title="Quiet reading: people are not shown that you read this room"><Icon name="eyeOff" size={14} /><span class="sr">Quiet reading</span></span>{/if}{#if chat.active.notifs === 'mute'}<span class="muted" title="Notifications are muted"><Icon name="bellOff" size={14} /><span class="sr">Muted</span></span>{/if}</h1>{#if chat.active.dmUser}<span class="topic">{({ online: 'Online', unavailable: 'Away', offline: 'Offline' })[chat.presenceOf(chat.active.dmUser) ?? 'offline']}</span>{:else if chat.active.topic}<span class="topic">{chat.active.topic}</span>{:else}<span class="topic">{chat.active.memberCount} {chat.active.memberCount === 1 ? 'member' : 'members'}</span>{/if}</div>
       {#if chat.active.encrypted}<span class="enc" title="End-to-end encrypted"><Icon name="lock" size={13} /> Encrypted</span>{/if}
+<JumpMenu />
  <button class="icon-btn" class:on={ui.roomSearch} onclick={() => { ui.roomSearch = !ui.roomSearch; if (ui.roomSearch) chat.closeThread() }} aria-label="Search in this room" aria-pressed={ui.roomSearch} title="Search in this room (Ctrl+Shift+F)"><Icon name="search" /></button>
       <button class="icon-btn" aria-label="Room menu" aria-haspopup="menu" onclick={(e) => { const b = e.currentTarget.getBoundingClientRect(); ui.openRoomMenu(chat.active!.id, b.right - 220, b.bottom + 4, e.currentTarget) }}><Icon name="more" /></button>
       <button class="icon-btn" class:on={ui.details} onclick={() => (ui.details = !ui.details)} aria-label="Room details" aria-pressed={ui.details}><Icon name="info" /></button>
@@ -512,6 +515,7 @@
             {#if !cont}<div class="head"><button class="who" onclick={(e) => card(m.sender, e)} aria-haspopup="dialog"><b>{m.senderName}</b></button><time>{fmt(m.ts)}</time>{#if m.pinned}<span class="pinned" title="Pinned"><Icon name="pin" size={12} /> Pinned</span>{/if}</div>{/if}
             {#if m.replyTo}<div class="quote"><Icon name="reply" size={12} /> <b>{byId(m.replyTo)?.senderName ?? ''}</b> {plainMentions(byId(m.replyTo)?.body ?? 'earlier message', chat.nameOf)}</div>{/if}
             {#if m.attachment}<FileCard {...m.attachment} sender={m.senderName} ts={m.ts} />{#if m.attachment.caption}<div class="text caption">{@html render(m.attachment.caption, { name: chat.nameOf, me: chat.userId })}</div>{/if}{:else if m.audio}<AudioPlayer mxc={m.audio.mxc} file={m.audio.file} duration={m.audio.duration} waveform={m.audio.waveform} voice={m.audio.voice} name={m.audio.name} />{:else if m.imageMxc}<Photo mxc={m.imageMxc} file={m.imageFile} alt={m.body} onopen={(opener) => (ui.viewer = { id: m.id, opener })} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} class:emote={m.emote} use:pills>{#if m.emote}<span class="who-emote">* {m.senderName}</span>{" "}{/if}{@html render(m.body, { name: chat.nameOf, me: chat.userId, pills: m.pills })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
+            {#if m.body && !m.attachment && !m.imageMxc && !m.audio && !m.undecryptable}<LinkPreview body={m.body} encrypted={!!chat.active?.encrypted} />{/if}
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
             {#if m.seenBy?.length}
               {@const who = m.seenBy}

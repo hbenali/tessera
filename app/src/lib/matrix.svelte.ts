@@ -5,6 +5,8 @@ import { safeFileName } from './files'
 import { mentionPills, mentionsUser, plainMentions, type MentionPill } from './mentions'
 import { toggled } from './pins'
 import type { Device } from './devices'
+import { firstUnread } from './jump'
+import { firstUrl, toPreview, type Preview as LinkCard } from './linkpreview'
 import { decryptKeyFile, encryptKeyFile } from './keyfile'
 import { canBan, canKick, canRedactOthers, canSetLevel, canSetState, levelOf, withLevel, type History, type JoinRule, type PowerLevels } from './moderation'
 import * as sdk from 'matrix-js-sdk'
@@ -683,15 +685,15 @@ class Chat {
   }
 
   /** What I let other people see about me, for every room. Stored as account data so it follows me between devices. */
-  privacy = $state({ typing: true, receipts: true })
+  privacy = $state({ typing: true, receipts: true, linkPreviews: true })
   private static PRIVACY = 'ovh.hbenali.tessera.privacy'
 
   private loadPrivacy() {
-    const c = this.client?.getAccountData(Chat.PRIVACY as never)?.getContent() as { typing?: unknown; receipts?: unknown } | undefined
-    this.privacy = { typing: c?.typing !== false, receipts: c?.receipts !== false }
+    const c = this.client?.getAccountData(Chat.PRIVACY as never)?.getContent() as { typing?: unknown; receipts?: unknown; linkPreviews?: unknown } | undefined
+    this.privacy = { typing: c?.typing !== false, receipts: c?.receipts !== false, linkPreviews: c?.linkPreviews !== false }
   }
 
-  async setPrivacy(patch: Partial<{ typing: boolean; receipts: boolean }>) {
+  async setPrivacy(patch: Partial<{ typing: boolean; receipts: boolean; linkPreviews: boolean }>) {
     this.privacy = { ...this.privacy, ...patch }
     await this.client!.setAccountData(Chat.PRIVACY as never, { ...this.privacy } as never)
   }
@@ -984,6 +986,19 @@ class Chat {
     const crypto = this.client?.getCrypto()
     if (!crypto) throw new Error('Encryption is not ready yet')
     await crypto.importRoomKeysAsJson(await decryptKeyFile(file, passphrase))
+  }
+
+  private cards = new Map<string, Promise<LinkCard | undefined>>()
+  /** A card for the first link in a message. The homeserver fetches the page, so this is off in encrypted rooms and can be switched off. */
+  linkPreview(body: string): Promise<LinkCard | undefined> {
+    const url = firstUrl(body)
+    if (!url || !this.client) return Promise.resolve(undefined)
+    let p = this.cards.get(url)
+    if (!p) {
+      p = this.client.getUrlPreview(url, Date.now()).then((r) => toPreview(url, r as Record<string, unknown>), () => undefined)
+      this.cards.set(url, p)
+    }
+    return p
   }
 
   private eventOf(id: string): sdk.MatrixEvent | undefined {
@@ -1605,6 +1620,35 @@ class Chat {
     for (let i = 0; room && i < 40 && !room.findEventById(hit.eventId) && this.hasOlder(); i++) await this.loadOlder()
     this.refreshMessages()
     this.focusEvent = hit.eventId
+  }
+
+  /** Go to the first message I have not read, paging back if the read marker is older than what is loaded. */
+  async jumpToFirstUnread(): Promise<'ok' | 'none'> {
+    const room = this.client?.getRoom(this.activeRoom ?? '')
+    if (!room) return 'none'
+    const readUpTo = room.getEventReadUpTo(this.userId) ?? undefined
+    for (let i = 0; i < 60; i++) {
+      const r = firstUnread(this.messages.filter((m) => !m.pending), readUpTo)
+      if (r === 'none') return 'none'
+      if (r !== 'older') { this.focusEvent = r.id; return 'ok' }
+      if (!this.hasOlder()) { this.focusEvent = this.messages[0]?.id ?? null; return 'ok' }
+      await this.loadOlder()
+    }
+    return 'none'
+  }
+
+  /** Go to the first message on or after a date, asking the server which event that is. */
+  async jumpToDate(ts: number) {
+    const c = this.client!
+    const room = c.getRoom(this.activeRoom ?? '')
+    if (!room) return
+    const { event_id } = await c.timestampToEvent(room.roomId, ts, sdk.Direction.Forward)
+    for (let i = 0; i < 80 && !room.findEventById(event_id) && this.hasOlder(); i++) await this.loadOlder()
+    this.refreshMessages()
+    // The server answers with any event (often a join or the room's creation): land on the first message shown at or after it.
+    const at = room.findEventById(event_id)?.getTs() ?? ts
+    const target = this.messages.find((m) => !m.pending && m.ts >= at) ?? this.messages.at(-1)
+    this.focusEvent = target?.id ?? null
   }
 
   async leaveRoom(id: string) {
