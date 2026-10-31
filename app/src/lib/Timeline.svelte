@@ -12,6 +12,7 @@
   import LinkPreview from './LinkPreview.svelte'
   import JumpMenu from './JumpMenu.svelte'
   import { t } from './i18n.svelte'
+  import { THRESHOLD, computeWindow, gaps, totalHeight, type Win } from './virtual'
   import { calls } from './calls.svelte'
   import PollCard from './PollCard.svelte'
   import ComposerMore from './ComposerMore.svelte'
@@ -65,6 +66,39 @@
     }),
   )
 
+  // ---- Long rooms: draw only the rows near the viewport, with spacers for the rest (see virtual.ts) ----
+  const heights = new Map<string, number>()
+  let pinIndex: number | undefined
+  let win = $state<Win>({ start: 0, end: 0, top: 0, bottom: 0 })
+  const virt = $derived(rows.length > THRESHOLD)
+  const shown = $derived(virt ? rows.slice(win.start, win.end) : rows)
+  let framed = 0
+  function recompute() {
+    cancelAnimationFrame(framed)
+    framed = requestAnimationFrame(() => {
+      if (!scroller || !virt) return
+      const ids = rows.map((r) => r.m.id)
+      const top = stick ? Math.max(0, totalHeight(ids, (id) => heights.get(id)) - scroller.clientHeight) : scroller.scrollTop
+      const w = computeWindow(ids, (id) => heights.get(id), top, scroller.clientHeight, pinIndex)
+      if (w.start !== win.start || w.end !== win.end || Math.abs(w.top - win.top) > 1 || Math.abs(w.bottom - win.bottom) > 1) win = w
+    })
+  }
+  /** Remember how tall the drawn rows really are, so the spacers (and so the scrollbar) stop guessing. */
+  function measure() {
+    if (!rowsEl || !virt) return
+    const arts = [...rowsEl.querySelectorAll<HTMLElement>('article[data-id]')]
+    if (!arts.length) return
+    const start = (a: HTMLElement) => { const p = a.previousElementSibling; return (p?.classList.contains('day') ? p : a).getBoundingClientRect().top }
+    const lastBox = arts[arts.length - 1].getBoundingClientRect()
+    const g = gaps(arts.map((a) => ({ id: a.dataset.id!, top: start(a) })), { id: arts[arts.length - 1].dataset.id!, height: lastBox.height + parseFloat(getComputedStyle(arts[arts.length - 1]).marginTop || '0') })
+    let changed = false
+    for (const [id, h] of g) if (Math.abs((heights.get(id) ?? 0) - h) > 1) { heights.set(id, h); changed = true }
+    if (changed) recompute()
+  }
+  $effect(() => { chat.activeRoom; heights.clear(); pinIndex = undefined; win = { start: 0, end: 0, top: 0, bottom: 0 } })
+  $effect(() => { rows; virt; recompute() })
+  $effect(() => { win; virt; shown; tick().then(measure) })
+
   $effect(() => {
     chat.messages.length
     if (stick) tick().then(() => scroller?.scrollTo({ top: scroller.scrollHeight }))
@@ -74,9 +108,13 @@
     const id = chat.focusEvent
     chat.messages.length
     if (!id || !scroller) return
-    tick().then(() => {
+    // In a long room the message may not be drawn: draw around it first.
+    const idx = rows.findIndex((r) => r.m.id === id)
+    if (virt && idx >= 0 && (idx < win.start || idx >= win.end)) { pinIndex = idx; recompute() }
+    tick().then(() => new Promise((r) => requestAnimationFrame(r))).then(() => {
       const el = scroller?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`)
       if (!el) return
+      pinIndex = undefined
       stick = false
       el.scrollIntoView({ block: 'center' })
       el.classList.add('flash')
@@ -148,10 +186,28 @@
   let topEl: HTMLElement | undefined = $state()
   async function loadEarlier() {
     if (!scroller || chat.loadingOlder || !chat.hasOlder()) return
-    const h = scroller.scrollHeight
+    // Short rooms: the height that was added above is the distance to move. Long (windowed) rooms: rows are drawn and
+    // measured lazily, so hold on to a row that is on screen instead and put it back where it was.
+    if (rows.length <= THRESHOLD - 80) {
+      const h = scroller.scrollHeight
+      await chat.loadOlder()
+      await tick()
+      if (scroller) scroller.scrollTop += scroller.scrollHeight - h
+      return
+    }
+    const box = scroller.getBoundingClientRect()
+    const a = [...scroller.querySelectorAll<HTMLElement>('.rows article[data-id]')].find((x) => x.getBoundingClientRect().bottom > box.top + 1)
+    const id = a?.dataset.id
+    const off = a ? a.getBoundingClientRect().top - box.top : 0
     await chat.loadOlder()
     await tick()
-    if (scroller) scroller.scrollTop += scroller.scrollHeight - h // keep the reader's place
+    const idx = id ? rows.findIndex((r) => r.m.id === id) : -1
+    if (idx >= 0) { pinIndex = idx; recompute() }
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    const el = id ? scroller?.querySelector<HTMLElement>(`.rows article[data-id="${CSS.escape(id)}"]`) : null
+    if (el && scroller) scroller.scrollTop += el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - off
+    pinIndex = undefined
+    recompute()
   }
   $effect(() => {
     if (!topEl || !scroller) return
@@ -175,20 +231,18 @@
   $effect(() => {
     const el = rowsEl
     if (!el || !scroller) return
-    const ro = new ResizeObserver(() => { if (stick) scroller?.scrollTo({ top: scroller.scrollHeight }) })
+    const ro = new ResizeObserver(() => { if (stick) scroller?.scrollTo({ top: scroller.scrollHeight }); measure() })
     ro.observe(el)
     return () => ro.disconnect()
   })
 
   function onscroll() {
     if (!scroller) return
+    if (virt) recompute()
     stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80
     away = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight > 400
-    if (scroller.scrollTop < 40 && !chat.loadingOlder && chat.hasOlder()) {
-      const h = scroller.scrollHeight
-      // Keep the reader's place: add only the height that was loaded above, never jump to a fixed position.
-      chat.loadOlder().then(() => tick().then(() => scroller && (scroller.scrollTop += scroller.scrollHeight - h)))
-    }
+    // Keep the reader's place while earlier messages are added above, never jump to a fixed position.
+    if (scroller.scrollTop < 40 && !chat.loadingOlder && chat.hasOlder()) loadEarlier()
   }
 
   async function submit() {
@@ -510,8 +564,9 @@
       {:else if rows.length}
         <p class="start">This is the beginning of the conversation.</p>
       {/if}
-      <div class="rows" bind:this={rowsEl}>
-      {#each rows as { m, newDay, cont } (m.id)}
+      <div class="rows" class:virt bind:this={rowsEl}>
+      {#if virt}<div class="vpad" style:height="{win.top}px" aria-hidden="true"></div>{/if}
+      {#each shown as { m, newDay, cont } (m.id)}
         {#if newDay}<div class="day" role="separator"><span>{dayLabel(m.ts)}</span></div>{/if}
         <article class:cont class:pending={m.pending} class:active={picker === m.id || seenFor === m.id} class:mention={m.mentionsMe} data-id={m.id}>
           <div class="gutter">
@@ -562,6 +617,7 @@
           </div>
         </article>
       {/each}
+      {#if virt}<div class="vpad" style:height="{win.bottom}px" aria-hidden="true"></div>{/if}
       </div>
     </div>
 
@@ -637,6 +693,7 @@
   .note { text-align: center; color: var(--muted); font-size: 12px; padding: 8px; }
   .day { display: flex; align-items: center; gap: 12px; margin: 16px 20px 6px; color: var(--muted); font-size: 12px; font-weight: 600; } .day::before, .day::after { content: ''; flex: 1; height: 1px; background: var(--line); }
   /* Off-screen messages skip layout and paint, which keeps long rooms fast. */
+.rows.virt article { content-visibility: visible; } .vpad { flex: none; overflow-anchor: none; }
 .sentinel { min-height: 24px; margin: 4px 0; text-align: center; color: var(--muted); font-size: 12px; }
   .start { margin: 8px 0 4px; text-align: center; color: var(--muted); font-size: 12px; }
   .latest { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 5; display: inline-flex; gap: 6px; align-items: center; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 12px; box-shadow: 0 6px 20px rgb(0 0 0 / .25); cursor: pointer; } .latest :global(svg) { transform: rotate(90deg); }
