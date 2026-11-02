@@ -13,6 +13,12 @@
   let searching = $state(false)
   let more = $state(false)
   let failed = $state(false)
+  // An encrypted room cannot be searched by the server, so its history is read here: page back, a little at a time,
+  // while the term stays the same, and stop at the start of the room, after enough hits, or if the server refuses.
+  let scanning = $state(false)
+  let scanned = $state(0) // pages read for this term
+  let scanToken = 0
+  const PAGE_BUDGET = 8
   let token = 0
   let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -76,6 +82,31 @@
       }
     }, 300)
     return () => clearTimeout(timer)
+  })
+  async function scan(pages: number) {
+    const id = room?.id
+    if (!id || !room?.encrypted || scanning) return
+    const ticket = ++scanToken
+    scanning = true
+    try {
+      for (let i = 0; i < pages && ticket === scanToken && chat.activeRoom === id && chat.hasOlder() && !chat.olderError; i++) {
+        if (hits.length >= 50) break
+        if (!(await chat.loadOlder())) break
+        scanned++
+      }
+    } finally {
+      if (ticket === scanToken) scanning = false
+    }
+  }
+  $effect(() => {
+    const id = room?.id
+    const t = term
+    scanToken++ // a new term or room cancels the walk in progress
+    scanned = 0
+    scanning = false
+    if (!id || t.length < 2 || !room?.encrypted) return
+    const w = setTimeout(() => scan(PAGE_BUDGET), 400)
+    return () => clearTimeout(w)
   })
   // Another room starts with a clean box, but reopening this room's panel restores what was searched.
   let seenRoom: string | undefined
@@ -171,12 +202,16 @@
 
     <p class="status" role="status">
       {#if term.length < 2}Type at least two letters.
-      {:else if searching}Searching…
+      {:else if searching || scanning}Searching{room.encrypted ? ' earlier history' : ''}…
       {:else if !hits.length}{active ? 'Nothing matches these filters.' : 'Nothing found in this room.'}
       {:else}{hits.length} {hits.length === 1 ? 'message' : 'messages'}{next ? ' so far' : ''}.{/if}
       {#if failed} The server search failed; showing what this device has.{/if}
     </p>
-    {#if room.encrypted}<p class="fine">This room is encrypted, so the server cannot search it. Only messages already loaded on this device are searched; scroll up in the room to load more history.</p>{/if}
+    {#if room.encrypted}
+      <p class="fine">This room is encrypted, so the server cannot search it. Tessera reads its history on this device instead{chat.olderAvailable ? ', going back a little at a time' : ' (the whole history is loaded)'}.</p>
+      {#if chat.olderError}<p class="fine" role="alert">Earlier messages could not be loaded. <button class="more inline" onclick={() => scan(PAGE_BUDGET)}>Try again</button></p>
+      {:else if chat.olderAvailable && !scanning && term.length >= 2}<button class="more" onclick={() => scan(PAGE_BUDGET)}>Search further back</button>{/if}
+    {/if}
   </aside>
 {/if}
 
@@ -197,6 +232,7 @@
   .top { display: flex; gap: 8px; align-items: baseline; } .top b { font-weight: 650; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .top time { margin-left: auto; color: var(--muted); font-size: 11px; flex: none; }
   .snip { font-size: 13px; color: var(--text); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+  .more.inline { display: inline; margin: 0 0 0 4px; padding: 2px 8px; }
   .more { display: block; margin: 8px auto; padding: 6px 14px; border-radius: 8px; background: var(--tile); font-size: 13px; }
   .status { flex: none; margin: 8px 2px 0; color: var(--muted); font-size: 12px; } .fine { flex: none; margin: 4px 2px 0; color: var(--muted); font-size: 12px; }
 </style>

@@ -630,6 +630,7 @@ class Chat {
     if (this.rooms.find((r) => r.id === id)?.markedUnread) void this.setMarkedUnread(id, false).catch(() => {}) // opening a room is reading it
     this.refreshRooms() // shows or clears the draft line of the room just left
     this.activeRoom = id
+    this.olderError = false
     this.routeMissing = null
     if (push) this.pushRoute({ room: id })
     this.rememberRoom(id)
@@ -1260,16 +1261,39 @@ class Chat {
     return !!room?.getLiveTimeline().getPaginationToken(sdk.Direction.Backward)
   }
 
-  async loadOlder() {
+  /** Set when the last attempt to page back failed (e.g. the server refused or rate-limited it); cleared by the next success. */
+  olderError = $state(false)
+  private olderInFlight: { room: string; run: Promise<boolean> } | null = null
+
+  /**
+   * Page back one step in the open room. Resolves true when it worked, false when it failed, so callers that loop
+   * stop instead of retrying a room the server will not give. A call made while another is running shares it.
+   */
+  loadOlder(): Promise<boolean> {
     const room = this.activeRoom ? this.client?.getRoom(this.activeRoom) : null
-    if (!room || this.loadingOlder) return
+    if (!room) return Promise.resolve(false)
+    if (this.olderInFlight?.room === room.roomId) return this.olderInFlight.run
+    if (this.olderInFlight) return this.olderInFlight.run.then(() => this.loadOlder())
     this.loadingOlder = true
-    try {
-      await this.client!.scrollback(room, 30)
-    } finally {
-      this.loadingOlder = false
-      this.olderAvailable = this.hasOlder()
+    const run = async () => {
+      try {
+        await this.client!.scrollback(room, 50)
+        // Events in an encrypted room arrive sealed; wait for them to be readable so a search sees them.
+        await Promise.all(room.getLiveTimeline().getEvents().filter((e) => e.isBeingDecrypted()).map((e) => e.getDecryptionPromise()?.catch(() => {})))
+        this.olderError = false
+        return true
+      } catch {
+        this.olderError = true
+        return false
+      } finally {
+        this.loadingOlder = false
+        this.olderInFlight = null
+        this.olderAvailable = this.hasOlder()
+      }
     }
+    const flight = { room: room.roomId, run: run() }
+    this.olderInFlight = flight
+    return flight.run
   }
 
   async send(body: string, replyTo?: string, msgtype: 'm.text' | 'm.emote' = 'm.text') {
@@ -1826,7 +1850,7 @@ class Chat {
     await this.openRoom(hit.roomId)
     // A server hit can be older than the loaded window: page back until it appears, within reason.
     const room = this.client?.getRoom(hit.roomId)
-    for (let i = 0; room && i < 40 && !room.findEventById(hit.eventId) && this.hasOlder(); i++) await this.loadOlder()
+    for (let i = 0; room && i < 40 && !room.findEventById(hit.eventId) && this.hasOlder(); i++) if (!(await this.loadOlder())) break
     this.refreshMessages()
     this.focusEvent = hit.eventId
   }
@@ -1841,7 +1865,7 @@ class Chat {
       if (r === 'none') return 'none'
       if (r !== 'older') { this.focusEvent = r.id; return 'ok' }
       if (!this.hasOlder()) { this.focusEvent = this.messages[0]?.id ?? null; return 'ok' }
-      await this.loadOlder()
+      if (!(await this.loadOlder())) break
     }
     return 'none'
   }
@@ -1852,7 +1876,7 @@ class Chat {
     const room = c.getRoom(this.activeRoom ?? '')
     if (!room) return
     const { event_id } = await c.timestampToEvent(room.roomId, ts, sdk.Direction.Forward)
-    for (let i = 0; i < 80 && !room.findEventById(event_id) && this.hasOlder(); i++) await this.loadOlder()
+    for (let i = 0; i < 80 && !room.findEventById(event_id) && this.hasOlder(); i++) if (!(await this.loadOlder())) break
     this.refreshMessages()
     // The server answers with any event (often a join or the room's creation): land on the first message shown at or after it.
     const at = room.findEventById(event_id)?.getTs() ?? ts

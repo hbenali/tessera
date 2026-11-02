@@ -183,8 +183,8 @@
     try {
       for (let i = 0; i < 12; i++) {
         await tick()
-        if (!scroller || scroller.scrollHeight > scroller.clientHeight + 40 || !chat.hasOlder() || chat.loadingOlder) return
-        await chat.loadOlder()
+        if (!scroller || scroller.scrollHeight > scroller.clientHeight + 40 || !chat.hasOlder()) return
+        if (!(await chat.loadOlder())) return
         await new Promise((r) => setTimeout(r, 200)) // let the new events reach the list
       }
     } finally {
@@ -200,7 +200,7 @@
   // scrolling up changes nothing, so no event fires, but an observer still reports the top as visible.
   let topEl: HTMLElement | undefined = $state()
   async function loadEarlier() {
-    if (!scroller || chat.loadingOlder || !chat.hasOlder()) return
+    if (!scroller || chat.loadingOlder || chat.olderError || !chat.hasOlder()) return
     // Short rooms: the height that was added above is the distance to move. Long (windowed) rooms: rows are drawn and
     // measured lazily, so hold on to a row that is on screen instead and put it back where it was.
     if (rows.length <= THRESHOLD - 80) {
@@ -257,7 +257,7 @@
     stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80
     away = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight > 400
     // Keep the reader's place while earlier messages are added above, never jump to a fixed position.
-    if (scroller.scrollTop < 40 && !chat.loadingOlder && chat.hasOlder()) loadEarlier()
+    if (scroller.scrollTop < 40 && !chat.loadingOlder && !chat.olderError && chat.hasOlder()) loadEarlier()
   }
 
   async function submit() {
@@ -579,7 +579,10 @@
     <div class="scroll" data-layout={layout} bind:this={scroller} {onscroll} onloadcapture={() => stick && scroller?.scrollTo({ top: scroller.scrollHeight })}>
       {#if !chat.messages.length && !chat.ready}<Skeleton variant="timeline" />{/if}
       {#if chat.loadingOlder}<div class="note">Loading earlier messages…</div>{/if}
-      {#if chat.olderAvailable}
+      {#if chat.olderError && !chat.loadingOlder}
+        <div class="note" role="alert">Could not load earlier messages. <button class="retry" onclick={() => chat.loadOlder()}>Try again</button></div>
+      {/if}
+      {#if chat.olderAvailable && !chat.olderError}
         <div class="sentinel" bind:this={topEl} role="status">{chat.loadingOlder ? 'Loading earlier messages…' : ''}</div>
       {:else if rows.length}
         <p class="start">This is the beginning of the conversation.</p>
@@ -836,4 +839,5 @@
   [data-layout='lines'] .text { max-width: none; }
   [data-layout='lines'] .quote, [data-layout='lines'] .reacts, [data-layout='lines'] .seen, [data-layout='lines'] .thread-link { flex-basis: 100%; }
   [data-layout='lines'] :global(.poll), [data-layout='lines'] :global(.filecard) { flex-basis: 100%; }
+.retry { color: var(--accent); text-decoration: underline; font-size: inherit; }
 </style>
