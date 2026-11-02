@@ -1,6 +1,5 @@
 <script lang="ts">
   import { t } from './i18n.svelte'
-  import Avatar from './Avatar.svelte'
   import { SESSION_KEY, readAccounts } from './accounts'
   import { loginOptions, probeRegistration, registerAccount, startSso, type LoginOptions, type RegisterProbe } from './discover'
   type Mod = typeof import('./matrix.svelte')
@@ -83,7 +82,7 @@
 
 <main>
   <section class="card">
-    <div class="brand"><Avatar name="Tessera" size={40} /><span>Tessera</span></div>
+    <div class="brand"><img src="/icon-192.png" alt="" width="40" height="40" /><span>Tessera</span></div>
     {#if back}<button type="button" class="link goback" onclick={goBack}>← {t("Back to")} {back.name || back.userId}</button>{/if}
     <h1>{mode === 'in' ? t('Sign in') : t('Create an account')}</h1>
     {#if ended}<p class="err" role="status">You were signed out: this session was ended from another device or by your server. Sign in again to carry on.</p>{/if}
@@ -126,6 +125,7 @@
   main { min-height: 100%; display: grid; place-items: center; padding: 24px; background: var(--panel); }
   .card { width: min(400px, 100%); padding: 32px; background: var(--bg); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
   .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 18px; letter-spacing: -.02em; margin-bottom: 22px; }
+  .brand img { border-radius: 10px; }
   h1 { margin: 0; font-size: 24px; letter-spacing: -.02em; } .lede { margin: 4px 0 20px; color: var(--muted); }
   form { display: grid; gap: 14px; } label { display: grid; gap: 6px; font-size: 13px; font-weight: 500; }
   .sso { display: grid; gap: 8px; margin-bottom: 14px; } .sso .btn { padding: 10px; }
