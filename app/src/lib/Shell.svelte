@@ -16,12 +16,13 @@
   import ImageViewer from './ImageViewer.svelte'
   import { applyBadge, badgeCount } from './badge'
   import { pageTitle } from './pagetitle'
+  import { isStandalone } from './installhelp'
 
   let palette = $state(false)
   const unread = $derived(chat.rooms.reduce((n, r) => n + (r.isSpace || r.invited ? 0 : r.unread), 0))
   $effect(() => {
     // The unread count stays first: the Tessera extension for eXo reads it from the start of the title.
-    document.title = pageTitle(unread, chat.active?.name)
+    document.title = pageTitle(unread, chat.active?.name, isStandalone())
   })
   // The count on the installed app's icon (where the browser supports it): rooms that notify me, not muted ones.
   const badge = $derived(badgeCount(chat.rooms))
