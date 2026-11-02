@@ -11,6 +11,7 @@ import { firstUnread } from './jump'
 import { calls } from './calls.svelte'
 import { parseMatrixUri } from './matrixuri'
 import { ui } from './ui.svelte'
+import { activityTs, memberNotice } from './membership'
 import { mergeRoomTheme, parseRoomTheme, type Layout, type RoomTheme } from './layout'
 import { clearSnapshot, writeSnapshot } from './snapshot'
 import { forwardContent } from './forward'
@@ -84,6 +85,8 @@ export interface Msg {
   location?: { lat: number; lon: number; label: string }
   /** A sticker is shown as an image without a bubble. */
   sticker?: boolean
+  /** A system line (join, leave, name change) rather than a message. */
+  notice?: string
 }
 
 export interface RoomItem {
@@ -204,6 +207,8 @@ class Chat {
   routeMissing = $state<string | null>(null)
   private routed = false
   messages = $state<Msg[]>([])
+  /** Joins, leaves and name or avatar changes of the open room; filled only when the setting to show them is on. */
+  notices = $state<{ id: string; ts: number; text: string }[]>([])
   typing = $state<string[]>([])
   /** Presence of people we have seen, kept reactive because the SDK's User objects are not. */
   presence = $state<Record<string, Presence>>({})
@@ -508,7 +513,7 @@ class Chat {
         name: room.name,
         unread: room.getUnreadNotificationCount(sdk.NotificationCountType.Total) ?? 0,
         highlight: room.getUnreadNotificationCount(sdk.NotificationCountType.Highlight) ?? 0,
-        lastTs: pv.ts || room.getLastActiveTimestamp(),
+        lastTs: pv.ts || activityTs(room.getLiveTimeline().getEvents().map((e) => ({ type: e.getType(), ts: e.getTs() })), membership === 'invite'),
         isSpace: create?.getContent().type === 'm.space',
         parents,
         isDM: dms.has(room.roomId),
@@ -636,6 +641,7 @@ class Chat {
     this.rememberRoom(id)
     this.closeThread()
     this.messages = []
+    this.notices = []
     this.refreshMessages()
     this.refreshTyping()
     const room = this.client?.getRoom(id)
@@ -1020,12 +1026,23 @@ class Chat {
     this.refreshTimer = setTimeout(() => this.refreshMessages(), 120)
   }
 
+  private buildNotices(room: sdk.Room) {
+    const out: { id: string; ts: number; text: string }[] = []
+    for (const e of room.getLiveTimeline().getEvents()) {
+      if (e.getType() !== 'm.room.member') continue
+      const text = memberNotice({ sender: e.getSender() ?? '', stateKey: e.getStateKey() ?? '', content: e.getContent(), prev: e.getPrevContent() }, (id) => room.getMember(id)?.name ?? id)
+      if (text) out.push({ id: e.getId() ?? String(e.getTs()), ts: e.getTs(), text })
+    }
+    return out
+  }
+
   refreshMessages() {
     const room = this.activeRoom ? this.client?.getRoom(this.activeRoom) : null
     if (!this.client || !room) return
     this.pinnedIds = (room.currentState.getStateEvents('m.room.pinned_events', '')?.getContent().pinned as string[] | undefined) ?? []
     this.canPin = room.currentState.maySendStateEvent('m.room.pinned_events', this.userId)
     this.messages = this.build(room.getLiveTimeline().getEvents(), room)
+    this.notices = ui.showMembership ? this.buildNotices(room) : []
     this.loadPinned(room)
     this.olderAvailable = this.hasOlder()
     this.members = room

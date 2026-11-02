@@ -113,6 +113,8 @@
         <button role="radio" aria-checked={ui.textSize === v} class:on={ui.textSize === v} onclick={() => ui.setLook({ textSize: v as 'small' })}>{t}</button>
       {/each}
     </div>
+    <label class="check"><input type="checkbox" checked={ui.showMembership} onchange={(e) => { ui.setShowMembership(e.currentTarget.checked); chat.refreshMessages() }} /> Show joins, leaves and name changes in the timeline</label>
+    <p class="hint">These never move a room up the list, whether shown or not.</p>
   {:else if tab === 'security'}
     <p class="status" class:ok={security.verified}>{security.verified ? 'This session is verified.' : 'This session is not verified.'}
       <span class="mono">Key backup {security.hasBackup ? 'on' : 'off'}</span></p>

@@ -82,6 +82,12 @@ class Ui {
     document.documentElement.dataset.density = this.density
     document.documentElement.dataset.textsize = this.textSize
   }
+  /** Show joins, leaves and name or avatar changes in the timeline. Off by default. Per browser. */
+  showMembership = $state(((): boolean => { try { return localStorage.getItem('tessera.showMembership') === '1' } catch { return false } })())
+  setShowMembership(on: boolean) {
+    this.showMembership = on
+    try { localStorage.setItem('tessera.showMembership', on ? '1' : '0') } catch { /* private mode */ }
+  }
   modal = $state<null | 'settings' | 'new'>(null)
   newTab = $state<'room' | 'dm' | 'join' | 'explore' | 'space'>('room')
   open(tab: 'room' | 'dm' | 'join' | 'explore' | 'space') {

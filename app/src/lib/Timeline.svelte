@@ -67,11 +67,17 @@
   const byId = (id?: string) => chat.messages.find((m) => m.id === id)
 
   // Consecutive messages from one sender within 5 minutes share a header; a new day gets a divider.
+  // With "show joins, leaves and name changes" on, those lines are merged in by time; they never join a sender's run.
+  const items = $derived(
+    chat.notices.length
+      ? [...chat.messages, ...chat.notices.map((n) => ({ id: n.id, ts: n.ts, notice: n.text, sender: '' }) as unknown as Msg)].sort((a, b) => a.ts - b.ts)
+      : chat.messages,
+  )
   const rows = $derived(
-    chat.messages.map((m, i) => {
-      const p = chat.messages[i - 1]
+    items.map((m, i) => {
+      const p = items[i - 1]
       const newDay = !p || new Date(p.ts).toDateString() !== new Date(m.ts).toDateString()
-      return { m, newDay, cont: !newDay && p.sender === m.sender && m.ts - p.ts < 300_000 && !m.replyTo }
+      return { m, newDay, cont: !newDay && !m.notice && !p.notice && p.sender === m.sender && m.ts - p.ts < 300_000 && !m.replyTo }
     }),
   )
 
@@ -591,6 +597,7 @@
       {#if virt}<div class="vpad" style:height="{win.top}px" aria-hidden="true"></div>{/if}
       {#each shown as { m, newDay, cont } (m.id)}
         {#if newDay}<div class="day" role="separator"><span>{dayLabel(m.ts)}</span></div>{/if}
+        {#if m.notice}<div class="sys" data-id={m.id}>{m.notice} <time>{fmt(m.ts)}</time></div>{:else}
         <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
         <article onclick={(e) => tapMessage(e, m.id)} class:mine={m.mine} class:cont class:pending={m.pending} class:active={picker === m.id || seenFor === m.id || tapped === m.id} class:mention={m.mentionsMe} data-id={m.id}>
           <div class="gutter">
@@ -640,6 +647,7 @@
             <MessageMore {m} />
           </div>
         </article>
+        {/if}
       {/each}
       {#if virt}<div class="vpad" style:height="{win.bottom}px" aria-hidden="true"></div>{/if}
       </div>
@@ -718,6 +726,7 @@
   .enc { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ok); padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--ok) 14%, transparent); }
   .scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 8px 0 4px; }
   .note { text-align: center; color: var(--muted); font-size: 12px; padding: 8px; }
+  .sys { text-align: center; color: var(--muted); font-size: 12px; margin: 6px 20px; } .sys time { opacity: .7; margin-left: 4px; }
   .day { display: flex; align-items: center; gap: 12px; margin: 16px 20px 6px; color: var(--muted); font-size: 12px; font-weight: 600; } .day::before, .day::after { content: ''; flex: 1; height: 1px; background: var(--line); }
   /* Off-screen messages skip layout and paint, which keeps long rooms fast. */
 .rows.virt article { content-visibility: visible; } .vpad { flex: none; overflow-anchor: none; }
