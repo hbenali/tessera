@@ -9,6 +9,20 @@ A fast, private, workspace-style [Matrix](https://matrix.org) client for Synapse
 
 > Status: early, usable, not audited. It is a personal project and has been tested against one Synapse (1.118) and one real browser (Chrome). Do not rely on it as your only client for anything critical yet.
 
+## Screenshots
+
+![A room in the dark theme: sidebar with unread badges, a reply, code, a poll, reactions and a mention](docs/wiki/images/room-dark.png)
+
+| Light, Cards layout | Ocean, Aligned bubbles |
+| --- | --- |
+| ![Light theme with the Cards layout](docs/wiki/images/room-light-cards.png) | ![Ocean theme with the Aligned bubbles layout](docs/wiki/images/room-ocean-aligned.png) |
+
+| Themes and layouts in Settings | On a phone: rooms | On a phone: a room |
+| --- | --- | --- |
+| ![Settings, Appearance tab: language, eight themes and four room layouts](docs/wiki/images/settings.png) | ![Room list on a phone](docs/wiki/images/mobile-list.png) | ![A room on a phone](docs/wiki/images/mobile-room.png) |
+
+The screenshots show a throwaway Synapse with made-up users.
+
 ## Why
 
 - **Fast and light.** The sign-in page is about 32 KiB; the Matrix SDK and crypto WASM load only after you sign in. Long rooms use CSS `content-visibility`.

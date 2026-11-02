@@ -2,10 +2,13 @@
 
 A fast, private, workspace-style [Matrix](https://matrix.org) client for Synapse and any other homeserver. It runs entirely in the browser and installs as a PWA. Built with Svelte 5, Vite and TypeScript on `matrix-js-sdk`, with the Rust crypto module for end-to-end encryption.
 
+![A room in the dark theme](images/room-dark.png)
+
 ## Where to go next
 
 | I want to… | Page |
 | --- | --- |
+| See what it looks like | [Screenshots](Screenshots) |
 | Run or host it | [Installation](Installation) |
 | Get notified with the app closed | [Push notifications](Push-notifications) |
 | Fix a problem | [Troubleshooting](Troubleshooting) |

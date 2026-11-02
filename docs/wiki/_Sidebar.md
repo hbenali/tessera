@@ -1,5 +1,6 @@
 **[Tessera](Home)**
 
+* [Screenshots](Screenshots)
 * [Installation](Installation)
 * [Push notifications](Push-notifications)
 * [Troubleshooting](Troubleshooting)
