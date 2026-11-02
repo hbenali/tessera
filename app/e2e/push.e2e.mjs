@@ -157,6 +157,37 @@ describe('web push and PWA', () => {
     await blank.close()
   })
 
+  it('reads the flat payload that a real Sygnal sends, not only a nested one', async () => {
+    // Sygnal's webpush pushkin puts event_id, room_id, user_id... at the top level of the push body, with no "notification" key.
+    const sent = await send(data.bob, data.room, { msgtype: 'm.text', body: 'flat payload from Sygnal' })
+    await page.close()
+    const blank = await ctx.newPage()
+    const cdp = await ctx.newCDPSession(blank)
+    const regs = []
+    cdp.on('ServiceWorker.workerRegistrationUpdated', (e) => regs.push(...e.registrations))
+    await cdp.send('ServiceWorker.enable')
+    await new Promise((r) => setTimeout(r, 500))
+    const reg = regs.find((r) => r.scopeURL.startsWith(server.url))
+    assert.ok(reg, 'no service worker registration found')
+    await cdp.send('ServiceWorker.deliverPushMessage', { origin: server.url, registrationId: reg.registrationId, data: JSON.stringify({ event_id: sent.event_id, room_id: data.room, type: 'm.room.message', unread: 1 }) })
+    page = await ctx.newPage()
+    await page.goto(server.url)
+    const note = await page.evaluate(async () => {
+      const r = await navigator.serviceWorker.ready
+      for (let i = 0; i < 30; i++) {
+        const list = await r.getNotifications()
+        const hit = list.find((x) => x.body === 'flat payload from Sygnal')
+        if (hit) return { title: hit.title, body: hit.body, actions: hit.actions.map((a) => a.action) }
+        await new Promise((res) => setTimeout(res, 200))
+      }
+      return null
+    })
+    assert.ok(note, 'the flat payload gave no readable notification (generic "New message" at best)')
+    assert.match(note.title, new RegExp(data.bob.name))
+    assert.deepEqual(note.actions.slice(0, 2), ['reply', 'read'])
+    await blank.close()
+  })
+
   it('marks the message as read from the notification, with a private receipt', async () => {
     const sent = await send(data.bob, data.room, { msgtype: 'm.text', body: 'please mark me read' })
     await page.evaluate(async ([room, event]) => (await navigator.serviceWorker.ready).active.postMessage({ type: 'read', room_id: room, event_id: event }), [data.room, sent.event_id])

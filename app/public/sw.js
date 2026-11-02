@@ -288,7 +288,9 @@ self.addEventListener('push', (e) => {
     (async () => {
       let n = {}
       try {
-        n = e.data?.json()?.notification ?? {}
+        // Sygnal (the usual gateway) sends the fields flat ({event_id, room_id, ...}); some gateways nest them under "notification".
+        const j = e.data?.json()
+        n = j?.notification ?? j ?? {}
       } catch {
         /* not JSON: show the generic text below */
       }
