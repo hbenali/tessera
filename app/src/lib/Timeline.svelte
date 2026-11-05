@@ -3,7 +3,7 @@
   import { chat, friendlyError, type Msg } from './matrix.svelte'
   import { COMMANDS, isKnown, parseCommand, shrug } from './commands'
   import { quote as quoteLines, wrap, type Edit } from './format'
-  import { findEmoji } from './emojiNames'
+  import { emojiCode, findEmoji } from './emojiNames'
   import { canRecord, type Recorded } from './recorder'
   import VoiceRecorder from './VoiceRecorder.svelte'
   import Skeleton from './Skeleton.svelte'
@@ -630,7 +630,7 @@
                 {@const who = m.reactors[k] ?? []}
                 {@const mine = who.some((u) => u.id === chat.userId)}
                 {@const names = who.map((u) => (u.id === chat.userId ? 'You' : u.name)).join(', ')}
-                <button class:mine data-who={names} onclick={() => chat.react(m.id, k)} aria-pressed={mine} aria-label="{k} {n}: {names}. {mine ? 'Remove your reaction' : 'Add your reaction'}"><span>{k}</span> {n}</button>
+                <button class:mine data-who={[emojiCode(k), names].filter(Boolean).join(' · ')} onclick={() => chat.react(m.id, k)} aria-pressed={mine} aria-label="{k} {n}: {names}. {mine ? 'Remove your reaction' : 'Add your reaction'}"><span>{k}</span> {n}</button>
               {/each}</div>
             {/if}
           </div>

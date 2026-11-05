@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { emojiCode } from './emojiNames'
   let { onpick, onclose }: { onpick: (e: string) => void; onclose: () => void } = $props()
   // Open upward unless the anchor is too close to the top of the window.
   let down = $state(false)
@@ -17,7 +18,7 @@
 <div class="picker" class:down use:place role="dialog" aria-label="Emoji picker">
   {#each SETS as [title, list] (title)}
     <div class="label">{title}</div>
-    <div class="grid">{#each list as e (e)}<button onclick={() => { onpick(e); onclose() }} aria-label={e}>{e}</button>{/each}</div>
+    <div class="grid">{#each list as e (e)}<button onclick={() => { onpick(e); onclose() }} aria-label={emojiCode(e) || e} title={emojiCode(e) || undefined}>{e}</button>{/each}</div>
   {/each}
 </div>
 

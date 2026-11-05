@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EMOJI, findEmoji } from './emojiNames'
+import { EMOJI, emojiCode, findEmoji } from './emojiNames'
 
 describe('findEmoji', () => {
   it('ranks names that start with the query before names that contain it', () => {
@@ -18,5 +18,19 @@ describe('findEmoji', () => {
   it('has no duplicate shortcodes', () => {
     const names = EMOJI.map(([n]) => n)
     expect(new Set(names).size).toBe(names.length)
+  })
+})
+
+describe('emojiCode', () => {
+  it('gives the shortcode of an emoji, with or without the variation selector', () => {
+    expect(emojiCode('😄')).toBe(':smile:')
+    expect(emojiCode('❤')).toBe(emojiCode('❤️'))
+  })
+  it('is empty for an unknown emoji', () => expect(emojiCode('🦤🦤')).toBe(''))
+  it('covers every emoji in the picker', async () => {
+    const src = (await import('node:fs')).readFileSync(new URL('./EmojiPicker.svelte', import.meta.url), 'utf8')
+    const all = [...src.matchAll(/\[\s*'\w+',\s*\[([^\]]+)\]/g)].flatMap((m) => [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]))
+    expect(all.length).toBeGreaterThan(50)
+    expect(all.filter((e) => !emojiCode(e))).toEqual([])
   })
 })

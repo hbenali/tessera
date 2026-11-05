@@ -169,6 +169,14 @@ export const EMOJI: [string, string][] = [
   ['peace', '☮️'],
   ['flag', '🏁'],
   ['pirate', '🏴‍☠️'],
+  ['open_mouth', '😮'],
+  ['grinning', '😀'],
+  ['smiley', '😃'],
+  ['slight_smile', '🙂'],
+  ['point_up_2', '☝️'],
+  ['raised_hand_splayed', '🖐️'],
+  ['dart', '🎯'],
+  ['musical_notes', '🎶'],
 ]
 
 /** Shortcodes that start with the query first, then those that contain it. */
@@ -178,4 +186,13 @@ export function findEmoji(query: string, limit = 6): [string, string][] {
   const starts = EMOJI.filter(([n]) => n.startsWith(q))
   const has = EMOJI.filter(([n]) => !n.startsWith(q) && n.includes(q))
   return [...starts, ...has].slice(0, limit)
+}
+
+const BY_EMOJI = new Map<string, string>()
+for (const [n, e] of EMOJI) if (!BY_EMOJI.has(e)) BY_EMOJI.set(e, n)
+for (const [e, n] of [...BY_EMOJI]) BY_EMOJI.set(e.replace(/\uFE0F/g, ''), BY_EMOJI.get(e.replace(/\uFE0F/g, '')) ?? n)
+/** The :shortcode: to type for an emoji, or '' when it has none. Ignores the variation selector. */
+export function emojiCode(e: string): string {
+  const n = BY_EMOJI.get(e) ?? BY_EMOJI.get(e.replace(/\uFE0F/g, ''))
+  return n ? `:${n}:` : ''
 }
