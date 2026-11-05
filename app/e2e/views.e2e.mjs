@@ -83,13 +83,14 @@ describe('room views, muted and favourite rooms, and who reacted', () => {
     const chip = row.locator('.reacts button', { hasText: '👍' })
     await page.waitForFunction(() => [...document.querySelectorAll('article .reacts button')].some((b) => b.textContent.includes('👍') && b.textContent.includes('2')), null, { timeout: 15_000 })
     const who = await chip.getAttribute('data-who')
+    assert.match(who, /^:[\w+-]+: · /) // the shortcode comes first, so it can be copied
     assert.ok(who.includes('You') && who.includes(data.bob.name), who)
     assert.equal(await chip.getAttribute('aria-pressed'), 'true')
     assert.match(await chip.getAttribute('aria-label'), new RegExp(`${data.bob.name}`))
     await chip.click()
     await page.waitForFunction((n) => {
       const b = [...document.querySelectorAll('article .reacts button')].find((x) => x.textContent.includes('👍'))
-      return b && b.textContent.includes('1') && b.getAttribute('aria-pressed') === 'false' && b.dataset.who === n
+      return b && b.textContent.includes('1') && b.getAttribute('aria-pressed') === 'false' && b.dataset.who.endsWith(` · ${n}`) && /^:[\w+-]+: · /.test(b.dataset.who)
     }, data.bob.name, { timeout: 15_000 })
   })
 
