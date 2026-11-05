@@ -205,7 +205,7 @@
   .preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; } .unread .preview { color: var(--text); }
   .badge { flex: none; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--muted); color: var(--bg); font-size: 11px; font-weight: 700; text-align: center; line-height: 20px; } .badge.hl { background: var(--accent); color: var(--accent-ink); }
   .invite { display: flex; align-items: center; gap: 10px; padding: 8px; margin: 0 0 4px; border-radius: 10px; border: 1px dashed var(--accent); } .invite .meta { flex: 1; display: grid; min-width: 0; } .invite .meta span { color: var(--muted); font-size: 12px; } .invite .btn { padding: 5px 12px; }
-  .muted .name, .muted .preview { opacity: .6; } .badge.quiet { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--muted); } .fav { color: var(--accent); }
+  .muted .name, .muted .preview { opacity: .6; } .badge.quiet { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--muted); } .fav { color: #e8a317; } .fav :global(svg) { fill: currentColor; }
   .grp { display: block; margin: 8px 8px 2px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
   .dnd { margin-left: auto; display: inline-flex; color: var(--accent); flex: none; }  .menu .sep { border-top: 1px solid var(--line); margin: 4px 2px; } .menu button.dndnow { color: var(--muted); font-size: 12px; cursor: default; } .menu button.dndnow:hover { background: none; }
   .n { margin-left: auto; color: var(--muted); font-size: 12px; } .menu .n + :global(svg) { margin-left: 8px; }
