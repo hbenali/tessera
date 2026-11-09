@@ -22,5 +22,6 @@ export const de: Record<string, string> = {
   'Export…': 'Exportieren…',
   'Print the Markdown source instead of the formatted text': 'Markdown-Quelltext statt des formatierten Textes drucken',
   'Colours': 'Farben', 'Like the app': 'Wie die App', 'Light': 'Hell', 'Dark': 'Dunkel',
-  'Shared media': 'Geteilte Medien', 'Kind of media': 'Art der Medien', 'Photos': 'Fotos', 'Links': 'Links', 'Open image': 'Bild öffnen', 'Show in chat': 'Im Chat zeigen', 'Nothing found in the messages loaded so far.': 'Bisher nichts in den geladenen Nachrichten.', 'Nothing shared in this room yet.': 'In diesem Raum wurde noch nichts geteilt.', 'Could not load earlier messages. Try again': 'Frühere Nachrichten konnten nicht geladen werden. Erneut versuchen', 'Load earlier': 'Frühere laden', 'That is everything in this room.': 'Das ist alles in diesem Raum.', 'All photos in this room': 'Alle Fotos in diesem Raum', 'Photo': 'Foto', 'of': 'von',
+  'Shared media': 'Geteilte Medien', 'Kind of media': 'Art der Medien', 'Photos': 'Fotos', 'Links': 'Links', 'Open image': 'Bild öffnen', 'Show in chat': 'Im Chat zeigen', 'Nothing shared in this room yet.': 'In diesem Raum wurde noch nichts geteilt.', 'Could not load earlier messages. Try again': 'Frühere Nachrichten konnten nicht geladen werden. Erneut versuchen', 'That is everything in this room.': 'Das ist alles in diesem Raum.', 'All photos in this room': 'Alle Fotos in diesem Raum', 'Photo': 'Foto', 'of': 'von',
+  'Loading…': 'Wird geladen…',
 }

@@ -22,5 +22,6 @@ export const fr: Record<string, string> = {
   'Export…': 'Exporter…',
   'Print the Markdown source instead of the formatted text': 'Imprimer le source Markdown plutôt que le texte formaté',
   'Colours': 'Couleurs', 'Like the app': 'Comme l’application', 'Light': 'Clair', 'Dark': 'Sombre',
-  'Shared media': 'Médias partagés', 'Kind of media': 'Type de média', 'Photos': 'Photos', 'Links': 'Liens', 'Open image': 'Ouvrir l’image', 'Show in chat': 'Afficher dans la discussion', 'Nothing found in the messages loaded so far.': 'Rien dans les messages chargés pour l’instant.', 'Nothing shared in this room yet.': 'Rien n’a encore été partagé dans ce salon.', 'Could not load earlier messages. Try again': 'Impossible de charger les messages précédents. Réessayer', 'Load earlier': 'Charger plus ancien', 'That is everything in this room.': 'C’est tout ce qu’il y a dans ce salon.', 'All photos in this room': 'Toutes les photos du salon', 'Photo': 'Photo', 'of': 'sur',
+  'Shared media': 'Médias partagés', 'Kind of media': 'Type de média', 'Photos': 'Photos', 'Links': 'Liens', 'Open image': 'Ouvrir l’image', 'Show in chat': 'Afficher dans la discussion', 'Nothing shared in this room yet.': 'Rien n’a encore été partagé dans ce salon.', 'Could not load earlier messages. Try again': 'Impossible de charger les messages précédents. Réessayer', 'That is everything in this room.': 'C’est tout ce qu’il y a dans ce salon.', 'All photos in this room': 'Toutes les photos du salon', 'Photo': 'Photo', 'of': 'sur',
+  'Loading…': 'Chargement…',
 }

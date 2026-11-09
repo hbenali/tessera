@@ -13,26 +13,44 @@
   const files = $derived(galleryMessages(chat.messages, 'files'))
   const links = $derived(galleryLinks(chat.messages))
   const counts = $derived({ media: photos.length, files: files.length, links: links.length })
-  const photoGroups = $derived(monthGroups(photos, (m) => m.ts, monthLabel))
-  const fileGroups = $derived(monthGroups(files, (m) => m.ts, monthLabel))
-  const linkGroups = $derived(monthGroups(links, (l) => l.msg.ts, monthLabel))
+  // Ten at a time: the next ten appear as you reach the end of the list, reading further back in the room when the
+  // loaded messages have no more to show. Reading history only reads, so nothing is sent to the room.
+  const PAGE = 10
+  let limit = $state(PAGE)
+  let busy = $state(false)
+  const total = () => counts[tab]
+  $effect(() => { chat.activeRoom; tab; limit = PAGE; failed = false })
+  const photoGroups = $derived(monthGroups(photos.slice(0, limit), (m) => m.ts, monthLabel))
+  const fileGroups = $derived(monthGroups(files.slice(0, limit), (m) => m.ts, monthLabel))
+  const linkGroups = $derived(monthGroups(links.slice(0, limit), (l) => l.msg.ts, monthLabel))
+  const more = () => total() > limit || chat.hasOlder()
   const when = (ts: number) => new Date(ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 
-  $effect(() => { chat.activeRoom; failed = false })
+  async function next() {
+    if (busy || failed || !more()) return
+    busy = true
+    try {
+      if (total() <= limit) {
+        const before = total()
+        for (let i = 0; i < 12 && chat.hasOlder() && total() < before + PAGE; i++) {
+          if (!(await chat.loadOlder())) { failed = true; return }
+        }
+      }
+      limit += PAGE
+    } finally { busy = false }
+  }
 
-  // Reading earlier history is how older media are found; it only reads, so nothing is sent to the room.
+  // Watched again whenever the list changes, so a sentinel that is still in view asks for the next ten.
   let sentinel: HTMLElement | undefined = $state()
   $effect(() => {
     const el = sentinel
+    limit; counts[tab]; failed
     if (!el) return
-    const io = new IntersectionObserver(async (e) => {
-      if (!e.some((x) => x.isIntersecting) || failed || chat.loadingOlder || !chat.hasOlder()) return
-      if (!(await chat.loadOlder())) failed = true
-    })
+    const io = new IntersectionObserver((e) => { if (e.some((x) => x.isIntersecting)) void next() })
     io.observe(el)
     return () => io.disconnect()
   })
-  const loadMore = async () => { failed = false; if (!(await chat.loadOlder())) failed = true }
+  const retry = () => { failed = false; void next() }
 
   function show(id: string) {
     chat.focusEvent = id
@@ -44,7 +62,7 @@
 <aside aria-label={t('Shared media')}>
   <header><h2>{t('Shared media')}</h2><button class="icon-btn" onclick={() => (ui.media = false)} aria-label={t('Close')}><Icon name="x" size={16} /></button></header>
   <div class="tabs" role="group" aria-label={t('Kind of media')}>
-    {#each TABS as [k, label] (k)}<button class:on={tab === k} aria-pressed={tab === k} onclick={() => (tab = k)}>{t(label)} <span>{counts[k]}</span></button>{/each}
+    {#each TABS as [k, label] (k)}<button class:on={tab === k} aria-pressed={tab === k} onclick={() => (tab = k)}>{t(label)}</button>{/each}
   </div>
 
   <div class="list">
@@ -83,14 +101,11 @@
       {/each}
     {/if}
 
-    {#if !counts[tab]}
-      <p class="empty">{chat.loadingOlder || chat.hasOlder() ? t('Nothing found in the messages loaded so far.') : t('Nothing shared in this room yet.')}</p>
-    {/if}
+    {#if !total() && !more()}<p class="empty">{t('Nothing shared in this room yet.')}</p>{/if}
     <div class="more" bind:this={sentinel} role="status">
-      {#if chat.loadingOlder}{t('Loading earlier messages…')}
-      {:else if failed}<button class="link" onclick={loadMore}>{t('Could not load earlier messages. Try again')}</button>
-      {:else if chat.hasOlder()}<button class="link" onclick={loadMore}>{t('Load earlier')}</button>
-      {:else}{t('That is everything in this room.')}{/if}
+      {#if failed}<button class="link" onclick={retry}>{t('Could not load earlier messages. Try again')}</button>
+      {:else if busy || chat.loadingOlder || more()}{t('Loading…')}
+      {:else if total()}{t('That is everything in this room.')}{/if}
     </div>
   </div>
 </aside>
@@ -99,7 +114,7 @@
   aside { height: 100%; display: flex; flex-direction: column; overflow: hidden; min-height: 0; background: var(--panel); border-left: 1px solid var(--line); padding: 0 12px 12px; }
   header { display: flex; justify-content: space-between; align-items: center; height: 56px; flex: none; } h2 { margin: 0; font-size: 15px; }
   .tabs { display: flex; gap: 4px; flex: none; padding: 3px; border-radius: 10px; background: var(--tile); }
-  .tabs button { flex: 1; padding: 6px 4px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--muted); } .tabs button span { font-weight: 500; font-variant-numeric: tabular-nums; opacity: .8; }
+  .tabs button { flex: 1; padding: 6px 4px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--muted); }
   .tabs button.on { background: var(--bg); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / .15); }
   .list { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; }
   h3 { margin: 12px 2px 6px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }

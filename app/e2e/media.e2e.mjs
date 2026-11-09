@@ -19,6 +19,8 @@ describe('shared media', () => {
     await send(data.bob, data.room, { msgtype: 'm.text', body: 'docs are at https://example.com/docs, thanks' })
     await send(data.bob, data.room, { msgtype: 'm.image', body: 'third.png', url: b, info: { mimetype: 'image/png', w: 540, h: 720 } })
     await send(data.bob, data.room, { msgtype: 'm.file', body: 'report.pdf', url: a, info: { mimetype: 'application/pdf', size: 1234 } })
+    // More pictures than one page of ten, with a long stretch of text between them and the oldest one.
+    for (let i = 0; i < 12; i++) await send(data.bob, data.room, { msgtype: 'm.image', body: `extra${i}.png`, url: a, info: { mimetype: 'image/png', w: 192, h: 192 } })
     page = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage()
     await signIn(page, server.url, data.alice)
     await rooms().getByRole('button', { name: /e2e room/ }).first().click()
@@ -32,8 +34,10 @@ describe('shared media', () => {
   it('lists the pictures of the room, newest first, grouped by month', async () => {
     await page.getByRole('button', { name: 'Shared media' }).click()
     await panel().waitFor()
-    assert.match(await panel().getByRole('button', { name: /^Photos/ }).innerText(), /3/)
-    assert.equal(await panel().getByRole('button', { name: /^Open image/ }).count(), 3)
+    await panel().getByRole('button', { name: /^Open image/ }).first().waitFor()
+    // Ten at a time, and the next ten come by themselves as the end of the list is reached: there is no button for it.
+    assert.equal(await panel().getByRole('button', { name: /Load earlier/ }).count(), 0)
+    await page.waitForFunction(() => document.querySelectorAll('aside[aria-label="Shared media"] .tile').length === 15, null, { timeout: 20_000 })
     assert.equal(await panel().locator('h3').count(), 1)
   })
 
@@ -42,10 +46,10 @@ describe('shared media', () => {
     const viewer = page.getByRole('dialog', { name: 'Image viewer' })
     await viewer.waitFor()
     const strip = viewer.getByRole('group', { name: 'All photos in this room' })
-    assert.equal(await strip.getByRole('button').count(), 3)
-    assert.match(await viewer.locator('.who span').innerText(), /3 of 3/)
+    assert.equal(await strip.getByRole('button').count(), 15)
+    assert.match(await viewer.locator('.who span').innerText(), /15 of 15/)
     await strip.getByRole('button').first().click()
-    assert.match(await viewer.locator('.who span').innerText(), /1 of 3/)
+    assert.match(await viewer.locator('.who span').innerText(), /1 of 15/)
     assert.equal(await strip.locator('[aria-current=true]').count(), 1)
     await page.keyboard.press('Escape')
     await viewer.waitFor({ state: 'detached' })
@@ -65,7 +69,7 @@ describe('shared media', () => {
   it('pages back to find older media in a long room', async () => {
     await panel().getByRole('button', { name: /^Photos/ }).click()
     // The seeded image is among the newest messages; the panel reads history only to look further back.
-    await panel().getByText(/everything in this room|Load earlier|Loading earlier/).waitFor()
+    await panel().getByText('That is everything in this room.').waitFor({ timeout: 20_000 })
   })
 
   it('closes with its button', async () => {
