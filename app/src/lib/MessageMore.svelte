@@ -2,6 +2,8 @@
   import { chat } from './matrix.svelte'
   import type { Msg } from './matrix.svelte'
   import Icon from './Icon.svelte'
+  import { ui } from './ui.svelte'
+  import { t } from './i18n.svelte'
   import Modal from './Modal.svelte'
   import Avatar from './Avatar.svelte'
 
@@ -37,6 +39,8 @@
     <div class="away" onclick={() => (open = false)}></div>
     <div class="menu" role="menu" aria-label="More actions for this message">
       <button role="menuitem" onclick={() => show('forward')}><Icon name="send" size={14} />Forward</button>
+      <button role="menuitem" onclick={() => { open = false; ui.exportImage = { from: m.id, to: ui.exportImage?.to ?? null } }}><Icon name="download" size={14} />{t('Export from here')}</button>
+      <button role="menuitem" onclick={() => { open = false; ui.exportImage = { from: ui.exportImage?.from ?? null, to: m.id } }}><Icon name="download" size={14} />{t('Export up to here')}</button>
       <button role="menuitem" onclick={() => show('source')}><Icon name="info" size={14} />View source</button>
       {#if !m.mine}<button role="menuitem" onclick={() => show('report')}><Icon name="alert" size={14} />Report</button>{/if}
       {#if others}<button role="menuitem" onclick={() => show('remove')}><Icon name="trash" size={14} />Remove for everyone</button>{/if}

@@ -113,6 +113,8 @@ class Ui {
   openRoomMenu(id: string, x: number, y: number, opener: HTMLElement | null) {
     this.roomMenu = { id, x, y, opener }
   }
+  /** The "export as image" dialog: the first and last message chosen so far (null = start or end of the room). */
+  exportImage = $state<{ from: string | null; to: string | null } | null>(null)
   theme = $state<ThemeId>(readTheme())
   setTheme(t: ThemeId) {
     this.theme = t
