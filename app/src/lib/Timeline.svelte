@@ -27,6 +27,7 @@
   import { getDraft, setDraft } from './drafts'
   import MessageMore from './MessageMore.svelte'
   import Icon from './Icon.svelte'
+  import { seenLine } from './seenline'
   import EmojiPicker from './EmojiPicker.svelte'
 
   let text = $state('')
@@ -64,6 +65,7 @@
 
   const QUICK = ['👍', '❤️', '😂', '🎉']
   const fmt = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const status = $derived(seenLine(chat.messages, !!chat.active?.isDM, fmt))
   const byId = (id?: string) => chat.messages.find((m) => m.id === id)
 
   // Consecutive messages from one sender within 5 minutes share a header; a new day gets a divider.
@@ -654,7 +656,7 @@
     </div>
 
     {#if toast}<div class="toast" role="status">{toast}</div>{/if}
-    <div class="typing" aria-live="polite">{#if chat.typing.length}<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>{chat.typing.length > 2 ? 'Several people are' : `${chat.typing.join(' and ')} ${chat.typing.length > 1 ? 'are' : 'is'}`} typing{/if}</div>
+    <div class="typing" aria-live="polite">{#if chat.typing.length}<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>{chat.typing.length > 2 ? 'Several people are' : `${chat.typing.join(' and ')} ${chat.typing.length > 1 ? 'are' : 'is'}`} typing{:else if status}<span class="status st-{status.state}"><Icon name={status.state === 'seen' ? 'checks' : 'check'} size={13} />{status.text}</span>{/if}</div>
     <footer>
       {#if notice}<div class="ctx err" role="alert">{notice}</div>{/if}
       <div class="composer">
@@ -789,9 +791,10 @@
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .dots { display: inline-flex; gap: 3px; margin-right: 6px; vertical-align: 1px; } .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: blip 1.2s infinite; } .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; } @keyframes blip { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } } @media (prefers-reduced-motion: reduce) { .dots i { animation: none; } }
   .toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); padding: 8px 14px; border-radius: 8px; background: var(--text); color: var(--bg); font-size: 13px; z-index: 6; box-shadow: var(--shadow); }
+  .status { display: inline-flex; align-items: center; gap: 5px; } .status.st-seen { color: var(--accent); } .status.st-failed { color: var(--danger); }
   .typing { height: 22px; padding: 0 20px; font-size: 12px; color: var(--muted); flex: none; }
   footer { padding: 0 16px 10px; flex: none; }
-  .composer { background: var(--tile); border: 1px solid var(--line); border-radius: 12px; } .composer:focus-within { border-color: var(--accent); }
+  .composer { background: var(--tile); border: 1px solid var(--line); border-radius: 12px; transition: border-color .15s, box-shadow .15s, background-color .15s; } .composer:focus-within { border-color: var(--accent); background: var(--bg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); } @media (prefers-reduced-motion: reduce) { .composer { transition: none; } }
   .ctx { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 12px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); } .ctx .clip { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ctx button { margin-left: auto; } .err { color: var(--danger); border: 0; }
   .input { display: flex; align-items: flex-end; gap: 2px; padding: 6px; }
   .tray { list-style: none; margin: 0; padding: 8px 8px 0; display: flex; flex-wrap: wrap; gap: 8px; }
