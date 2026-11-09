@@ -42,6 +42,14 @@
     // a view is applied by the list itself (Sidebar); leave it there until it has
     ui.pending = p.view ? { view: p.view } : null
   })
+  // Shared media belongs to one conversation: going to another room closes it rather than carrying it over.
+  let lastRoom = chat.activeRoom
+  $effect(() => {
+    const r = chat.activeRoom
+    if (r === lastRoom) return
+    lastRoom = r
+    ui.media = false
+  })
   function key(e: KeyboardEvent) {
     // Ctrl+Shift+F searches the open room; plain Ctrl+F stays the browser's own find.
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f' && chat.activeRoom) {

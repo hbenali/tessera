@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { app, launch, seed, send, signIn, upload } from './lib.mjs'
+import { api, app, launch, seed, send, signIn, upload } from './lib.mjs'
 
 const here = new URL('.', import.meta.url).pathname
 
@@ -70,6 +70,18 @@ describe('shared media', () => {
     await panel().getByRole('button', { name: /^Photos/ }).click()
     // The seeded image is among the newest messages; the panel reads history only to look further back.
     await panel().getByText('That is everything in this room.').waitFor({ timeout: 20_000 })
+  })
+
+  it('closes when another room is opened, instead of following to it', async () => {
+    await api(data.alice.token, 'POST', '/_matrix/client/v3/createRoom', { name: 'other room', preset: 'private_chat' })
+    await rooms().getByRole('button', { name: /other room/ }).first().click()
+    await page.getByRole('heading', { name: 'other room' }).waitFor()
+    await panel().waitFor({ state: 'detached' })
+    // ...and opening it from the room menu of another room still works.
+    await rooms().getByRole('button', { name: 'Options for e2e room' }).click()
+    await page.getByRole('menuitem', { name: 'Shared media' }).click()
+    await panel().waitFor()
+    await page.getByRole('heading', { name: 'e2e room' }).waitFor()
   })
 
   it('closes with its button', async () => {
