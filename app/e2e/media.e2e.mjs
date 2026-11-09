@@ -84,6 +84,18 @@ describe('shared media', () => {
     await page.getByRole('heading', { name: 'e2e room' }).waitFor()
   })
 
+  it('on a tablet the room list steps aside for the panel, so the chat is not squeezed', async () => {
+    await page.setViewportSize({ width: 800, height: 900 })
+    await rooms().getByRole('button', { name: /e2e room/ }).first().click().catch(() => {})
+    if (!(await panel().count())) await page.getByRole('button', { name: 'Shared media' }).click()
+    await panel().waitFor()
+    assert.equal(await page.locator('aside.sidebar').isVisible(), false)
+    const main = await page.locator('main.main').boundingBox()
+    assert.ok(main.width >= 400, `the chat is ${main.width}px wide`)
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.locator('aside.sidebar').waitFor()
+  })
+
   it('closes with its button', async () => {
     await panel().getByRole('button', { name: 'Close' }).click()
     await panel().waitFor({ state: 'detached' })

@@ -92,6 +92,12 @@
   /* The app fills the window and scrolls inside its own panes; the page itself must never scroll. */
   :global(html), :global(body) { overflow: hidden; }
   .shell { height: 100%; display: grid; grid-template-rows: minmax(0, 1fr); overflow: hidden; grid-template-columns: 320px 1fr; } .shell.with-details { grid-template-columns: 320px 1fr 300px; }
+  /* A tablet cannot hold the list, the chat and a side panel at once (the chat would be squeezed to a sliver): while a panel
+     is open the list steps aside, and comes back when the panel is closed. */
+  @media (min-width: 721px) and (max-width: 1099px) {
+    .shell.with-details { grid-template-columns: minmax(0, 1fr) 320px; }
+    .shell.with-details :global(aside.sidebar) { display: none; }
+  }
   @media (max-width: 720px) {
     .shell, .shell.with-details { grid-template-columns: 1fr; }
     .shell.with-details :global(main.main) { display: none; }

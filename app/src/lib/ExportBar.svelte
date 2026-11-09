@@ -15,6 +15,7 @@
 </div>
 
 <style>
-  .bar { position: fixed; z-index: 25; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; max-width: calc(100vw - 24px); padding: 8px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); font-size: 13px; }
+  /* Under the room header, where it never covers the message box (which is at the bottom, and taller on a phone). */
+  .bar { position: fixed; z-index: 25; left: 50%; top: 64px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; max-width: calc(100vw - 24px); padding: 8px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); font-size: 13px; }
   .btn { padding: 5px 12px; }
 </style>
