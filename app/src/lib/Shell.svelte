@@ -15,6 +15,7 @@
   import CallPanel from './CallPanel.svelte'
   import ImageViewer from './ImageViewer.svelte'
   import ExportImage from './ExportImage.svelte'
+  import ExportBar from './ExportBar.svelte'
   import { applyBadge, badgeCount } from './badge'
   import { pageTitle } from './pagetitle'
   import { isStandalone } from './installhelp'
@@ -70,7 +71,7 @@
 {#if ui.userCard}<UserCard />{/if}
 <CallPanel />
 {#if ui.viewer}<ImageViewer />{/if}
-{#if ui.exportImage && chat.activeRoom}<ExportImage />{/if}
+{#if ui.exportImage && chat.activeRoom}{#if ui.exportDialog}<ExportImage />{:else}<ExportBar />{/if}{/if}
 
 <style>
   /* A thin moving bar along the top while the first sync runs. */

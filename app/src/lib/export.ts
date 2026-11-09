@@ -1,7 +1,11 @@
 // Export a conversation as pictures (PNG). Everything here reads: nothing is sent to the room or the server, so there is
 // no read receipt, no notification and no typing signal. The layout helpers are pure so they can be tested; `renderPages`
 // draws on a canvas, with no library.
+import { flowRuns, htmlRuns, runsText, QUOTE_INDENT, PRE_PAD, type RLine, type Run } from './richtext'
+
 export interface ExportMsg {
+  /** The message as the timeline shows it (markdown.ts output); without it, or with `source`, the raw text is used. */
+  html?: string
   id: string
   senderName: string
   body: string
@@ -17,6 +21,12 @@ export interface ExportMsg {
   audio?: { name: string; voice: boolean }
   location?: { label: string }
   poll?: { start: { question?: string } | unknown }
+  sender?: string
+  senderAvatar?: string
+  edited?: boolean
+  mentionsMe?: boolean
+  /** The message this one answers: who wrote it and a short text. */
+  reply?: { name: string; text: string }
 }
 
 export interface Range { from: string | null; to: string | null }
@@ -76,6 +86,16 @@ export function fileName(room: string, date: Date, page: number, pages: number, 
   return `${slug}-${d}${pages > 1 ? `-${page}` : ''}.${ext}`
 }
 
+/** The message as styled runs: rendered by default, the raw source when `source` is set. */
+export function messageRuns(m: ExportMsg, source = false): Run[] {
+  let runs: Run[]
+  if (m.imageMxc && !m.attachment) runs = []
+  else if (m.undecryptable || m.poll || m.location || m.audio || m.attachment) runs = [{ text: bodyText(m) }]
+  else runs = !source && m.html !== undefined ? htmlRuns(m.html) : [{ text: m.body }]
+  if (m.edited && runs.length) runs = [...runs, { text: ' (edited)', dim: true }]
+  return m.emote ? [{ text: `* ${m.senderName} `, bold: true }, ...runs] : runs
+}
+
 /** What a message without text shows instead. */
 export function bodyText(m: ExportMsg): string {
   if (m.undecryptable) return '🔒 Unable to decrypt this message'
@@ -86,118 +106,38 @@ export function bodyText(m: ExportMsg): string {
   return m.body
 }
 
-const WIDTH = 720
-const PAD = 20
-const SCALE = 2
-const MAX_PAGE = 6000 // CSS pixels: 12000 device pixels, under every browser's canvas limit
-const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Noto Color Emoji", sans-serif'
+export const WIDTH = 720
+export const SCALE = 2
+export const MAX_PAGE = 6000 // CSS pixels: 12000 device pixels, under every browser's canvas limit
+export const FONT = 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Color Emoji", sans-serif'
+export const MONO = 'ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace'
 
-export interface Theme { bg: string; text: string; muted: string; tile: string; line: string; accent: string }
+/** The colours of the chat. `tones` are the six avatar colours (--t0 to --t5). */
+export interface Theme { bg: string; panel: string; tile: string; line: string; text: string; muted: string; accent: string; accentInk: string; ink: string; ok: string; tones: string[] }
+
+export type Look = 'app' | 'light' | 'dark'
+const TONES = ['#f08a72', '#efc352', '#52c2b2', '#8f9dff', '#f093b9', '#9fd16f']
+const LIGHT: Theme = { bg: '#ffffff', panel: '#f5f6f8', tile: '#eceef2', line: '#e2e5ea', text: '#14171c', muted: '#596273', accent: '#2c5ce6', accentInk: '#ffffff', ink: '#12141a', ok: '#0a6b49', tones: TONES }
+const DARK: Theme = { bg: '#0f1115', panel: '#14171c', tile: '#1b1f26', line: '#232832', text: '#e9ebf0', muted: '#8c94a3', accent: '#6b95ff', accentInk: '#0a1020', ink: '#12141a', ok: '#43d19e', tones: TONES }
+/** The colours of the picture: the app's current ones, or a fixed light or dark set (light prints and shares better). */
+export const pickTheme = (look: Look, app: Theme): Theme => (look === 'light' ? LIGHT : look === 'dark' ? DARK : app)
 
 export function readTheme(): Theme {
   const s = getComputedStyle(document.documentElement)
   const v = (n: string, d: string) => s.getPropertyValue(n).trim() || d
-  return { bg: v('--bg', '#0f1115'), text: v('--text', '#e9ebf0'), muted: v('--muted', '#8c94a3'), tile: v('--tile', '#1b1f26'), line: v('--line', '#232832'), accent: v('--accent', '#6b95ff') }
-}
-
-type Block =
-  | { kind: 'day'; label: string; h: number }
-  | { kind: 'msg'; m: ExportMsg; lines: string[]; img?: ImageBitmap; imgW: number; imgH: number; reacts: string; h: number }
-
-export interface RenderOptions {
-  title: string
-  theme: Theme
-  /** Loads a message's picture; may fail, in which case a label is drawn instead. */
-  image?: (m: ExportMsg) => Promise<ImageBitmap | null>
-  progress?: (done: number, total: number) => void
-  cancelled?: () => boolean
-}
-
-const day = (ts: number) => new Date(ts).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-const time = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-const LINE = 20
-const HEAD = 22
-const GAP = 12
-const IMG_MAX = 360
-
-/** Draw the messages as one or more canvases, oldest first. Each is a page of the export. */
-export async function renderPages(msgs: readonly ExportMsg[], o: RenderOptions): Promise<HTMLCanvasElement[]> {
-  const probe = document.createElement('canvas').getContext('2d')!
-  probe.font = `14px ${FONT}`
-  const measure = (s: string) => probe.measureText(s).width
-  const textW = WIDTH - PAD * 2 - 24
-
-  const blocks: Block[] = []
-  let lastDay = ''
-  for (let i = 0; i < msgs.length; i++) {
-    if (o.cancelled?.()) return []
-    const m = msgs[i]
-    const d = day(m.ts)
-    if (d !== lastDay) { blocks.push({ kind: 'day', label: d, h: 34 }); lastDay = d }
-    const lines = bodyText(m) ? wrapText(m.emote ? `* ${m.senderName} ${bodyText(m)}` : bodyText(m), textW, measure) : []
-    let img: ImageBitmap | undefined
-    let imgW = 0
-    let imgH = 0
-    if (m.imageMxc && o.image) {
-      img = (await o.image(m).catch(() => null)) ?? undefined
-      if (img) { const k = Math.min(1, IMG_MAX / img.width, IMG_MAX / img.height); imgW = Math.round(img.width * k); imgH = Math.round(img.height * k) }
-      else lines.push('🖼 Image (could not be loaded)')
-    } else if (m.imageMxc) lines.push('🖼 Image')
-    const reacts = Object.entries(m.reactions ?? {}).map(([k, n]) => `${k} ${n}`).join('   ')
-    const h = HEAD + lines.length * LINE + (imgH ? imgH + 6 : 0) + (reacts ? LINE + 2 : 0) + GAP
-    blocks.push({ kind: 'msg', m, lines, img, imgW, imgH, reacts, h })
-    o.progress?.(i + 1, msgs.length)
+  return {
+    bg: v('--bg', DARK.bg), panel: v('--panel', DARK.panel), tile: v('--tile', DARK.tile), line: v('--line', DARK.line), text: v('--text', DARK.text), muted: v('--muted', DARK.muted),
+    accent: v('--accent', DARK.accent), accentInk: v('--accent-ink', DARK.accentInk), ink: v('--ink', DARK.ink), ok: v('--ok', DARK.ok), tones: TONES.map((d, i) => v(`--t${i}`, d)),
   }
+}
 
-  const top = 64
-  const pages = paginate(blocks.map((b) => b.h), MAX_PAGE - top - PAD)
-  const t = o.theme
-  return pages.map((idx, p) => {
-    const content = idx.reduce((n, i) => n + blocks[i].h, 0)
-    const c = document.createElement('canvas')
-    c.width = WIDTH * SCALE
-    c.height = Math.ceil((top + content + PAD) * SCALE)
-    const x = c.getContext('2d')!
-    x.scale(SCALE, SCALE)
-    x.fillStyle = t.bg
-    x.fillRect(0, 0, WIDTH, c.height / SCALE)
-    x.textBaseline = 'alphabetic'
-    x.fillStyle = t.text
-    x.font = `600 17px ${FONT}`
-    x.fillText(o.title, PAD, 30)
-    x.fillStyle = t.muted
-    x.font = `12px ${FONT}`
-    x.fillText(`${msgs.length ? `${day(msgs[0].ts)} – ${day(msgs.at(-1)!.ts)}` : ''}${pages.length > 1 ? `  ·  page ${p + 1} of ${pages.length}` : ''}`, PAD, 50)
-    x.strokeStyle = t.line
-    x.beginPath(); x.moveTo(PAD, top - 4.5); x.lineTo(WIDTH - PAD, top - 4.5); x.stroke()
-    let y = top
-    for (const i of idx) {
-      const b = blocks[i]
-      if (b.kind === 'day') {
-        x.fillStyle = t.muted
-        x.font = `600 12px ${FONT}`
-        x.textAlign = 'center'
-        x.fillText(b.label, WIDTH / 2, y + 22)
-        x.textAlign = 'left'
-      } else {
-        x.fillStyle = b.m.mine ? t.accent : t.text
-        x.font = `600 14px ${FONT}`
-        x.fillText(b.m.senderName, PAD, y + 15)
-        const nameW = x.measureText(b.m.senderName).width
-        x.fillStyle = t.muted
-        x.font = `12px ${FONT}`
-        x.fillText(time(b.m.ts), PAD + nameW + 8, y + 15)
-        x.fillStyle = t.text
-        x.font = `14px ${FONT}`
-        let ly = y + HEAD
-        for (const l of b.lines) { x.fillText(l, PAD + 24, ly + 14); ly += LINE }
-        if (b.img) { x.drawImage(b.img, PAD + 24, ly + 2, b.imgW, b.imgH); ly += b.imgH + 6 }
-        if (b.reacts) { x.fillStyle = t.muted; x.font = `13px ${FONT}`; x.fillText(b.reacts, PAD + 24, ly + 14) }
-      }
-      y += b.h
-    }
-    return c
-  })
+/** `pct` percent of colour `a` over colour `b` (like CSS color-mix). Only #rrggbb is understood; anything else gives `a`. */
+export function mix(a: string, b: string, pct: number): string {
+  const hex = (c: string) => (/^#[0-9a-f]{6}$/i.test(c) ? [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)) : null)
+  const x = hex(a)
+  const y = hex(b)
+  if (!x || !y) return a
+  return '#' + x.map((v, i) => Math.round((v * pct + y[i] * (100 - pct)) / 100).toString(16).padStart(2, '0')).join('')
 }
 
 export const download = async (c: HTMLCanvasElement, name: string) => saveBlob(await canvasBlob(c, 'image/png'), name)
@@ -208,12 +148,12 @@ export function csvCell(v: string): string {
   return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
 }
 
-export interface CsvMsg extends ExportMsg { sender?: string }
+export type CsvMsg = ExportMsg
 
 /** The messages as CSV text (with a byte order mark, so Excel reads the UTF-8): time, sender, sender id, message, reactions. */
-export function toCsv(msgs: readonly CsvMsg[]): string {
+export function toCsv(msgs: readonly CsvMsg[], source = false): string {
   const rows = [['Time (ISO 8601)', 'Sender', 'Sender ID', 'Message', 'Reactions']]
-  for (const m of msgs) rows.push([new Date(m.ts).toISOString(), m.senderName, m.sender ?? '', m.imageMxc && !bodyText(m) ? '[image]' : bodyText(m), Object.entries(m.reactions ?? {}).map(([k, n]) => `${k} ${n}`).join(' ')])
+  for (const m of msgs) rows.push([new Date(m.ts).toISOString(), m.senderName, m.sender ?? '', runsText(messageRuns(m, source)) || (m.imageMxc ? '[image]' : ''), Object.entries(m.reactions ?? {}).map(([k, n]) => `${k} ${n}`).join(' ')])
   return '\ufeff' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n'
 }
 

@@ -3,11 +3,18 @@
   import { ui } from './ui.svelte'
   import { t } from './i18n.svelte'
   import Modal from './Modal.svelte'
-  import { buildPdf, canvasBlob, download, fileName, readTheme, renderPages, saveBlob, sliceRange, toCsv, type CsvMsg, type ExportMsg } from './export'
+  import { render } from './markdown'
+  import { renderPages } from './exportdraw'
+  import { plainMentions } from './mentions'
+  import { thumb } from './media'
+  import { effectiveLayout } from './layout'
+  import { buildPdf, canvasBlob, download, fileName, readTheme, saveBlob, sliceRange, toCsv, pickTheme, type CsvMsg, type ExportMsg, type Look } from './export'
 
   const sel = $derived(ui.exportImage ?? { from: null, to: null })
   let format = $state<'png' | 'pdf' | 'csv'>('png')
   let images = $state(true)
+  let source = $state(false)
+  let look = $state<Look>('app')
   let busy = $state(false)
   let status = $state('')
   let err = $state('')
@@ -28,24 +35,36 @@
     }
   }
 
+  /** A small avatar picture, or null when it cannot be loaded. */
+  async function bitmap(mxc: string, size: number): Promise<ImageBitmap | null> {
+    try { return await createImageBitmap(await (await fetch(await thumb(mxc, size * 2))).blob()) } catch { return null }
+  }
+
   async function run() {
     busy = true; err = ''; stop = false
     const room = chat.active
     try {
       await load()
       if (stop) return
-      const msgs = sliceRange(chat.messages as ExportMsg[], sel)
+      const msgs = sliceRange(chat.messages.map((m): ExportMsg => { const r = m.replyTo ? chat.messages.find((x) => x.id === m.replyTo) : undefined; return { ...m, html: render(m.body, { name: chat.nameOf, me: chat.userId, pills: m.pills }), reply: m.replyTo ? { name: r?.senderName ?? '', text: plainMentions(r?.body ?? 'earlier message', chat.nameOf) } : undefined } }), sel)
       if (!msgs) throw new Error(t('One of the chosen messages is no longer in the room.'))
       if (!msgs.length) throw new Error(t('There is nothing to export.'))
       const now = new Date()
       if (format === 'csv') {
-        saveBlob(new Blob([toCsv(msgs as CsvMsg[])], { type: 'text/csv;charset=utf-8' }), fileName(room?.name ?? 'chat', now, 1, 1, 'csv'))
+        saveBlob(new Blob([toCsv(msgs as CsvMsg[], source)], { type: 'text/csv;charset=utf-8' }), fileName(room?.name ?? 'chat', now, 1, 1, 'csv'))
         status = t('File saved')
         return
       }
       const pages = await renderPages(msgs, {
         title: room?.name ?? 'Chat',
-        theme: readTheme(),
+        subtitle: room?.dmUser ? undefined : room?.topic || (room ? `${room.memberCount} ${room.memberCount === 1 ? 'member' : 'members'}` : undefined),
+        encrypted: room?.encrypted,
+        isDM: room?.isDM,
+        roomAvatar: room?.avatar ? await bitmap(room.avatar, 32) : null,
+        layout: effectiveLayout(ui.layout, room?.theme.layout ? { [room.id]: room.theme.layout } : {}, room?.id),
+        avatar: (mxc) => bitmap(mxc, 36),
+        source,
+        theme: pickTheme(look, readTheme()),
         image: images ? async (m) => { try { const f = chat.messages.find((x) => x.id === m.id); return f?.imageMxc ? await createImageBitmap(await chat.original(f.imageMxc, f.imageFile, false)) : null } catch { return null } } : undefined,
         progress: (d, n) => (status = `${t('Drawing')} ${d}/${n}`),
         cancelled: () => stop,
@@ -66,7 +85,7 @@
       if (stop) status = ''
     }
   }
-  const close = () => { stop = true; ui.exportImage = null }
+  const close = () => { stop = true; ui.exportDialog = false }
 </script>
 
 <Modal title={t('Export conversation')} onclose={close}>
@@ -77,12 +96,18 @@
     <dt>{t('To')}</dt>
     <dd><span>{label(sel.to, t('The latest message'))}</span>{#if sel.to}<button class="link" disabled={busy} onclick={() => (sel.to = null)}>{t('Reset')}</button>{/if}</dd>
   </dl>
-  <p class="hint">{t('To choose the first or last message, use the ⋯ menu on a message: “Export from here” and “Export up to here”.')}</p>
+  <p class="hint">{t('To choose the first or last message, use the ⋯ menu on a message: “Export from here” and “Export up to here”. Close this window first; the choice is kept.')}</p>
   <fieldset class="fmt" disabled={busy}><legend>{t('Format')}</legend>
     <label><input type="radio" bind:group={format} value="png" />{t('Image (PNG)')}</label>
     <label><input type="radio" bind:group={format} value="pdf" />PDF</label>
     <label><input type="radio" bind:group={format} value="csv" />{t('Text (CSV)')}</label>
   </fieldset>
+  <label class="chk"><input type="checkbox" bind:checked={source} disabled={busy} />{t('Print the Markdown source instead of the formatted text')}</label>
+  {#if format !== 'csv'}<fieldset class="fmt" disabled={busy}><legend>{t('Colours')}</legend>
+    <label><input type="radio" bind:group={look} value="app" />{t('Like the app')}</label>
+    <label><input type="radio" bind:group={look} value="light" />{t('Light')}</label>
+    <label><input type="radio" bind:group={look} value="dark" />{t('Dark')}</label>
+  </fieldset>{/if}
   {#if format !== 'csv'}<label class="chk"><input type="checkbox" bind:checked={images} disabled={busy} />{t('Include pictures')}</label>{/if}
   {#if err}<p class="err" role="alert">{err}</p>{:else if status}<p class="ok" role="status">{status}</p>{/if}
   <div class="row">

@@ -115,6 +115,8 @@ class Ui {
   }
   /** The "export as image" dialog: the first and last message chosen so far (null = start or end of the room). */
   exportImage = $state<{ from: string | null; to: string | null } | null>(null)
+  /** The export dialog is open (the chosen range stays in exportImage while it is closed, so the second end can be picked). */
+  exportDialog = $state(false)
   theme = $state<ThemeId>(readTheme())
   setTheme(t: ThemeId) {
     this.theme = t

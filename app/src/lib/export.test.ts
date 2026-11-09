@@ -75,3 +75,64 @@ describe('buildPdf', () => {
     entries.forEach((e, i) => expect(text.slice(Number(e.slice(0, 10))).startsWith(`${i + 1} 0 obj`)).toBe(true))
   })
 })
+
+import { htmlRuns, flowRuns } from './richtext'
+import { messageRuns, pickTheme } from './export'
+import { render } from './markdown'
+
+describe('formatted text', () => {
+  const w = (r: { text: string }) => r.text.length
+  it('turns markdown into styled runs, not source', () => {
+    const runs = htmlRuns(render('**bold** and `code` and ~~gone~~ <b>&</b> https://x.io/a'))
+    expect(runs.find((r) => r.bold)?.text).toBe('bold')
+    expect(runs.find((r) => r.code)?.text).toBe('code')
+    expect(runs.find((r) => r.strike)?.text).toBe('gone')
+    expect(runs.find((r) => r.link)?.text).toBe('https://x.io/a')
+    const text = runs.map((r) => r.text).join('')
+    expect(text).toBe('bold and code and gone <b>&</b> https://x.io/a')
+    expect(text).not.toContain('**')
+  })
+  it('shows a mention as a pill with the name', () => {
+    const runs = htmlRuns(render('hi @ann:x.org', { name: () => 'Ann' }))
+    expect(runs.find((r) => r.mention)?.text).toBe('@Ann')
+  })
+  it('marks quotes and code blocks and drops the break that ends them', () => {
+    const lines = flowRuns(htmlRuns(render('> quoted\nafter\n```\nline1\nline2\n```')), 50, w)
+    expect(lines.map((l) => [l.runs.map((r) => r.text).join(''), !!l.quote, !!l.pre])).toEqual([['quoted', true, false], ['after', false, false], ['line1', false, true], ['line2', false, true]])
+  })
+  it('wraps styled runs and cuts a long word', () => {
+    const lines = flowRuns([{ text: 'aaa ' }, { text: 'bbbb', bold: true }, { text: ' cccccccccc' }], 6, w)
+    expect(lines.every((l) => l.runs.map((r) => r.text).join('').length <= 6)).toBe(true)
+    expect(lines.flatMap((l) => l.runs.map((r) => r.text)).join('').replace(/\s/g, '')).toBe('aaabbbbcccccccccc')
+  })
+  it('prints the source when asked, the result otherwise', () => {
+    const m = { id: '1', senderName: 'A', ts: 0, body: '**hi**', html: render('**hi**') }
+    expect(messageRuns(m).map((r) => r.text).join('')).toBe('hi')
+    expect(messageRuns(m, true).map((r) => r.text).join('')).toBe('**hi**')
+  })
+  it('does not print a picture\'s file name as its text', () => expect(messageRuns({ id: '1', senderName: 'A', ts: 0, body: 'IMG_1.png', imageMxc: 'mxc://x/y' })).toEqual([]))
+  it('csv follows the same choice', () => {
+    const m = { id: '1', senderName: 'A', ts: 0, body: '**hi**', html: render('**hi**') }
+    expect(toCsv([m])).toContain(',hi,')
+    expect(toCsv([m], true)).toContain(',**hi**,')
+  })
+})
+
+describe('pickTheme', () => {
+  const app = { bg: 'x', panel: 'x', text: 'x', muted: 'x', tile: 'x', line: 'x', accent: 'x', accentInk: 'x', ink: 'x', ok: 'x', tones: [] }
+  it('follows the app, or forces light or dark', () => {
+    expect(pickTheme('app', app)).toBe(app)
+    expect(pickTheme('light', app).bg).toBe('#ffffff')
+    expect(pickTheme('dark', app).bg).toBe('#0f1115')
+  })
+})
+
+import { mix } from './export'
+describe('mix', () => {
+  it('blends like color-mix', () => { expect(mix('#000000', '#ffffff', 50)).toBe('#808080'); expect(mix('#ff0000', '#0000ff', 100)).toBe('#ff0000') })
+  it('keeps the first colour when it cannot read one', () => expect(mix('rgb(1,2,3)', '#ffffff', 50)).toBe('rgb(1,2,3)'))
+})
+describe('edited and mentions of me', () => {
+  it('marks an edited message', () => expect(messageRuns({ id: '1', senderName: 'A', ts: 0, body: 'hi', edited: true }).at(-1)).toEqual({ text: ' (edited)', dim: true }))
+  it('flags a mention of me in the runs', () => expect(htmlRuns(render('hi @me:x.org', { name: () => 'Me', me: '@me:x.org' })).find((r) => r.mention)?.me).toBe(true))
+})
