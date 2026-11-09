@@ -1717,6 +1717,16 @@ class Chat {
     return hit
   }
 
+  /** A thumbnail as a Blob, straight from the homeserver (no blob: URL in between, which a strict page policy can refuse to fetch). */
+  async thumbBlob(mxc: string, size: number, method: 'crop' | 'scale' = 'crop'): Promise<Blob> {
+    const c = this.client!
+    const url = c.mxcUrlToHttp(mxc, size * 2, size * 2, method, false, true, true)
+    if (!url) throw new Error('no url')
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${c.getAccessToken()}` } })
+    if (!r.ok) throw new Error(String(r.status))
+    return r.blob()
+  }
+
   private originals = new Map<string, Promise<Blob>>()
 
   /** The full-size file, for the image viewer, audio and downloads. Kept for the session so paging back and forth is instant. */

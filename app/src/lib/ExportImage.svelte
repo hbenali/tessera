@@ -6,7 +6,6 @@
   import { render } from './markdown'
   import { renderPages } from './exportdraw'
   import { plainMentions } from './mentions'
-  import { thumb } from './media'
   import { effectiveLayout } from './layout'
   import { buildPdf, canvasBlob, download, fileName, readTheme, saveBlob, sliceRange, toCsv, pickTheme, type CsvMsg, type ExportMsg, type Look } from './export'
 
@@ -35,10 +34,9 @@
     }
   }
 
-  /** A small avatar picture, or null when it cannot be loaded. */
+  /** A small avatar picture, or null when it cannot be loaded. Decoded from the thumbnail's bytes, so no page policy gets in the way. */
   async function bitmap(mxc: string, size: number): Promise<ImageBitmap | null> {
-    // Through an <img>, not fetch(): the page's CSP (connect-src) does not allow blob: URLs, while img-src does.
-    try { const img = new Image(); img.src = await thumb(mxc, size * 2); await img.decode(); return await createImageBitmap(img) } catch { return null }
+    try { return await createImageBitmap(await chat.thumbBlob(mxc, size)) } catch { return null }
   }
 
   async function run() {

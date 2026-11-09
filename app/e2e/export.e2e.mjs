@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { createServer } from 'node:http'
+import { extname, join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import { api, app, launch, seed, signIn } from './lib.mjs'
 
@@ -98,5 +100,47 @@ describe('export a conversation', () => {
     assert.ok((await save('Text (CSV)')).bytes.toString('utf8').includes(',bold and code,'))
     await page.getByLabel('Print the Markdown source').check()
     assert.ok((await save('Text (CSV)')).bytes.toString('utf8').includes('**bold** and `code`'))
+  })
+
+  it('draws the sender\'s profile picture, not initials, even under the production CSP', async () => {
+    // Serve the build with the headers a real deployment sends (security-headers.conf), which the preview server does not.
+    const dist = new URL('../dist/', import.meta.url).pathname
+    const csp = /add_header Content-Security-Policy "(.*)" always;/.exec(readFileSync(new URL('../../security-headers.conf', import.meta.url), 'utf8'))[1]
+    const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.wasm': 'application/wasm' }
+    const srv = createServer((q, r) => {
+      let p = join(dist, decodeURIComponent(q.url.split('?')[0]))
+      if (!existsSync(p) || statSync(p).isDirectory()) p = join(dist, 'index.html')
+      r.writeHead(200, { 'Content-Type': types[extname(p)] ?? 'application/octet-stream', 'Content-Security-Policy': csp })
+      r.end(readFileSync(p))
+    }).listen(4175)
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, acceptDownloads: true })
+    const p2 = await ctx.newPage()
+    const violations = []
+    p2.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) violations.push(m.text()) })
+    try {
+      await signIn(p2, 'http://localhost:4175', data.alice)
+      await p2.getByRole('navigation', { name: 'Rooms' }).getByRole('button', { name: /e2e room/ }).first().click()
+      await p2.locator('article').filter({ hasText: 'first message from bob' }).last().waitFor()
+      await p2.getByRole('button', { name: 'Room menu' }).click()
+      await p2.getByRole('menuitem', { name: 'Export as image' }).click()
+      const dlg = p2.getByRole('dialog', { name: 'Export conversation' })
+      const dl = p2.waitForEvent('download')
+      await dlg.getByRole('button', { name: 'Download image' }).click()
+      const png = readFileSync(await (await dl).path())
+      // Bob's first message sits at the top: his avatar (the app icon, a dark tile) is at 20,116 (CSS px), 36 wide. A letter tile would be a bright colour there.
+      const lum = await p2.evaluate(async (b64) => {
+        const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+        const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }))
+        const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height
+        const x = c.getContext('2d'); x.drawImage(bmp, 0, 0)
+        const [r, g, b] = x.getImageData(24 * 2, 134 * 2, 1, 1).data
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+      }, png.toString('base64'))
+      assert.ok(lum < 90, `expected the dark profile picture, got a bright tile (luminance ${Math.round(lum)})`)
+      assert.deepEqual(violations, [])
+    } finally {
+      await ctx.close()
+      srv.close()
+    }
   })
 })
