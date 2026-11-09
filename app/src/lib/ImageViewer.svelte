@@ -3,6 +3,8 @@
   import { ui } from './ui.svelte'
   import { originalOf, thumb } from './media'
   import Icon from './Icon.svelte'
+  import Thumb from './Thumb.svelte'
+  import { t } from './i18n.svelte'
 
   const opener = ui.viewer!.opener
   let id = $state(ui.viewer!.id)
@@ -22,6 +24,9 @@
   let dragging = $state(false)
   let stage: HTMLElement | undefined = $state()
   let dialog: HTMLElement | undefined = $state()
+  let strip: HTMLElement | undefined = $state()
+  // The thumbnail of the open picture stays in view in the strip.
+  $effect(() => { id; strip?.querySelector<HTMLElement>('[aria-current=true]')?.scrollIntoView({ inline: 'center', block: 'nearest' }) })
 
   $effect(() => {
     const m = cur
@@ -136,7 +141,7 @@
 </script>
 
 {#if cur}
-  <div class="viewer" role="dialog" aria-modal="true" aria-label="Image viewer" tabindex="-1" bind:this={dialog} onkeydown={key}>
+  <div class="viewer" class:strip={images.length > 1} role="dialog" aria-modal="true" aria-label="Image viewer" tabindex="-1" bind:this={dialog} onkeydown={key}>
     <header>
       <div class="who"><b>{cur.senderName}</b><span>{when}{images.length > 1 ? ` · ${at + 1} of ${images.length}` : ''}</span></div>
       <div class="tools">
@@ -158,6 +163,13 @@
       {/if}
     </div>
 
+    {#if images.length > 1}
+      <div class="filmstrip" role="group" aria-label={t('All photos in this room')} bind:this={strip}>
+        {#each images as m, i (m.id)}
+          <button class="frame" class:cur={m.id === id} aria-current={m.id === id} aria-label="{t('Photo')} {i + 1} {t('of')} {images.length}: {m.senderName}" onclick={() => (id = m.id)}><Thumb mxc={m.imageMxc!} file={m.imageFile} size={56} /></button>
+        {/each}
+      </div>
+    {/if}
     {#if at > 0}<button class="nav prev" onclick={() => step(-1)} aria-label="Previous image"><Icon name="back" size={22} /></button>{/if}
     {#if at < images.length - 1}<button class="nav next" onclick={() => step(1)} aria-label="Next image"><span class="flip"><Icon name="back" size={22} /></span></button>{/if}
     <p class="sr" role="status">Zoom {Math.round(scale * 100)} percent</p>
@@ -177,6 +189,9 @@
   .loading { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); padding: 4px 12px; border-radius: 999px; background: rgb(0 0 0 / .6); font-size: 12px; }
   .err { color: #ffb3a6; }
   .nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 64px; display: grid; place-items: center; background: rgb(255 255 255 / .1); z-index: 2; } .prev { left: 10px; } .next { right: 10px; } .flip { display: inline-flex; transform: scaleX(-1); }
+  .filmstrip { flex: none; display: flex; gap: 6px; padding: 8px 12px 10px; overflow-x: auto; justify-content: safe center; background: rgb(0 0 0 / .45); z-index: 2; }
+  .frame { flex: none; width: 56px; height: 56px; padding: 0; border-radius: 8px; overflow: hidden; opacity: .55; outline: 2px solid transparent; outline-offset: 1px; } .frame:hover { opacity: .9; } .frame.cur { opacity: 1; outline-color: #fff; }
+  .viewer.strip .stage img { max-height: calc(100dvh - 68px - 76px); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   @media (prefers-reduced-motion: reduce) { .stage img { transition: none; } }
 </style>

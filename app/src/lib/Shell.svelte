@@ -16,6 +16,7 @@
   import ImageViewer from './ImageViewer.svelte'
   import ExportImage from './ExportImage.svelte'
   import ExportBar from './ExportBar.svelte'
+  import MediaPanel from './MediaPanel.svelte'
   import { applyBadge, badgeCount } from './badge'
   import { pageTitle } from './pagetitle'
   import { isStandalone } from './installhelp'
@@ -46,7 +47,7 @@
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f' && chat.activeRoom) {
       e.preventDefault()
       ui.roomSearch = !ui.roomSearch
-      if (ui.roomSearch) chat.closeThread()
+      if (ui.roomSearch) { chat.closeThread(); ui.media = false }
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault()
       palette = !palette
@@ -58,10 +59,10 @@
 
 {#if chat.offline}<div class="offline" role="status">You are offline. Messages you write wait here and are sent when you are back online.</div>{/if}
 {#if !chat.ready}<div class="syncbar" role="status" aria-label="Syncing"></div>{/if}
-<div class="shell" class:has-room={!!chat.activeRoom} class:with-details={(ui.details || ui.roomSearch || !!chat.threadRoot) && !!chat.activeRoom}>
+<div class="shell" class:has-room={!!chat.activeRoom} class:with-details={(ui.details || ui.roomSearch || ui.media || !!chat.threadRoot) && !!chat.activeRoom}>
   <Sidebar onsearch={() => (palette = true)} />
   <Timeline />
-  {#if chat.activeRoom && chat.threadRoot}<ThreadPanel />{:else if ui.roomSearch && chat.activeRoom}<RoomSearch />{:else if ui.details && chat.activeRoom}<Details />{/if}
+  {#if chat.activeRoom && chat.threadRoot}<ThreadPanel />{:else if ui.media && chat.activeRoom}<MediaPanel />{:else if ui.roomSearch && chat.activeRoom}<RoomSearch />{:else if ui.details && chat.activeRoom}<Details />{/if}
 </div>
 {#if palette}<Palette onclose={() => (palette = false)} />{/if}
 {#if ui.modal === 'settings'}<Settings />{/if}

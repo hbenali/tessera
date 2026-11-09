@@ -57,6 +57,7 @@
     ui.roomMenu = null
     await chat.openRoom(at.id)
     ui.details = true
+    ui.media = false
   }
 </script>
 
@@ -92,6 +93,7 @@
       <button role="menuitem" onclick={copy}><Icon name="link" size={15} />{t("Copy link")}</button>
       <button role="menuitem" onclick={async () => { ui.roomMenu = null; await chat.openRoom(at.id); chat.closeThread(); ui.roomSearch = true }}><Icon name="search" size={15} />{t("Search in room")}</button>
       {#if at.id === chat.activeRoom}<button role="menuitem" onclick={() => { ui.roomMenu = null; ui.exportImage = { from: null, to: null }; ui.exportDialog = true }}><Icon name="download" size={15} />{t("Export as image")}</button>{/if}
+      <button role="menuitem" onclick={async () => { ui.roomMenu = null; await chat.openRoom(at.id); chat.closeThread(); ui.roomSearch = false; ui.media = true }}><Icon name="image" size={15} />{t("Shared media")}</button>
       <button role="menuitem" onclick={details}><Icon name="info" size={15} />{t("Room details")}</button>
       <hr />
       <button role="menuitem" class="danger" onclick={() => (leaving = true)}><Icon name="logout" size={15} />{t("Leave room")}</button>

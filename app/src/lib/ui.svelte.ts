@@ -95,6 +95,8 @@ class Ui {
     this.modal = 'new'
   }
   details = $state(false)
+  /** The shared media panel (photos, files and links of the open room); it takes the side panel's place too. */
+  media = $state(false)
   /** The in-room search panel; it takes the side panel's place, like details and threads. */
   roomSearch = $state(false)
   /** The last room search, kept so reopening the panel (it closes after a pick on a phone) shows it again. */

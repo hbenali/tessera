@@ -563,9 +563,10 @@
       {#if chat.active.encrypted}<span class="enc" title="End-to-end encrypted"><Icon name="lock" size={13} /> Encrypted</span>{/if}
 {#if chat.active.isDM && calls.supported && !calls.active}<button class="icon-btn callbtn" onclick={() => calls.place(chat.active!.id, false).catch(() => {})} aria-label="Voice call" title="Voice call"><Icon name="phone" /></button><button class="icon-btn callbtn" onclick={() => calls.place(chat.active!.id, true).catch(() => {})} aria-label="Video call" title="Video call"><Icon name="video" /></button>{/if}
 <JumpMenu />
- <button class="icon-btn" class:on={ui.roomSearch} onclick={() => { ui.roomSearch = !ui.roomSearch; if (ui.roomSearch) chat.closeThread() }} aria-label="Search in this room" aria-pressed={ui.roomSearch} title="Search in this room (Ctrl+Shift+F)"><Icon name="search" /></button>
+ <button class="icon-btn" class:on={ui.roomSearch} onclick={() => { ui.roomSearch = !ui.roomSearch; if (ui.roomSearch) { chat.closeThread(); ui.media = false } }} aria-label="Search in this room" aria-pressed={ui.roomSearch} title="Search in this room (Ctrl+Shift+F)"><Icon name="search" /></button>
+      <button class="icon-btn" class:on={ui.media} onclick={() => { ui.media = !ui.media; if (ui.media) { chat.closeThread(); ui.roomSearch = false } }} aria-label={t('Shared media')} aria-pressed={ui.media} title={t('Shared media')}><Icon name="image" /></button>
       <button class="icon-btn" aria-label="Room menu" aria-haspopup="menu" onclick={(e) => { const b = e.currentTarget.getBoundingClientRect(); ui.openRoomMenu(chat.active!.id, b.right - 220, b.bottom + 4, e.currentTarget) }}><Icon name="more" /></button>
-      <button class="icon-btn" class:on={ui.details} onclick={() => (ui.details = !ui.details)} aria-label="Room details" aria-pressed={ui.details}><Icon name="info" /></button>
+      <button class="icon-btn" class:on={ui.details} onclick={() => { ui.details = !ui.details; if (ui.details) ui.media = false }} aria-label="Room details" aria-pressed={ui.details}><Icon name="info" /></button>
     </header>
 
     {#if chat.pinned.length}
