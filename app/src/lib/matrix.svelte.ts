@@ -28,6 +28,7 @@ import * as sdk from 'matrix-js-sdk'
 import { security } from './security.svelte'
 import { discover } from './discover'
 import { setOriginalLoader, setThumbLoader } from './media'
+import { thisDeviceName } from './devicename'
 import { decryptAttachment, encryptAttachment, isEncryptedFile, type EncryptedFile } from './attachments'
 import { beep, unlockAudio } from './sound'
 import { format, parse, type Route } from './route'
@@ -248,7 +249,7 @@ class Chat {
     history.replaceState(null, '', url.pathname + url.search)
     sessionStorage.removeItem('tessera.sso.baseUrl')
     try {
-      const r = await sdk.createClient({ baseUrl }).loginWithToken(token)
+      const r = await sdk.createClient({ baseUrl }).loginRequest({ type: 'm.login.token', token, initial_device_display_name: thisDeviceName() })
       const session: Session = { baseUrl, accessToken: r.access_token, userId: r.user_id, deviceId: r.device_id }
       localStorage.setItem(SESSION_KEY, JSON.stringify(session))
       await this.start(session)
@@ -274,7 +275,7 @@ class Chat {
     try {
       const baseUrl = await discover(server)
       const tmp = sdk.createClient({ baseUrl })
-      const r = await tmp.loginWithPassword(user, password)
+      const r = await tmp.loginRequest({ type: 'm.login.password', identifier: { type: 'm.id.user', user }, password, initial_device_display_name: thisDeviceName() })
       const session: Session = {
         baseUrl,
         accessToken: r.access_token,

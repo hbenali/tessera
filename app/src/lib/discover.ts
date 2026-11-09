@@ -1,3 +1,4 @@
+import { thisDeviceName } from './devicename'
 /** Homeserver discovery and login options, without the (large) Matrix SDK. */
 export interface LoginOptions {
   baseUrl: string
@@ -75,7 +76,7 @@ export async function registerAccount(baseUrl: string, user: string, password: s
     const auth = TOKEN.includes(stage) ? { type: stage, token: token.trim(), session: sess } : { type: stage, session: sess }
     const res = await fetch(`${baseUrl}/_matrix/client/v3/register`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: withTimeout(15000),
-      body: JSON.stringify({ username: user, password, auth, initial_device_display_name: 'Tessera' }),
+      body: JSON.stringify({ username: user, password, auth, initial_device_display_name: thisDeviceName() }),
     })
     const j = await res.json().catch(() => ({}))
     if (res.ok && j.access_token) return { baseUrl, accessToken: j.access_token, userId: j.user_id, deviceId: j.device_id }
