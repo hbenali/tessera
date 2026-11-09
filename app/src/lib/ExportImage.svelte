@@ -37,7 +37,8 @@
 
   /** A small avatar picture, or null when it cannot be loaded. */
   async function bitmap(mxc: string, size: number): Promise<ImageBitmap | null> {
-    try { return await createImageBitmap(await (await fetch(await thumb(mxc, size * 2))).blob()) } catch { return null }
+    // Through an <img>, not fetch(): the page's CSP (connect-src) does not allow blob: URLs, while img-src does.
+    try { const img = new Image(); img.src = await thumb(mxc, size * 2); await img.decode(); return await createImageBitmap(img) } catch { return null }
   }
 
   async function run() {
