@@ -259,6 +259,19 @@
     return () => ro.disconnect()
   })
 
+  // The list itself getting shorter (a phone keyboard opening, the message box growing, the window being resized) moves
+  // nothing, so the newest messages end up below the edge. While you are at the bottom, stay at the bottom.
+  $effect(() => {
+    const el = scroller
+    if (!el) return
+    const bottom = () => { if (stick) el.scrollTo({ top: el.scrollHeight }) }
+    const ro = new ResizeObserver(bottom)
+    ro.observe(el)
+    // On iOS the keyboard shrinks the visual viewport, not the page, so the list's own size does not change.
+    window.visualViewport?.addEventListener('resize', bottom)
+    return () => { ro.disconnect(); window.visualViewport?.removeEventListener('resize', bottom) }
+  })
+
   function onscroll() {
     if (!scroller) return
     if (virt) recompute()
