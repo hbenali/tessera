@@ -170,7 +170,8 @@
       <button class="icon-btn" class:on={display} onclick={() => (display = !display)} aria-label={t('List display')} aria-haspopup="dialog" aria-expanded={display} title={t('List display')}><Icon name="sliders" /></button>
       <button class="icon-btn" onclick={() => ui.open('room')} aria-label="New room or message" title="New room or message"><Icon name="plus" /></button>
     </span>
-    {#if display}<ListDisplay onclose={() => (display = false)} />{/if}
+    {#if rail}<button class="icon-btn full" onclick={() => ui.setList({ rail: false })} aria-label={t('Show the full room list')} title={t('Show the full room list')}><Icon name="sidebar" /></button>{/if}
+    {#if display}<ListDisplay {rail} onclose={() => (display = false)} />{/if}
   </header>
 
   <button class="search" onclick={onsearch}><Icon name="search" size={15} /><span>{t("Search")}</span><kbd class="mono">Ctrl K</kbd></button>
@@ -207,7 +208,7 @@
   </nav>
 
   <footer>
-    {#if rail}<button class="icon-btn full" onclick={() => ui.setList({ rail: false })} aria-label={t('Show the full room list')} title={t('Show the full room list')}><Icon name="sidebar" /></button>{/if}
+    
     <div class="mewrap">
       <button class="me" title="Change your status" onclick={() => (status = !status)} aria-expanded={status} aria-haspopup="menu">
         <Avatar name={chat.me.name || chat.userId.replace('@', '')} size={28} round src={chat.me.avatar} presence={chat.myStatus} /><span>{chat.me.name || chat.userId}</span>{#if chat.dndActive}<span class="dnd" title={chat.manualDnd ? 'Do not disturb is on' : 'Quiet hours are on'}><Icon name="moon" size={14} /><span class="sr">{chat.manualDnd ? 'Do not disturb is on' : 'Quiet hours are on'}</span></span>{/if}
@@ -262,11 +263,11 @@
   .rbadge { position: absolute; top: 1px; right: 3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--muted); color: var(--bg); font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; box-shadow: 0 0 0 2px var(--panel); box-sizing: border-box; } .rbadge.hl { background: var(--accent); color: var(--accent-ink); } .rbadge.quiet { background: var(--tile); color: var(--muted); } .rbadge:empty { min-width: 10px; width: 10px; height: 10px; padding: 0; top: 4px; right: 6px; }
   .full { display: none; }
   @media (min-width: 721px) {
-    .rail header { justify-content: center; padding: 12px 4px 8px; } .rail .hbtns, .rail .wsname, .rail .switch > :global(svg:last-child) { display: none; } .rail .switch { padding: 4px; }
+    .rail header { flex-direction: column; justify-content: flex-start; align-items: center; gap: 4px; padding: 12px 4px 8px; } .rail .wsname, .rail .switch > :global(svg:last-child) { display: none; } .rail .switch { padding: 4px; } .rail .hbtns { flex-direction: column; align-items: center; gap: 2px; }
     .rail .search { margin: 0 8px 8px; justify-content: center; padding: 8px 0; } .rail .search span, .rail .search kbd { display: none; }
     .rail .list { padding: 0 4px 8px; } .rail .row { position: relative; justify-content: center; padding: 6px 0; gap: 0; } .rail .body, .rail .more { display: none; }
     .rail .invite .meta, .rail .invite .btn, .rail .invite .icon-btn { display: none; } .rail .invite { justify-content: center; padding: 6px 0; }
-    .rail footer { flex-direction: column; align-items: center; padding: 8px 4px; } .rail .full { display: inline-grid; } .rail .me { justify-content: center; padding: 4px; } .rail .me span, .rail .dnd { display: none; }
+    .rail footer { flex-direction: column; align-items: center; padding: 8px 4px; } .rail .full { display: inline-grid; color: var(--accent); } .rail .me { justify-content: center; padding: 4px; } .rail .me span, .rail .dnd { display: none; }
     .rail .sechead { display: none; }
   }
   header { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 8px; }

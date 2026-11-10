@@ -121,10 +121,11 @@ describe('room list display', () => {
     await page.getByRole('button', { name: /^Rooms/ }).click()
   })
 
-  it('collapses to an icon-only strip with the unread mark, and comes back', async () => {
+  it('collapses to an icon-only strip with the unread mark, and there is an obvious way back', async () => {
     await openDialog()
-    await dialog().getByRole('switch', { name: /Icons only/ }).check()
-    await closeDialog()
+    await dialog().getByRole('switch', { name: /Icons only/ }).click()
+    // The panel does not stay open, squeezed into the narrow strip.
+    await dialog().waitFor({ state: 'detached' })
     assert.ok((await width()) <= 72, `the strip is ${await width()}px`)
     const r = row(/^plain room$/)
     await r.waitFor()
@@ -132,13 +133,28 @@ describe('room list display', () => {
     assert.equal(await page.getByRole('button', { name: /^Favourites/ }).count(), 0, 'no headings in the strip')
     assert.match(await r.locator('.rbadge').innerText(), /2/)
     assert.equal(await page.getByRole('separator', { name: 'Resize the room list' }).count(), 0)
-    await page.getByRole('button', { name: 'Show the full room list' }).click()
+    // The way back is at the top of the strip, in plain view, and there is only one of it.
+    const back = page.getByRole('button', { name: 'Show the full room list' })
+    assert.equal(await back.count(), 1)
+    const bb = await back.boundingBox()
+    assert.ok(bb.y < 150 && bb.x >= 0 && bb.x + bb.width <= 72, `the button is at ${Math.round(bb.x)},${Math.round(bb.y)}`)
+    // The display options are still reachable from the strip and open beside it, fully on screen.
+    await page.getByRole('button', { name: 'List display' }).click()
+    const box = await dialog().boundingBox()
+    assert.ok(box.x >= 68 && box.width >= 280 && box.x + box.width <= 1280, `the panel is at ${Math.round(box.x)}, ${Math.round(box.width)} wide`)
+    await dialog().getByRole('switch', { name: /Icons only/ }).click()
+    await dialog().waitFor({ state: 'detached' })
+    assert.ok((await width()) > 200, 'unchecking it brings the full list back')
+    await page.getByRole('button', { name: 'List display' }).click()
+    await dialog().getByRole('switch', { name: /Icons only/ }).click()
+    await dialog().waitFor({ state: 'detached' })
+    await back.click()
     assert.ok((await width()) > 200)
   })
 
   it('always shows the full list on a phone, and keeps the settings', async () => {
     await openDialog()
-    await dialog().getByRole('switch', { name: /Icons only/ }).check()
+    await dialog().getByRole('switch', { name: /Icons only/ }).click()
     await closeDialog()
     await page.setViewportSize({ width: 390, height: 800 })
     await page.reload()
