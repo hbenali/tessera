@@ -7,8 +7,6 @@ A fast, private, workspace-style [Matrix](https://matrix.org) client for Synapse
 
 **Live:** <https://tessera.hbenali.ovh> (sign in with your own homeserver; nothing is stored on the server that hosts the app).
 
-> Status: 1.0, usable, not audited. It is a personal project and has been tested against one Synapse (1.118) and one real browser (Chrome). Do not rely on it as your only client for anything critical yet.
-
 ## Screenshots
 
 ![A room in the dark theme: sidebar with unread badges, a reply, code, a poll, reactions and a mention](docs/wiki/images/room-dark.png)
