@@ -10,7 +10,7 @@ homeserver --(event id)--> push gateway --(Web Push, VAPID)--> browser push serv
 
 The service worker then asks your homeserver for the event itself, so the gateway and the browser vendor's push service see only an event id, never the message text. Encrypted rooms show "Encrypted message" because a worker cannot decrypt.
 
-You need to run (or use) a push gateway that speaks Web Push. [Sygnal](https://github.com/matrix-org/sygnal) does. Tessera cannot work without one, so this is off, and Settings says so, until you configure it.
+You need to run (or use) a push gateway that speaks Web Push. [Sygnal](https://github.com/element-hq/sygnal) does. (The original `matrix-org/sygnal` repository is archived; Element maintains it as `element-hq/sygnal`. This page was tested with Sygnal 0.17, which is also its latest release.) Tessera cannot work without one, so this is off, and Settings says so, until you configure it.
 
 ## 1. Run Sygnal
 

@@ -8,7 +8,7 @@ homeserver --(event id)--> push gateway --(Web Push, VAPID)--> browser push serv
 
 The service worker then asks your homeserver for the event itself, so the gateway and the browser vendor's push service see only an event id, never the message text. Encrypted rooms show "Encrypted message" because a worker cannot decrypt.
 
-You need a push gateway that speaks Web Push; [Sygnal](https://github.com/matrix-org/sygnal) does. The full setup (VAPID key, `sygnal.yaml`, `config.json`, turning it on) is in [`docs/push.md`](https://github.com/hbenali/tessera/blob/HEAD/docs/push.md).
+You need a push gateway that speaks Web Push; [Sygnal](https://github.com/element-hq/sygnal) does (the old `matrix-org/sygnal` is archived; use `element-hq/sygnal`). The full setup (VAPID key, `sygnal.yaml`, `config.json`, turning it on) is in [`docs/push.md`](https://github.com/hbenali/tessera/blob/HEAD/docs/push.md).
 
 ## Firebase
 
