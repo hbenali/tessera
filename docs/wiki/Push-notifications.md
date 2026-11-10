@@ -16,4 +16,4 @@ On Chrome and Edge the browser push service is Google's FCM (`fcm.googleapis.com
 
 ## What has been verified
 
-A real Sygnal 0.17 with desktop Chrome on Linux: the pusher registered with a real FCM endpoint, Sygnal pushed through FCM and it was accepted, and a notification appeared with the app closed. Not verified: the readable text through real FCM after the flat-payload fix, Firefox, Safari and Edge, and action buttons on specific operating systems.
+A real Sygnal 0.17 with desktop Chrome on Linux: the pusher registered with a real FCM endpoint, Sygnal pushed through FCM and it was accepted, and a notification appeared with the app closed. Also, on 10 Nov 2026, the ready-made deployment (Sygnal behind Caddy on a small VPS) with a real Synapse 1.144.0 and Chrome on Fedora: pushes went through real FCM and the notification showed the message text and the avatar. Not verified: the Reply and Like buttons through real FCM, Firefox, Safari and Edge, tapping a notification, and action buttons on specific operating systems.
