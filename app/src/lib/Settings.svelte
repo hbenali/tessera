@@ -14,10 +14,40 @@
   import About from './About.svelte'
   import { STYLES, beep, setSoundOn, setSoundStyle, soundOn, soundStyle, type Style } from './sound'
   import { install } from './install.svelte'
+  import { applySettings, currentSettings } from './settingsio'
+  import { MAX_BYTES, describe, fileName, parseSettingsFile, serialize, type Settings } from './settingsfile'
+  import { saveBlob } from './export'
   import { installHelp, isStandalone } from './installhelp'
   const help = installHelp(navigator.userAgent, isStandalone(), navigator.maxTouchPoints > 1)
   import { loadPushConfig, pushSupported, type PushConfig } from './push'
 
+  // Export and import of this browser's own settings (appearance, room list, sound, language). Never accounts, keys or messages.
+  let importInput: HTMLInputElement | undefined = $state()
+  let incoming = $state<{ settings: Settings; ignored: string[]; newer: boolean } | null>(null)
+  let backupNote = $state('')
+  let backupErr = $state('')
+  function exportSettings() {
+    backupErr = ''; backupNote = ''
+    saveBlob(new Blob([serialize(currentSettings(), new Date(), 'Tessera ' + __APP_VERSION__)], { type: 'application/json' }), fileName())
+    backupNote = t('Settings saved to a file.')
+  }
+  async function pickSettings() {
+    const f = importInput?.files?.[0]
+    if (importInput) importInput.value = ''
+    incoming = null; backupNote = ''; backupErr = ''
+    if (!f) return
+    if (f.size > MAX_BYTES) { backupErr = t('This file is too large to be a Tessera settings file.'); return }
+    const r = parseSettingsFile(await f.text())
+    if (!r.ok) { backupErr = t(r.error); return }
+    incoming = { settings: r.settings, ignored: r.ignored, newer: r.newer }
+  }
+  function applyIncoming() {
+    if (!incoming) return
+    applySettings(incoming.settings)
+    sound = soundOn(); style = soundStyle() // the sound section below shows what was just applied
+    backupNote = t('Settings applied.')
+    incoming = null
+  }
   let tab = $state<'look' | 'security' | 'notify' | 'privacy' | 'sessions' | 'account' | 'about'>('security')
   let perm = $state(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
   async function enableNotifications() {
@@ -115,6 +145,23 @@
     </div>
     <label class="check"><input type="checkbox" checked={ui.showMembership} onchange={(e) => { ui.setShowMembership(e.currentTarget.checked); chat.refreshMessages() }} /> Show joins, leaves and name changes in the timeline</label>
     <p class="hint">These never move a room up the list, whether shown or not.</p>
+    <h3 class="label">{t("My settings")}</h3>
+    <p class="hint">{t("Save the settings of this browser (appearance, room list, sound, language) to a file, or load them from one, for example on another device. Accounts, keys and messages are never included.")}</p>
+    <div class="actions">
+      <button class="btn ghost" onclick={exportSettings}><Icon name="download" size={14} /> {t("Export settings")}</button>
+      <button class="btn ghost" onclick={() => importInput?.click()}>{t("Import settings…")}</button>
+      <input type="file" accept=".json,application/json" hidden bind:this={importInput} onchange={pickSettings} aria-label={t("Settings file")} />
+    </div>
+    {#if incoming}
+      <div class="incoming" role="group" aria-label={t("Settings in this file")}>
+        <p><b>{t("This file will change:")}</b></p>
+        <ul>{#each describe(incoming.settings) as d (d.key)}<li><span>{t(d.label)}</span><b>{d.value}</b></li>{/each}</ul>
+        {#if incoming.ignored.length}<p class="hint">{t("Left out, because Tessera does not use or accept them:")} {incoming.ignored.join(', ')}</p>{/if}
+        {#if incoming.newer}<p class="hint">{t("This file comes from a newer Tessera; only the settings this version knows are used.")}</p>{/if}
+        <div class="actions"><button class="btn" onclick={applyIncoming}>{t("Apply")}</button><button class="btn ghost" onclick={() => (incoming = null)}>{t("Cancel")}</button></div>
+      </div>
+    {/if}
+    {#if backupErr}<p class="err" role="alert">{backupErr}</p>{:else if backupNote}<p class="status ok" role="status">{backupNote}</p>{/if}
   {:else if tab === 'security'}
     <p class="status" class:ok={security.verified}>{security.verified ? 'This session is verified.' : 'This session is not verified.'}
       <span class="mono">Key backup {security.hasBackup ? 'on' : 'off'}</span></p>
@@ -316,4 +363,7 @@
   .kwform { display: flex; gap: 8px; } .kwform input { flex: 1; font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; } .kws { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; } .kws li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 14px; background: var(--tile); }
   .lang { font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; min-width: 180px; }
   .steps { margin: 4px 0 8px; padding-left: 20px; display: grid; gap: 2px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; } .actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+  .incoming { margin-top: 12px; padding: 12px; border-radius: 10px; background: var(--tile); border: 1px solid var(--line); } .incoming p { margin: 0 0 6px; }
+  .incoming ul { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; } .incoming li { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; } .incoming li span { color: var(--muted); } .incoming li b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
 </style>
