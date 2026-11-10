@@ -1,0 +1,24 @@
+push.hbenali.ovh {
+	# Only the one thing a Matrix homeserver calls is passed on to Sygnal; everything else is refused here.
+	@notify {
+		method POST
+		path /_matrix/push/v1/notify
+	}
+	handle @notify {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy sygnal:5000
+	}
+	handle /health {
+		respond "ok" 200
+	}
+	handle {
+		respond "Not found" 404
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		-Server
+	}
+}

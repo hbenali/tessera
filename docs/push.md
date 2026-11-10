@@ -14,6 +14,8 @@ You need to run (or use) a push gateway that speaks Web Push. [Sygnal](https://g
 
 ## 1. Run Sygnal
 
+A ready-made, hardened setup (Sygnal behind Caddy with automatic HTTPS, for a small VPS) is in [`deploy/push-gateway/`](../deploy/push-gateway/README.md). It was measured at about 70 MB of RAM in total. The steps below explain what it does.
+
 Generate a VAPID key pair in Sygnal's virtualenv:
 
 ```sh

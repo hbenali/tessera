@@ -1,0 +1,39 @@
+log:
+  setup:
+    version: 1
+    formatters:
+      normal:
+        format: "%(asctime)s [%(process)d] %(levelname)-5s %(message)s"
+    handlers:
+      stderr:
+        class: "logging.StreamHandler"
+        formatter: "normal"
+        stream: "ext://sys.stderr"
+    root:
+      handlers: ["stderr"]
+      level: "INFO"
+    disable_existing_loggers: false
+  access:
+    x_forwarded_for: false
+
+http:
+  bind_addresses: ['0.0.0.0']
+  port: 5000
+
+metrics:
+  prometheus:
+    enabled: false
+
+apps:
+  # Tessera's app id is fixed.
+  ovh.hbenali.tessera.web:
+    type: webpush
+    vapid_private_key: /conf/private_key.pem
+    # Shown to the browser push services in each push, so they can reach the operator. Put your own address here.
+    vapid_contact_email: you@example.org
+    # Which browser push services this gateway may call.
+    allowed_endpoints:
+      - "fcm.googleapis.com"
+      - "updates.push.services.mozilla.com"
+      - "*.notify.windows.com"
+      - "*.push.apple.com"
