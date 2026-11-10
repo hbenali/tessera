@@ -75,7 +75,13 @@ Each browser or phone has its own registration (a Matrix pusher) on your account
 
 ## Quick actions
 
-Notifications for readable messages carry a **👍 Like** button, which sends a reaction from the worker without opening the app. It is not offered for encrypted rooms. Support varies by browser and platform: Chromium-based browsers show action buttons; others may ignore them and just open the app.
+Notifications for readable messages carry buttons that act from the worker without opening the app: **Reply** (type an answer), **quick replies** (one tap sends a short text you chose, as a reply to the message), **Mark as read** (a private receipt) and **👍 Like**. They are not offered for encrypted rooms, where the worker cannot read or encrypt (an encrypted message can still be marked read).
+
+A browser shows only as many buttons as it has room for, often two (Android and many desktops), so they are chosen in this order: Reply, your first quick reply, Mark as read, Like, then your other quick replies. On a phone that means Reply and the first quick reply. Support varies by browser and platform: Chromium-based browsers show action buttons; others may ignore them and just open the app.
+
+**Quick replies** are set in Settings, Notifications, Quick reply buttons: up to three short texts (40 characters each), "OK", "Thanks" and "On my way" to start with. They are kept in your Matrix account data, so they follow you to your other devices, and an empty list turns them off.
+
+**The small status-bar icon** on Android (the notification's `badge`) is a separate image, `badge-96.png`: Android uses only its transparency and paints it one colour, so it is the app's four tiles in white on a transparent background. Using the app icon there would show a plain square.
 
 ## What has and has not been verified
 

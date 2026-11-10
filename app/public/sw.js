@@ -154,6 +154,7 @@ self.addEventListener('message', (e) => {
   if (d?.type === 'warm') e.waitUntil(warm().catch(() => {}))
   if (d?.type === 'read' && typeof d.room_id === 'string' && typeof d.event_id === 'string') e.waitUntil(readEvent(d.room_id, d.event_id).catch(() => {}))
   if (d?.type === 'reply' && typeof d.room_id === 'string' && typeof d.text === 'string') e.waitUntil(replyEvent(d.room_id, typeof d.event_id === 'string' ? d.event_id : undefined, d.text).catch(() => {}))
+  if (d?.type === 'quick' && typeof d.room_id === 'string' && typeof d.event_id === 'string') e.waitUntil(replyEvent(d.room_id, d.event_id, quickTextOf(d.data, d.action)).catch(() => {}))
   if (d?.type === 'like' && typeof d.room_id === 'string' && typeof d.event_id === 'string') e.waitUntil(likeEvent(d.room_id, d.event_id).catch(() => {}))
 })
 
@@ -283,6 +284,21 @@ async function quietNow() {
   return manual || inSchedule(d.schedule, new Date())
 }
 
+// Quick replies: one-tap buttons that send a short text as a reply (a copy of the rules in src/lib/quickreplies.ts: keep them
+// in step). Not stored yet means the defaults; a stored empty list means the person turned them off.
+const DEFAULT_QUICK = ['OK', 'Thanks', 'On my way']
+async function quickList() {
+  const q = await stored('quick')
+  if (!Array.isArray(q)) return DEFAULT_QUICK
+  return q.filter((x) => typeof x === 'string' && x.trim() && x.length <= 40).slice(0, 3)
+}
+// The text behind a "quick1" style action, from the replies the notification itself carries.
+const quickTextOf = (data, action) => {
+  const m = /^quick(\d)$/.exec(String(action ?? ''))
+  const t = m && Array.isArray(data?.quick) ? data.quick[Number(m[1])] : ''
+  return typeof t === 'string' ? t.trim() : ''
+}
+
 self.addEventListener('push', (e) => {
   e.waitUntil(
     (async () => {
@@ -298,6 +314,17 @@ self.addEventListener('push', (e) => {
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       if (wins.some((w) => w.visibilityState === 'visible' && w.focused)) return
       const [{ title, body, canLike, canRead, icon }, quiet] = await Promise.all([describePush(n), quietNow()])
+      // A browser shows only as many buttons as it has room for (two on Android and often on desktop), so they are chosen in
+      // order of use: Reply, the first quick reply, Mark as read, Like, then the other quick replies.
+      const quick = canLike ? await quickList().catch(() => []) : []
+      const max = Math.max(1, Number(typeof Notification !== 'undefined' ? Notification.maxActions : 0) || 2)
+      const buttons = [
+        ...(canLike ? [{ action: 'reply', type: 'text', title: 'Reply', placeholder: 'Write a reply…' }] : []),
+        ...(quick[0] ? [{ action: 'quick0', title: quick[0] }] : []),
+        ...(canRead && n.room_id && n.event_id ? [{ action: 'read', title: 'Mark as read' }] : []),
+        ...(canLike ? [{ action: 'like', title: '👍 Like' }] : []),
+        ...quick.slice(1).map((t, i) => ({ action: `quick${i + 1}`, title: t })),
+      ].slice(0, max)
       await self.registration.showNotification(title, {
         body,
         icon: icon || '/icon-192.png',
@@ -306,13 +333,8 @@ self.addEventListener('push', (e) => {
         tag: n.room_id || 'tessera',
         renotify: !quiet,
         silent: quiet,
-        data: { room_id: n.room_id, event_id: n.event_id },
-        // A browser shows only as many as it has room for (often two), so the most useful come first.
-        actions: [
-          ...(canLike ? [{ action: 'reply', type: 'text', title: 'Reply', placeholder: 'Write a reply…' }] : []),
-          ...(canRead && n.room_id && n.event_id ? [{ action: 'read', title: 'Mark as read' }] : []),
-          ...(canLike ? [{ action: 'like', title: '👍 Like' }] : []),
-        ],
+        data: { room_id: n.room_id, event_id: n.event_id, quick },
+        actions: buttons,
       })
     })(),
   )
@@ -338,6 +360,17 @@ self.addEventListener('notificationclick', (e) => {
           return
         } catch {
           /* could not send: open the room, the person can write it there */
+        }
+      }
+      if (/^quick\d$/.test(e.action) && room && event) {
+        const text = quickTextOf(e.notification.data, e.action)
+        if (text) {
+          try {
+            await replyEvent(room, event, text)
+            return
+          } catch {
+            /* could not send: open the room, the person can answer there */
+          }
         }
       }
       if (e.action === 'like' && room && event) {

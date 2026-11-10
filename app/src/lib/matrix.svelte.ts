@@ -30,10 +30,11 @@ import { discover } from './discover'
 import { setOriginalLoader, setThumbLoader } from './media'
 import { thisDeviceName } from './devicename'
 import type { Pusher } from './pushdevices'
+import { cleanQuickReplies, parseQuickReplies, DEFAULT_QUICK } from './quickreplies'
 import { decryptAttachment, encryptAttachment, isEncryptedFile, type EncryptedFile } from './attachments'
 import { beep, unlockAudio } from './sound'
 import { format, parse, type Route } from './route'
-import { within, PUSH_APP_ID, currentSubscription, storePushSession, storeWorkerDnd, subscribe, unsubscribe, type PushConfig } from './push'
+import { within, PUSH_APP_ID, currentSubscription, storePushSession, storeWorkerDnd, storeWorkerQuick, subscribe, unsubscribe, type PushConfig } from './push'
 import { DEFAULT_REPLY, DEFAULT_SCHEDULE, inSchedule, parseAutoReply, parseSchedule, replyText, scheduleEnd, type AutoReply, type Schedule } from './dnd'
 
 const SESSION_KEY = 'tessera.session'
@@ -368,6 +369,7 @@ class Chat {
       if (ev.getType() === Chat.DND) this.loadDnd()
       if (ev.getType() === Chat.SCHEDULE) this.loadSchedule()
       if (ev.getType() === Chat.AUTO_REPLY) this.loadAutoReply()
+      if (ev.getType() === Chat.QUICK) this.loadQuickReplies()
     })
     client.on(sdk.RoomEvent.Tags, () => this.refreshRooms())
     client.on(sdk.RoomEvent.AccountData, (ev) => { if (/marked_unread$/.test(ev.getType()) || ev.getType() === ROOM_THEME) this.refreshRooms() })
@@ -385,6 +387,7 @@ class Chat {
     this.loadDnd()
     this.loadSchedule()
     this.loadAutoReply()
+    this.loadQuickReplies()
     setInterval(() => this.clock++, 30_000)
   }
 
@@ -749,6 +752,27 @@ class Chat {
     this.schedule = parseSchedule({ ...this.schedule, ...patch })
     await this.client!.setAccountData(Chat.SCHEDULE as never, { ...this.schedule } as never)
     this.syncWorkerDnd()
+  }
+
+  /** One-tap replies shown as buttons on push notifications. In the account data, so they follow you between devices. */
+  quickReplies = $state<string[]>([...DEFAULT_QUICK])
+  private static QUICK = 'ovh.hbenali.tessera.quick_replies'
+
+  private loadQuickReplies() {
+    this.quickReplies = parseQuickReplies(this.client?.getAccountData(Chat.QUICK as never)?.getContent())
+    this.syncWorkerQuick()
+  }
+
+  async setQuickReplies(list: string[]) {
+    this.quickReplies = cleanQuickReplies(list)
+    await this.client!.setAccountData(Chat.QUICK as never, { replies: this.quickReplies } as never)
+    this.syncWorkerQuick()
+  }
+
+  /** Give the service worker the quick replies, only while background push is on. */
+  private syncWorkerQuick() {
+    if (!this.pushOn) return
+    storeWorkerQuick($state.snapshot(this.quickReplies)).catch(() => {})
   }
 
   /** Give the service worker the do-not-disturb settings, only while background push is on. */
@@ -1655,6 +1679,7 @@ class Chat {
       if (this.pushOn) {
         await this.storeSession()
         this.syncWorkerDnd()
+        this.syncWorkerQuick()
         // Registrations made before devices were named all say "Tessera in a browser": give this browser's a name that tells it apart.
         const mine = pushers.find((p) => p.app_id === PUSH_APP_ID && p.pushkey === sub!.p256dh)
         const name = thisDeviceName()
@@ -1692,6 +1717,7 @@ class Chat {
     } as never)
     this.pushOn = true
     this.syncWorkerDnd()
+    this.syncWorkerQuick()
     void this.refreshPush()
   }
 
@@ -1707,6 +1733,7 @@ class Chat {
     await unsubscribe().catch(() => {})
     await storePushSession(null).catch(() => {})
     await storeWorkerDnd(null).catch(() => {})
+    await storeWorkerQuick(null).catch(() => {})
     this.pushOn = false
     void this.refreshPush()
   }

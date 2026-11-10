@@ -197,20 +197,23 @@ describe('web push and PWA', () => {
     await page.goto(server.url)
     const note = await page.evaluate(async () => {
       const r = await navigator.serviceWorker.ready
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 50; i++) {
         const list = await r.getNotifications()
-        if (list.length) return { title: list[0].title, body: list[0].body, data: list[0].data, tag: list[0].tag, icon: list[0].icon, badge: list[0].badge, actions: list[0].actions.map((a) => a.action) }
+        if (list.length) return { title: list[0].title, body: list[0].body, data: list[0].data, tag: list[0].tag, icon: list[0].icon, badge: list[0].badge, actions: list[0].actions.map((a) => ({ action: a.action, title: a.title })) }
         await new Promise((res) => setTimeout(res, 200))
       }
-      return null
+      return { missing: true }
     })
-    assert.ok(note, 'no notification was shown')
+    assert.ok(note && !note.missing, 'no notification was shown')
     assert.match(note.title, new RegExp(data.bob.name))
     assert.match(note.title, /e2e room/)
     assert.equal(note.body, 'lunch at noon?')
     assert.equal(note.data.room_id, data.room)
-    // a browser shows only as many actions as it has room for (two on desktop Chrome), so the most useful come first
-    assert.deepEqual(note.actions.slice(0, 2), ['reply', 'read'], 'readable messages offer Reply and Mark as read first')
+    // a browser shows only as many actions as it has room for (two on Android and often on desktop), so the most useful come first:
+    // Reply, then the first quick reply (the defaults until the person changes them)
+    assert.deepEqual(note.actions.slice(0, 2).map((a) => [a.action, a.title]), [['reply', 'Reply'], ['quick0', 'OK']], 'readable messages offer Reply and the first quick reply first')
+    assert.ok(note.actions.length <= (await page.evaluate(() => Notification.maxActions || 2)), 'no more buttons than the browser can show')
+    assert.deepEqual(note.data.quick, ['OK', 'Thanks', 'On my way'], 'the notification carries the quick replies, so a click needs no lookup')
     assert.match(note.icon, /^data:image\/png;base64,/, "the sender's avatar is the notification icon")
     // The small status-bar icon: Android uses only its transparency, so it must be a shape on a transparent background.
     // (The app icon is a mostly opaque tile, which Android would paint as a plain square.)
@@ -250,7 +253,7 @@ describe('web push and PWA', () => {
     await page.goto(server.url)
     const note = await page.evaluate(async () => {
       const r = await navigator.serviceWorker.ready
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 50; i++) {
         const list = await r.getNotifications()
         const hit = list.find((x) => x.body === 'flat payload from Sygnal')
         if (hit) return { title: hit.title, body: hit.body, actions: hit.actions.map((a) => a.action) }
@@ -260,7 +263,7 @@ describe('web push and PWA', () => {
     })
     assert.ok(note, 'the flat payload gave no readable notification (generic "New message" at best)')
     assert.match(note.title, new RegExp(data.bob.name))
-    assert.deepEqual(note.actions.slice(0, 2), ['reply', 'read'])
+    assert.deepEqual(note.actions.slice(0, 2), ['reply', 'quick0'])
     await blank.close()
   })
 
@@ -294,6 +297,82 @@ describe('web push and PWA', () => {
     assert.equal(reply.content['m.relates_to']?.['m.in_reply_to']?.event_id, sent.event_id, 'it is a reply to that message')
   })
 
+  it('sends a quick reply from the notification as a reply to the message, and ignores a bad action', async () => {
+    const sent = await send(data.bob, data.room, { msgtype: 'm.text', body: 'can I have a one-tap answer?' })
+    const post = (m) => page.evaluate(async (msg) => (await navigator.serviceWorker.ready).active.postMessage(msg), m)
+    // An action that is not a quick reply, or a number with no text behind it, sends nothing.
+    await post({ type: 'quick', room_id: data.room, event_id: sent.event_id, action: 'reply', data: { quick: ['nope'] } })
+    await post({ type: 'quick', room_id: data.room, event_id: sent.event_id, action: 'quick5', data: { quick: ['nope'] } })
+    await post({ type: 'quick', room_id: data.room, event_id: sent.event_id, action: 'quick0', data: { quick: ['   '] } })
+    await post({ type: 'quick', room_id: data.room, event_id: sent.event_id, action: 'quick1', data: { quick: ['OK', 'Thanks'] } })
+    let reply
+    for (let i = 0; i < 30 && !reply; i++) {
+      const m = await api(data.alice.token, 'GET', `/_matrix/client/v3/rooms/${enc(data.room)}/messages?dir=b&limit=10`)
+      reply = m.chunk.find((e) => e.sender === data.alice.id && e.content?.body === 'Thanks')
+      if (!reply) await new Promise((r) => setTimeout(r, 300))
+    }
+    assert.ok(reply, 'the quick reply was not sent')
+    assert.equal(reply.content['m.relates_to']?.['m.in_reply_to']?.event_id, sent.event_id, 'it is a reply to that message')
+    const mine = (await api(data.alice.token, 'GET', `/_matrix/client/v3/rooms/${enc(data.room)}/messages?dir=b&limit=10`)).chunk.filter((e) => e.sender === data.alice.id && e.content?.body === 'nope')
+    assert.equal(mine.length, 0, 'a bad action sent nothing')
+  })
+
+  it('edits the quick replies in Settings, keeps them in the account, shows them as buttons, and can turn them off', async () => {
+    const notificationFor = async (body) => {
+      const sent = await send(data.bob, data.room, { msgtype: 'm.text', body })
+      await page.close()
+      const blank = await ctx.newPage()
+      const cdp = await ctx.newCDPSession(blank)
+      const regs = []
+      cdp.on('ServiceWorker.workerRegistrationUpdated', (e) => regs.push(...e.registrations))
+      await cdp.send('ServiceWorker.enable')
+      await new Promise((r) => setTimeout(r, 500))
+      const reg = regs.find((r) => r.scopeURL.startsWith(server.url))
+      await cdp.send('ServiceWorker.deliverPushMessage', { origin: server.url, registrationId: reg.registrationId, data: JSON.stringify({ notification: { event_id: sent.event_id, room_id: data.room } }) })
+      page = await ctx.newPage()
+      await page.goto(server.url)
+      const note = await page.evaluate(async (b) => {
+        const r = await navigator.serviceWorker.ready
+        for (let i = 0; i < 40; i++) {
+          const n = (await r.getNotifications()).find((x) => x.body === b)
+          if (n) return { actions: n.actions.map((a) => ({ action: a.action, title: a.title })), data: n.data }
+          await new Promise((res) => setTimeout(res, 200))
+        }
+        return null
+      }, body)
+      await blank.close()
+      assert.ok(note, `no notification for "${body}"`)
+      return note
+    }
+    const saved = async () => api(data.alice.token, 'GET', `/_matrix/client/v3/user/${enc(data.alice.id)}/account_data/ovh.hbenali.tessera.quick_replies`).catch(() => null)
+    const dlg = () => page.getByRole('dialog', { name: 'Settings' })
+    await page.getByRole('navigation', { name: 'Rooms' }).waitFor()
+    await notifySettings()
+    const input = (n) => dlg().getByLabel(`Quick reply ${n}`, { exact: true })
+    assert.equal(await input(1).inputValue(), 'OK', 'the defaults to start with')
+    assert.equal(await dlg().getByRole('button', { name: 'Save', exact: true }).isDisabled(), true, 'nothing to save yet')
+    await input(1).fill('Yes')
+    await input(2).fill('  No  ')
+    await dlg().getByRole('button', { name: 'Remove Quick reply 3' }).click()
+    await dlg().getByRole('button', { name: 'Save', exact: true }).click()
+    for (let i = 0; i < 30 && !((await saved())?.replies?.[0] === 'Yes'); i++) await new Promise((r) => setTimeout(r, 200))
+    assert.deepEqual((await saved()).replies, ['Yes', 'No'], 'saved in the account data, tidied')
+    const note = await notificationFor('quick buttons please')
+    assert.deepEqual(note.actions.slice(0, 2).map((a) => [a.action, a.title]), [['reply', 'Reply'], ['quick0', 'Yes']])
+    assert.deepEqual(note.data.quick, ['Yes', 'No'])
+    // Off: no replies left, so the buttons are Reply and Mark as read, as before.
+    await page.getByRole('navigation', { name: 'Rooms' }).waitFor()
+    await notifySettings()
+    await dlg().getByRole('button', { name: 'Remove Quick reply 1' }).click()
+    await dlg().getByRole('button', { name: 'Remove Quick reply 1' }).click()
+    await dlg().getByRole('button', { name: 'Save', exact: true }).click()
+    for (let i = 0; i < 30 && (await saved())?.replies?.length !== 0; i++) await new Promise((r) => setTimeout(r, 200))
+    assert.deepEqual((await saved()).replies, [], 'an empty list is kept as off, not reset to the defaults')
+    const off = await notificationFor('no quick buttons now')
+    assert.deepEqual(off.actions.slice(0, 2).map((a) => a.action), ['reply', 'read'])
+    assert.deepEqual(off.data.quick, [])
+  })
+
   it('likes the message from the notification with the stored session', async () => {
     const sent = await send(data.bob, data.room, { msgtype: 'm.text', body: 'quick like please' })
     await page.evaluate(async ([room, event]) => (await navigator.serviceWorker.ready).active.postMessage({ type: 'like', room_id: room, event_id: event }), [data.room, sent.event_id])
@@ -323,14 +402,14 @@ describe('web push and PWA', () => {
     await page.goto(server.url)
     const note = await page.evaluate(async () => {
       const r = await navigator.serviceWorker.ready
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 50; i++) {
         const list = (await r.getNotifications()).filter((n) => n.body === 'Encrypted message')
         if (list.length) return { body: list[0].body, actions: list[0].actions.map((a) => a.action) }
         await new Promise((res) => setTimeout(res, 200))
       }
-      return null
+      return { missing: (await r.getNotifications()).map((n) => `${n.tag}: ${n.title} / ${n.body}`) }
     })
-    assert.ok(note, 'no notification for the encrypted event')
+    assert.ok(note && !note.missing, `no notification for the encrypted event; the notifications that exist: ${JSON.stringify(note?.missing)}`)
     assert.deepEqual(note.actions, ['read'], 'an encrypted message can be marked read but not replied to or liked: the worker cannot encrypt')
     await blank.close()
   })

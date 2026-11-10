@@ -120,6 +120,9 @@ export interface WorkerDnd {
 }
 export const storeWorkerDnd = (d: WorkerDnd | null) => kvSet('dnd', d)
 
+/** The quick replies the worker shows as notification buttons. */
+export const storeWorkerQuick = (list: string[] | null) => kvSet('quick', list)
+
 
 /** Give up on a promise that may never settle (a blocked or failed service worker never becomes ready). */
 export function within<T>(p: Promise<T>, ms: number, what = 'That'): Promise<T> {

@@ -18,6 +18,7 @@
   import { MAX_BYTES, describe, fileName, parseSettingsFile, serialize, type Settings } from './settingsfile'
   import { saveBlob } from './export'
   import { pushDevices } from './pushdevices'
+  import { DEFAULT_QUICK, MAX_QUICK, MAX_QUICK_LENGTH, cleanQuickReplies } from './quickreplies'
   import { PUSH_APP_ID, currentSubscription } from './push'
   import { installHelp, isStandalone } from './installhelp'
   const help = installHelp(navigator.userAgent, isStandalone(), navigator.maxTouchPoints > 1)
@@ -51,6 +52,15 @@
     incoming = null
   }
   // The browsers that have background notifications on for this account, so a device that stopped receiving can be told apart.
+  // Quick replies: the one-tap answers shown as buttons on a notification. Edited here, kept in the account data.
+  let qr = $state<string[]>([...chat.quickReplies])
+  let qrErr = $state('')
+  $effect(() => { qr = [...chat.quickReplies] })
+  const qrChanged = $derived(JSON.stringify(cleanQuickReplies(qr)) !== JSON.stringify(chat.quickReplies))
+  async function saveQuick() {
+    qrErr = ''
+    try { await chat.setQuickReplies(qr) } catch (e) { qrErr = e instanceof Error ? e.message : t('That did not work') }
+  }
   let mineKey = $state<string | null>(null)
   let removing = $state<string | null>(null)
   let removeErr = $state('')
@@ -292,6 +302,20 @@
       {#if perm === 'denied'}<p class="hint">Notifications are blocked in your browser settings for this site.</p>{/if}
       {#if testSent}<p class="hint" role="status">Sent. If nothing appeared, check your system's notification settings.</p>{/if}
       {#if pushErr}<div class="err" role="alert">{pushErr}</div>{/if}
+      <h3 class="label">{t("Quick reply buttons")}</h3>
+      <p class="hint">{t("Short answers shown as buttons on a notification, sent as a reply with one tap. A phone shows Reply and the first one; a computer may show more. They follow your account to your other devices.")}</p>
+      <ul class="quick" aria-label={t("Quick reply buttons")}>
+        {#each qr as _, i (i)}
+          <li><input bind:value={qr[i]} maxlength={MAX_QUICK_LENGTH} aria-label="{t('Quick reply')} {i + 1}" placeholder={t('A short answer')} />
+            <button class="icon-btn" onclick={() => (qr = qr.filter((_, j) => j !== i))} aria-label="{t('Remove')} {t('Quick reply')} {i + 1}"><Icon name="x" size={14} /></button></li>
+        {/each}
+      </ul>
+      <div class="actions">
+        {#if qr.length < MAX_QUICK}<button class="btn ghost" onclick={() => (qr = [...qr, ''])}>{t("Add a reply")}</button>{/if}
+        <button class="btn" disabled={!qrChanged} onclick={saveQuick}>{t("Save")}</button>
+        <button class="btn ghost" onclick={() => (qr = [...DEFAULT_QUICK])}>{t("Use the defaults")}</button>
+      </div>
+      {#if qrErr}<div class="err" role="alert">{qrErr}</div>{/if}
       <h3 class="label">{t("Devices with background notifications on")}</h3>
       {#if devices.length}
         <ul class="devs" aria-label={t("Devices with background notifications on")}>
@@ -403,4 +427,5 @@
   .dn { display: grid; gap: 1px; min-width: 0; } .dn b { font-weight: 600; overflow-wrap: anywhere; } .dn small { color: var(--muted); font-size: 12px; } .dn .warn { color: var(--danger); }
   .thisbrowser { margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 11px; font-weight: 600; }
   .ask { display: inline-flex; gap: 6px; } .btn.sm { padding: 4px 10px; font-size: 12px; } .btn.danger { background: var(--danger); color: var(--bg); }
+  .quick { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; } .quick li { display: flex; align-items: center; gap: 6px; } .quick input { flex: 1; min-width: 0; }
 </style>
