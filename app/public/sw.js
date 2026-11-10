@@ -5,7 +5,7 @@ const PRECACHE = { core: [], large: [], version: 'dev' }; // @precache
 const CACHE = `tessera-shell-${PRECACHE.version}`
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE.core.length ? PRECACHE.core : ['/', '/icon.svg', '/manifest.webmanifest'])).then(() => self.skipWaiting()))
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE.core.length ? PRECACHE.core : ['/', '/icon.svg', '/manifest.webmanifest', '/badge-96.png'])).then(() => self.skipWaiting()))
 })
 
 // The big files (the encryption module) are fetched after install, when the page asks, so installing stays quick.
@@ -301,7 +301,8 @@ self.addEventListener('push', (e) => {
       await self.registration.showNotification(title, {
         body,
         icon: icon || '/icon-192.png',
-        badge: '/icon-192.png',
+        // The small status-bar icon: Android uses only its transparency, so it must be a shape on a transparent background, not the app icon.
+        badge: '/badge-96.png',
         tag: n.room_id || 'tessera',
         renotify: !quiet,
         silent: quiet,

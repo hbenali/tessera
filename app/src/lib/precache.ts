@@ -8,7 +8,7 @@ export interface Precache {
   version: string
 }
 
-const SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png']
+const SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/badge-96.png']
 
 /** From the files a build emitted (paths relative to the site root, no leading slash). */
 export function planPrecache(emitted: readonly string[]): Precache {

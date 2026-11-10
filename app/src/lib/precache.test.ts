@@ -10,6 +10,7 @@ describe('planPrecache', () => {
     expect(p.core.some((f) => f.endsWith('.wasm'))).toBe(false)
     expect(p.large).toEqual(['/assets/crypto-DDD.wasm'])
   })
+  it('always keeps the notification badge, so it shows offline too', () => expect(planPrecache(emitted).core).toContain('/badge-96.png'))
   it('never keeps source maps', () => expect(JSON.stringify(planPrecache(emitted))).not.toContain('.map'))
   it('the version changes with the files and not with their order', () => {
     const a = planPrecache(emitted).version

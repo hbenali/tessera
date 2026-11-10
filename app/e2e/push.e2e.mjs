@@ -199,7 +199,7 @@ describe('web push and PWA', () => {
       const r = await navigator.serviceWorker.ready
       for (let i = 0; i < 30; i++) {
         const list = await r.getNotifications()
-        if (list.length) return { title: list[0].title, body: list[0].body, data: list[0].data, tag: list[0].tag, icon: list[0].icon, actions: list[0].actions.map((a) => a.action) }
+        if (list.length) return { title: list[0].title, body: list[0].body, data: list[0].data, tag: list[0].tag, icon: list[0].icon, badge: list[0].badge, actions: list[0].actions.map((a) => a.action) }
         await new Promise((res) => setTimeout(res, 200))
       }
       return null
@@ -212,6 +212,24 @@ describe('web push and PWA', () => {
     // a browser shows only as many actions as it has room for (two on desktop Chrome), so the most useful come first
     assert.deepEqual(note.actions.slice(0, 2), ['reply', 'read'], 'readable messages offer Reply and Mark as read first')
     assert.match(note.icon, /^data:image\/png;base64,/, "the sender's avatar is the notification icon")
+    // The small status-bar icon: Android uses only its transparency, so it must be a shape on a transparent background.
+    // (The app icon is a mostly opaque tile, which Android would paint as a plain square.)
+    assert.match(note.badge, /\/badge-96\.png$/, 'the notification uses the dedicated badge, not the app icon')
+    await blank.goto(server.url) // same origin as the badge, so it can be fetched
+    const shape = await blank.evaluate(async (url) => {
+      const bmp = await createImageBitmap(await (await fetch(url)).blob())
+      const c = new OffscreenCanvas(bmp.width, bmp.height); const x = c.getContext('2d'); x.drawImage(bmp, 0, 0)
+      const a = (px, py) => x.getImageData(px, py, 1, 1).data[3]
+      let opaque = 0, clear = 0
+      const d = x.getImageData(0, 0, bmp.width, bmp.height).data
+      for (let i = 3; i < d.length; i += 4) { if (d[i] > 200) opaque++; else if (d[i] < 20) clear++ }
+      return { w: bmp.width, h: bmp.height, corner: a(1, 1), tile: a(26, 26), gap: a(Math.round(bmp.width / 2), 26), opaque: opaque / (d.length / 4), clear: clear / (d.length / 4) }
+    }, note.badge)
+    assert.ok(shape.w >= 72 && shape.w === shape.h, `the badge is ${shape.w}x${shape.h}`)
+    assert.equal(shape.corner, 0, 'the corner is transparent')
+    assert.equal(shape.tile, 255, 'the tiles are opaque')
+    assert.ok(shape.gap < 40, 'the gap between the tiles is transparent, so the mark shows')
+    assert.ok(shape.clear > 0.25 && shape.opaque > 0.3, `a shape on transparency, not a solid square (opaque ${shape.opaque.toFixed(2)}, clear ${shape.clear.toFixed(2)})`)
     await blank.close()
   })
 
