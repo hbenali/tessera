@@ -400,7 +400,7 @@
       e.preventDefault()
       mark({ b: '**', i: '*', e: '`' }[e.key.toLowerCase() as 'b' | 'i' | 'e'])
     } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'x') { e.preventDefault(); mark('~~') }
-    else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() }
+    else if (e.key === 'Enter' && (ui.composerExpanded ? e.ctrlKey || e.metaKey : !e.shiftKey)) { e.preventDefault(); submit() }
     else if (e.key === 'Escape') { replyTo = editing = null }
     else if (e.key === 'ArrowUp' && !text) {
       const mine = [...chat.messages].reverse().find((m) => m.mine && !m.pending)
@@ -571,6 +571,7 @@
   {:else}
     <header>
       <button class="icon-btn back" onclick={() => chat.closeRoom()} aria-label="Back to rooms"><Icon name="back" /></button>
+      <button class="icon-btn listbtn" class:on={ui.listHidden} onclick={() => ui.setListHidden(!ui.listHidden)} aria-label={ui.listHidden ? t('Show the room list') : t('Hide the room list')} aria-pressed={ui.listHidden} title="{ui.listHidden ? t('Show the room list') : t('Hide the room list')} (Ctrl+\)"><Icon name="sidebar" /></button>
       <span class="hdav"><Avatar name={chat.active.name} size={32} round={chat.active.isDM} src={chat.active.avatar} presence={chat.active.dmUser ? (chat.presenceOf(chat.active.dmUser) ?? 'offline') : undefined} /></span>
       <div class="title"><h1>{chat.active.name}{#if chat.active.favourite}<span class="muted favmark" title="Favourite"><Icon name="star" size={14} /><span class="sr">Favourite</span></span>{/if}{#if chat.isQuiet(chat.active.id)}<span class="muted" title="Quiet reading: people are not shown that you read this room"><Icon name="eyeOff" size={14} /><span class="sr">Quiet reading</span></span>{/if}{#if chat.active.notifs === 'mute'}<span class="muted" title="Notifications are muted"><Icon name="bellOff" size={14} /><span class="sr">Muted</span></span>{/if}</h1>{#if chat.active.dmUser}<span class="topic">{({ online: 'Online', unavailable: 'Away', offline: 'Offline' })[chat.presenceOf(chat.active.dmUser) ?? 'offline']}</span>{:else if chat.active.topic}<span class="topic">{chat.active.topic}</span>{:else}<span class="topic">{chat.active.memberCount} {chat.active.memberCount === 1 ? 'member' : 'members'}</span>{/if}</div>
       {#if chat.active.encrypted}<span class="enc" title="End-to-end encrypted"><Icon name="lock" size={13} /> Encrypted</span>{/if}
@@ -696,12 +697,13 @@
           </ul>
         {/if}
         {#if !recording && voiceProgress === null}
-          <div class="fmt" role="toolbar" aria-label="Formatting">
+          <div class="fmt" class:keep={ui.composerExpanded} role="toolbar" aria-label="Formatting">
             <button class="icon-btn" onmousedown={(e) => e.preventDefault()} onclick={() => mark('**')} aria-label="Bold" title="Bold (Ctrl+B)"><b>B</b></button>
             <button class="icon-btn" onmousedown={(e) => e.preventDefault()} onclick={() => mark('*')} aria-label="Italic" title="Italic (Ctrl+I)"><i>I</i></button>
             <button class="icon-btn" onmousedown={(e) => e.preventDefault()} onclick={() => mark('~~')} aria-label="Strikethrough" title="Strikethrough (Ctrl+Shift+X)"><s>S</s></button>
             <button class="icon-btn mono" onmousedown={(e) => e.preventDefault()} onclick={() => mark('`')} aria-label="Code" title="Code (Ctrl+E)">&lt;/&gt;</button>
             <button class="icon-btn" onmousedown={(e) => e.preventDefault()} onclick={fmtQuote} aria-label="Quote" title="Quote">❝</button>
+            <button class="icon-btn expand" onmousedown={(e) => e.preventDefault()} onclick={() => { ui.composerExpanded = !ui.composerExpanded; area?.focus() }} aria-label={ui.composerExpanded ? t('Shrink the message box') : t('Expand the message box')} aria-pressed={ui.composerExpanded} title={ui.composerExpanded ? t('Shrink the message box') : t('Expand the message box')}><Icon name={ui.composerExpanded ? 'collapse' : 'expand'} size={15} /></button>
           </div>
         {/if}
         <div class="input">
@@ -713,7 +715,7 @@
           <ComposerMore onfiles={() => fileInput?.click()} />
           <input type="file" multiple hidden bind:this={fileInput} onchange={pick} />
           <div class="field"><div class="mirror" aria-hidden="true" bind:this={mirror}>{#each pieces as p, i (i)}{#if p.pill}<span class="pill">{p.t}</span>{:else}{p.t}{/if}{/each}</div>
-          <textarea rows="1" bind:this={area} bind:value={text} onscroll={syncScroll} onkeydown={keydown} onpaste={paste} oninput={() => (caret = area?.selectionStart ?? 0)} onclick={() => (caret = area?.selectionStart ?? 0)} role="combobox" aria-expanded={suggestions.length > 0} aria-controls="mention-list" aria-autocomplete="list" placeholder="Message {chat.active.name}" aria-label="Message"></textarea></div>
+          <textarea rows="1" class:big={ui.composerExpanded} bind:this={area} bind:value={text} onscroll={syncScroll} onkeydown={keydown} onpaste={paste} oninput={() => (caret = area?.selectionStart ?? 0)} onclick={() => (caret = area?.selectionStart ?? 0)} role="combobox" aria-expanded={suggestions.length > 0} aria-controls="mention-list" aria-autocomplete="list" placeholder="Message {chat.active.name}" aria-label="Message"></textarea></div>
           <span class="pw"><button class="icon-btn" onclick={() => (picker = picker === 'composer' ? null : 'composer')} aria-label="Insert emoji"><Icon name="smile" /></button>
             {#if picker === 'composer'}<EmojiPicker onpick={(e) => (text += e)} onclose={() => (picker = null)} />{/if}</span>
           {#if !text.trim() && !tray.length && micOk && !editing}
@@ -724,7 +726,7 @@
           {/if}
         </div>
       </div>
-      <div class="hint">{t("Enter to send · Shift+Enter for a new line · ↑ edits your last message · Ctrl+B / I for bold and italic · :emoji: · /invite @user")}</div>
+      <div class="hint">{ui.composerExpanded ? t("Ctrl+Enter to send · Enter for a new line · Ctrl+B / I for bold and italic · :emoji: · /invite @user") : t("Enter to send · Shift+Enter for a new line · ↑ edits your last message · Ctrl+B / I for bold and italic · :emoji: · /invite @user")}</div>
     </footer>
   {/if}
 </main>
@@ -734,7 +736,7 @@
   main { position: relative; display: flex; flex-direction: column; min-width: 0; height: 100%; background: var(--bg); }
   .empty { margin: auto; padding: 24px; text-align: center; color: var(--muted); display: grid; justify-items: center; gap: 4px; } .empty h1 { margin: 10px 0 0; font-size: 20px; color: var(--text); } .empty p { margin: 0; }
   header { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; border-bottom: 1px solid var(--line); flex: none; }
-  .back { display: none; } @media (max-width: 720px) { .back { display: grid; } }
+  .back { display: none; } @media (max-width: 720px) { .back { display: grid; } .listbtn { display: none; } }
   /* On a phone the header has no room for call buttons next to the title: they move into the room menu. */
   @media (max-width: 520px) { .callbtn { display: none; } }
   .title h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -817,7 +819,7 @@
   .tray .meta { display: grid; min-width: 0; font-size: 12px; } .tray .meta b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; } .tray .meta small { color: var(--muted); } .tray li.bad small { color: var(--danger); }
   .tray .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--line); } .tray .bar i { display: block; height: 100%; background: var(--accent); transition: width .15s; }
   /* Formatting buttons appear while the box has focus */
-  .fmt { display: none; gap: 2px; padding: 4px 8px 0; } .composer:focus-within .fmt { display: flex; } .fmt .icon-btn { width: 28px; height: 26px; font-size: 13px; color: var(--muted); border-radius: 6px; } .fmt .icon-btn:hover { background: var(--tile); color: var(--text); }
+  .fmt { display: none; gap: 2px; padding: 4px 8px 0; } .composer:focus-within .fmt, .fmt.keep { display: flex; } .fmt .expand { margin-left: auto; } .fmt .icon-btn { width: 28px; height: 26px; font-size: 13px; color: var(--muted); border-radius: 6px; } .fmt .icon-btn:hover { background: var(--tile); color: var(--text); }
   .dropzone { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 82%, transparent); border: 2px dashed var(--accent); border-radius: 12px; margin: 8px; pointer-events: none; } .dropzone span { display: inline-flex; gap: 10px; align-items: center; font-weight: 650; font-size: 16px; }
   .emo { font-size: 20px; width: 22px; text-align: center; }
   .send.mic { background: var(--tile); color: var(--text); } .send.mic:hover { background: var(--accent); color: var(--accent-ink); }
@@ -830,7 +832,8 @@
   .mirror, textarea { font: inherit; line-height: inherit; letter-spacing: inherit; padding: 7px 6px; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; box-sizing: border-box; border: 0; }
   .mirror { position: absolute; inset: 0; color: transparent; pointer-events: none; overflow: hidden; }
   .pill { background: color-mix(in srgb, var(--accent) 24%, transparent); border-radius: 5px; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 24%, transparent); }
-  textarea { position: relative; flex: 1; min-width: 0; resize: none; max-height: 180px; background: none; field-sizing: content; } textarea:focus { border: 0; }
+  textarea.big { min-height: clamp(120px, 35dvh, 320px); max-height: 55dvh; }
+  textarea { position: relative; flex: 1; min-width: 0; resize: none; max-height: 180px; background: none; field-sizing: content; } textarea:focus { border: 0; } /* The composer around it draws the focus ring; a second one inside (shown on touch screens) only doubles it. */ textarea:focus-visible { outline: none; }
   .send { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); } .send:disabled { background: transparent; color: var(--muted); opacity: .6; }
   .hint { margin-top: 6px; font-size: 11px; color: var(--muted); text-align: center; } @media (max-width: 720px) { .hint { display: none; } }
 

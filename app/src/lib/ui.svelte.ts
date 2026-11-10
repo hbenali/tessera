@@ -95,6 +95,14 @@ class Ui {
     this.modal = 'new'
   }
   details = $state(false)
+  /** The room list on the left is hidden while a room is open (wide windows only), to give the chat the whole width. Per browser. */
+  listHidden = $state(((): boolean => { try { return localStorage.getItem('tessera.listHidden') === '1' } catch { return false } })())
+  setListHidden(on: boolean) {
+    this.listHidden = on
+    try { localStorage.setItem('tessera.listHidden', on ? '1' : '0') } catch { /* private mode */ }
+  }
+  /** The message box is expanded into a tall editor: Enter writes a new line and Ctrl+Enter sends. Not kept across reloads. */
+  composerExpanded = $state(false)
   /** The shared media panel (photos, files and links of the open room); it takes the side panel's place too. */
   media = $state(false)
   /** The in-room search panel; it takes the side panel's place, like details and threads. */

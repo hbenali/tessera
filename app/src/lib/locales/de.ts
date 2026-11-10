@@ -24,4 +24,5 @@ export const de: Record<string, string> = {
   'Colours': 'Farben', 'Like the app': 'Wie die App', 'Light': 'Hell', 'Dark': 'Dunkel',
   'Shared media': 'Geteilte Medien', 'Kind of media': 'Art der Medien', 'Photos': 'Fotos', 'Links': 'Links', 'Open image': 'Bild öffnen', 'Show in chat': 'Im Chat zeigen', 'Nothing shared in this room yet.': 'In diesem Raum wurde noch nichts geteilt.', 'Could not load earlier messages. Try again': 'Frühere Nachrichten konnten nicht geladen werden. Erneut versuchen', 'That is everything in this room.': 'Das ist alles in diesem Raum.', 'All photos in this room': 'Alle Fotos in diesem Raum', 'Photo': 'Foto', 'of': 'von',
   'Loading…': 'Wird geladen…',
+  'Expand the message box': 'Nachrichtenfeld vergrößern', 'Shrink the message box': 'Nachrichtenfeld verkleinern', 'Ctrl+Enter to send · Enter for a new line · Ctrl+B / I for bold and italic · :emoji: · /invite @user': 'Strg+Eingabe zum Senden · Eingabe für eine neue Zeile · Strg+B / I für fett und kursiv · :emoji: · /invite @user', 'Hide the room list': 'Raumliste ausblenden', 'Show the room list': 'Raumliste einblenden',
 }

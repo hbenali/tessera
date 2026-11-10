@@ -56,6 +56,9 @@
       e.preventDefault()
       ui.roomSearch = !ui.roomSearch
       if (ui.roomSearch) { chat.closeThread(); ui.media = false }
+    } else if ((e.ctrlKey || e.metaKey) && e.key === '\\' && chat.activeRoom) {
+      e.preventDefault()
+      ui.setListHidden(!ui.listHidden)
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault()
       palette = !palette
@@ -67,7 +70,7 @@
 
 {#if chat.offline}<div class="offline" role="status">You are offline. Messages you write wait here and are sent when you are back online.</div>{/if}
 {#if !chat.ready}<div class="syncbar" role="status" aria-label="Syncing"></div>{/if}
-<div class="shell" class:has-room={!!chat.activeRoom} class:with-details={(ui.details || ui.roomSearch || ui.media || !!chat.threadRoot) && !!chat.activeRoom}>
+<div class="shell" class:has-room={!!chat.activeRoom} class:nolist={ui.listHidden && !!chat.activeRoom} class:with-details={(ui.details || ui.roomSearch || ui.media || !!chat.threadRoot) && !!chat.activeRoom}>
   <Sidebar onsearch={() => (palette = true)} />
   <Timeline />
   {#if chat.activeRoom && chat.threadRoot}<ThreadPanel />{:else if ui.media && chat.activeRoom}<MediaPanel />{:else if ui.roomSearch && chat.activeRoom}<RoomSearch />{:else if ui.details && chat.activeRoom}<Details />{/if}
@@ -94,6 +97,12 @@
   .shell { height: 100%; display: grid; grid-template-rows: minmax(0, 1fr); overflow: hidden; grid-template-columns: 320px 1fr; } .shell.with-details { grid-template-columns: 320px 1fr 300px; }
   /* A tablet cannot hold the list, the chat and a side panel at once (the chat would be squeezed to a sliver): while a panel
      is open the list steps aside, and comes back when the panel is closed. */
+  /* The room list can be hidden on a wide window while a room is open; it is always there on a phone and with no room open. */
+  @media (min-width: 721px) {
+    .shell.nolist { grid-template-columns: minmax(0, 1fr); }
+    .shell.nolist.with-details { grid-template-columns: minmax(0, 1fr) 300px; }
+    .shell.nolist :global(aside.sidebar) { display: none; }
+  }
   @media (min-width: 721px) and (max-width: 1099px) {
     .shell.with-details { grid-template-columns: minmax(0, 1fr) 320px; }
     .shell.with-details :global(aside.sidebar) { display: none; }

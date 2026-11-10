@@ -24,4 +24,5 @@ export const fr: Record<string, string> = {
   'Colours': 'Couleurs', 'Like the app': 'Comme l’application', 'Light': 'Clair', 'Dark': 'Sombre',
   'Shared media': 'Médias partagés', 'Kind of media': 'Type de média', 'Photos': 'Photos', 'Links': 'Liens', 'Open image': 'Ouvrir l’image', 'Show in chat': 'Afficher dans la discussion', 'Nothing shared in this room yet.': 'Rien n’a encore été partagé dans ce salon.', 'Could not load earlier messages. Try again': 'Impossible de charger les messages précédents. Réessayer', 'That is everything in this room.': 'C’est tout ce qu’il y a dans ce salon.', 'All photos in this room': 'Toutes les photos du salon', 'Photo': 'Photo', 'of': 'sur',
   'Loading…': 'Chargement…',
+  'Expand the message box': 'Agrandir la zone de message', 'Shrink the message box': 'Réduire la zone de message', 'Ctrl+Enter to send · Enter for a new line · Ctrl+B / I for bold and italic · :emoji: · /invite @user': 'Ctrl+Entrée pour envoyer · Entrée pour un retour à la ligne · Ctrl+B / I pour le gras et l’italique · :emoji: · /invite @user', 'Hide the room list': 'Masquer la liste des salons', 'Show the room list': 'Afficher la liste des salons',
 }

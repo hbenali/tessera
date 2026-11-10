@@ -24,4 +24,5 @@ export const es: Record<string, string> = {
   'Colours': 'Colores', 'Like the app': 'Como la aplicación', 'Light': 'Claro', 'Dark': 'Oscuro',
   'Shared media': 'Contenido compartido', 'Kind of media': 'Tipo de contenido', 'Photos': 'Fotos', 'Links': 'Enlaces', 'Open image': 'Abrir imagen', 'Show in chat': 'Mostrar en el chat', 'Nothing shared in this room yet.': 'Aún no se ha compartido nada en esta sala.', 'Could not load earlier messages. Try again': 'No se pudieron cargar los mensajes anteriores. Reintentar', 'That is everything in this room.': 'Eso es todo lo que hay en esta sala.', 'All photos in this room': 'Todas las fotos de la sala', 'Photo': 'Foto', 'of': 'de',
   'Loading…': 'Cargando…',
+  'Expand the message box': 'Ampliar el cuadro de mensaje', 'Shrink the message box': 'Reducir el cuadro de mensaje', 'Ctrl+Enter to send · Enter for a new line · Ctrl+B / I for bold and italic · :emoji: · /invite @user': 'Ctrl+Intro para enviar · Intro para una nueva línea · Ctrl+B / I para negrita y cursiva · :emoji: · /invite @user', 'Hide the room list': 'Ocultar la lista de salas', 'Show the room list': 'Mostrar la lista de salas',
 }
