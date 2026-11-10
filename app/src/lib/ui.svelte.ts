@@ -53,6 +53,7 @@ const read = <T extends string>(key: string, ok: readonly T[], dflt: T): T => {
 }
 
 import { isLayout, type Layout } from './layout'
+import { DEFAULTS, parseListPrefs, readListPrefs, writeListPrefs, type ListPrefs } from './listprefs'
 
 class Ui {
   /** The layout of every room that has not picked its own. Per browser. */
@@ -95,6 +96,16 @@ class Ui {
     this.modal = 'new'
   }
   details = $state(false)
+  /** How the room list looks: width, rows, previews, sections, badges, icons, icon-only strip. Per browser. */
+  list = $state<ListPrefs>(readListPrefs())
+  setList(patch: Partial<ListPrefs>) {
+    this.list = parseListPrefs({ ...this.list, ...patch })
+    writeListPrefs(this.list)
+  }
+  resetList() {
+    this.list = { ...DEFAULTS }
+    writeListPrefs(this.list)
+  }
   /** The room list on the left is hidden while a room is open (wide windows only), to give the chat the whole width. Per browser. */
   listHidden = $state(((): boolean => { try { return localStorage.getItem('tessera.listHidden') === '1' } catch { return false } })())
   setListHidden(on: boolean) {

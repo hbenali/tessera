@@ -6,6 +6,8 @@
   import Avatar from './Avatar.svelte'
   import Icon from './Icon.svelte'
   import Skeleton from './Skeleton.svelte'
+  import ListDisplay from './ListDisplay.svelte'
+  import { AVATAR_PX, WIDTH, groupRooms, type SectionId } from './listprefs'
   import type { RoomItem } from './matrix.svelte'
   import type { ComponentProps } from 'svelte'
   let { onsearch }: { onsearch: () => void } = $props()
@@ -13,6 +15,38 @@
   type View = 'all' | 'unread' | 'mentions' | 'favourites' | 'people' | 'rooms'
   let view = $state<View>('all')
   let switcher = $state(false)
+  let display = $state(false)
+  // How the list looks (per browser). The icon-only strip and the sections need a wide window; a phone always gets the full list.
+  const L = $derived(ui.list)
+  let narrow = $state(false)
+  $effect(() => {
+    const q = matchMedia('(max-width: 720px)')
+    narrow = q.matches
+    const on = () => (narrow = q.matches)
+    q.addEventListener('change', on)
+    return () => q.removeEventListener('change', on)
+  })
+  const rail = $derived(L.rail && !narrow)
+  const AV = $derived(rail ? 38 : AVATAR_PX[L.avatar])
+  const toggleSection = (id: SectionId) => ui.setList({ folded: L.folded.includes(id) ? L.folded.filter((x) => x !== id) : [...L.folded, id] })
+  // Drag the right edge to resize; arrow keys move it by a step; a double click resets it.
+  let box: HTMLElement | undefined = $state()
+  function startResize(e: PointerEvent) {
+    if (!box) return
+    e.preventDefault()
+    const el = e.currentTarget as HTMLElement
+    el.setPointerCapture(e.pointerId)
+    const left = box.getBoundingClientRect().left
+    const move = (m: PointerEvent) => ui.setList({ width: m.clientX - left })
+    const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up) }
+    el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up)
+  }
+  function resizeKey(e: KeyboardEvent) {
+    const d = e.key === 'ArrowLeft' ? -WIDTH.step : e.key === 'ArrowRight' ? WIDTH.step : 0
+    if (d) { e.preventDefault(); ui.setList({ width: L.width + d }) }
+    else if (e.key === 'Home') { e.preventDefault(); ui.setList({ width: WIDTH.min }) }
+    else if (e.key === 'End') { e.preventDefault(); ui.setList({ width: WIDTH.max }) }
+  }
   let status = $state(false)
   const STATUSES = [['online', 'Online'], ['unavailable', 'Away'], ['offline', 'Invisible']] as const
   const untilLabel = (t: number) => new Date(t).toLocaleString([], new Date(t).toDateString() === new Date().toDateString() ? { hour: '2-digit', minute: '2-digit' } : { weekday: 'short', hour: '2-digit', minute: '2-digit' })
@@ -36,6 +70,7 @@
       .filter((r) => !chat.activeSpace || r.parents.includes(chat.activeSpace))
       .filter((r) => matches(view, r)),
   )
+  const sections = $derived(L.sections && !rail ? groupRooms(rooms, L.folded) : null)
   const matches = (v: View, r: RoomItem) =>
     v === 'unread' ? (r.unread > 0 && r.notifs !== 'mute') || r.markedUnread : v === 'mentions' ? r.highlight > 0 : v === 'favourites' ? r.favourite : v === 'people' ? r.isDM : v === 'rooms' ? !r.isDM : true
   const chats = $derived(chat.rooms.filter((r) => !r.isSpace && !r.invited))
@@ -56,7 +91,41 @@
 
 <!-- Escape, or a press anywhere else, closes the view and status menus -->
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape' && (switcher || status)) { switcher = false; status = false } }} onpointerdown={(e) => { if ((switcher || status) && !(e.target as Element)?.closest?.('.ws, .mewrap')) { switcher = false; status = false } }} />
-<aside class="sidebar" aria-label="Conversations">
+{#snippet roomRow(r: RoomItem)}
+      <div class="item">
+        <button class="row" class:rail aria-label={rail ? r.name : undefined} title={rail ? r.name : undefined} class:active={chat.activeRoom === r.id} class:unread={(r.unread > 0 && r.notifs !== 'mute') || r.markedUnread} class:muted={r.notifs === 'mute'} onclick={() => { if (ui.shared || ui.sharedFiles) { const text = ui.shared ?? ''; const files = ui.sharedFiles > 0; ui.shared = null; ui.sharedFiles = 0; chat.shareTo(r.id, text, files) } else chat.openRoom(r.id) }} oncontextmenu={(e) => { e.preventDefault(); ui.openRoomMenu(r.id, e.clientX, e.clientY, e.currentTarget) }}>
+          <Avatar name={r.name} size={AV} round={r.isDM} src={r.avatar} presence={r.dmUser ? (chat.presenceOf(r.dmUser) ?? 'offline') : undefined} />
+          {#if rail && (r.unread || r.markedUnread)}<span class="rbadge" class:hl={r.highlight > 0 && r.notifs !== 'mute'} class:quiet={r.notifs === 'mute'} aria-hidden="true">{r.unread && (L.badge === 'count' || (r.highlight > 0 && r.notifs !== 'mute')) ? (r.unread > 99 ? '99+' : r.unread) : ''}</span><span class="sr">{r.unread ? `${r.unread} unread` : 'Marked as unread'}</span>{/if}
+          <span class="body">
+            <span class="top">
+              <span class="name">{r.name}</span>
+              {#if L.icons}
+              {#if r.favourite}<span class="lock fav" title="Favourite"><Icon name="star" size={12} /><span class="sr">Favourite</span></span>{/if}
+              {#if r.encrypted}<span class="lock" title="End-to-end encrypted"><Icon name="lock" size={12} /></span>{/if}
+              {#if chat.isQuiet(r.id)}<span class="lock" title="Quiet reading"><Icon name="eyeOff" size={12} /><span class="sr">Quiet reading</span></span>{/if}
+            {#if r.notifs === 'mute'}<span class="lock" title="Notifications are muted"><Icon name="bellOff" size={12} /><span class="sr">Muted</span></span>{:else if r.notifs === 'mentions'}<span class="lock" title="Only mentions notify you"><Icon name="at" size={12} /><span class="sr">Mentions only</span></span>{/if}
+              {/if}
+              <span class="time">{r.lastTs ? shortTime(r.lastTs) : ''}</span>
+              {#if !L.previews}{@render badges(r)}{/if}
+            </span>
+            {#if L.previews}
+            <span class="bottom">
+              {#if r.typing}<span class="preview typing" aria-live="polite">typing<i></i><i></i><i></i></span>{:else}{#if r.draft && chat.activeRoom !== r.id}<span class="preview"><span class="draft">{t("Draft:")}</span> {r.draft}</span>{:else}<span class="preview">{#if PREVIEW_ICON[r.previewKind]}<Icon name={PREVIEW_ICON[r.previewKind]!} size={13} />{/if}{r.preview || (r.previewLoading ? '' : r.topic ? r.topic : t('No messages yet'))}</span>{/if}{/if}
+              {@render badges(r)}
+            </span>
+            {/if}
+          </span>
+        </button>
+        <button class="more icon-btn" aria-label="Options for {r.name}" aria-haspopup="menu" onclick={(e) => { const b = e.currentTarget.getBoundingClientRect(); ui.openRoomMenu(r.id, b.left, b.bottom + 4, e.currentTarget) }}><Icon name="more" size={16} /></button>
+      </div>
+{/snippet}
+
+{#snippet badges(r: RoomItem)}
+  {#if r.markedUnread && !r.unread}<span class="badge dotbadge" title="Marked as unread"><span class="sr">Marked as unread</span></span>{/if}
+  {#if r.unread}{@const hl = r.highlight > 0 && r.notifs !== 'mute'}<span class="badge" class:hl class:dot={L.badge === 'dot' && !hl} class:quiet={r.notifs === 'mute'}>{#if L.badge === 'dot' && !hl}<span class="sr">{r.unread} unread</span>{:else}{r.unread}{/if}</span>{/if}
+{/snippet}
+
+<aside class="sidebar" class:rail aria-label="Conversations" bind:this={box} data-rows={L.rows}>
   <header>
     <div class="ws">
       <button class="switch" onclick={() => (switcher = !switcher)} aria-expanded={switcher} aria-haspopup="listbox">
@@ -97,7 +166,11 @@
         </div>
       {/if}
     </div>
-    <button class="icon-btn" onclick={() => ui.open('room')} aria-label="New room or message" title="New room or message"><Icon name="plus" /></button>
+    <span class="hbtns">
+      <button class="icon-btn" class:on={display} onclick={() => (display = !display)} aria-label={t('List display')} aria-haspopup="dialog" aria-expanded={display} title={t('List display')}><Icon name="sliders" /></button>
+      <button class="icon-btn" onclick={() => ui.open('room')} aria-label="New room or message" title="New room or message"><Icon name="plus" /></button>
+    </span>
+    {#if display}<ListDisplay onclose={() => (display = false)} />{/if}
   </header>
 
   <button class="search" onclick={onsearch}><Icon name="search" size={15} /><span>{t("Search")}</span><kbd class="mono">Ctrl K</kbd></button>
@@ -106,7 +179,7 @@
   {#if ui.shared || ui.sharedFiles}
     <div class="share" role="status"><b>Share to…</b><span class="what">{(ui.shared ?? '').slice(0, 120)}{#if ui.sharedFiles}{ui.shared ? ' · ' : ''}{ui.sharedFiles} {ui.sharedFiles === 1 ? 'file' : 'files'}{/if}</span><span class="hint">Pick a conversation below.</span><button class="btn ghost sm" onclick={() => { ui.shared = null; ui.sharedFiles = 0; clearShared(); try { sessionStorage.removeItem('tessera.share'); sessionStorage.removeItem('tessera.share.files') } catch { /* nothing */ } }}>Cancel</button></div>
   {/if}
-  <nav class="list" aria-label="Rooms">
+  <nav class="list" aria-label="Rooms" data-rows={L.rows}>
     {#each invites as r (r.id)}
       <div class="invite">
         <Avatar name={r.name} size={36} src={r.avatar} />
@@ -115,29 +188,17 @@
         <button class="icon-btn" onclick={() => chat.declineInvite(r.id)} aria-label="Decline invitation"><Icon name="x" size={16} /></button>
       </div>
     {/each}
-    {#each rooms as r (r.id)}
-      <div class="item">
-        <button class="row" class:active={chat.activeRoom === r.id} class:unread={(r.unread > 0 && r.notifs !== 'mute') || r.markedUnread} class:muted={r.notifs === 'mute'} onclick={() => { if (ui.shared || ui.sharedFiles) { const text = ui.shared ?? ''; const files = ui.sharedFiles > 0; ui.shared = null; ui.sharedFiles = 0; chat.shareTo(r.id, text, files) } else chat.openRoom(r.id) }} oncontextmenu={(e) => { e.preventDefault(); ui.openRoomMenu(r.id, e.clientX, e.clientY, e.currentTarget) }}>
-          <Avatar name={r.name} size={38} round={r.isDM} src={r.avatar} presence={r.dmUser ? (chat.presenceOf(r.dmUser) ?? 'offline') : undefined} />
-          <span class="body">
-            <span class="top">
-              <span class="name">{r.name}</span>
-              {#if r.favourite}<span class="lock fav" title="Favourite"><Icon name="star" size={12} /><span class="sr">Favourite</span></span>{/if}
-              {#if r.encrypted}<span class="lock" title="End-to-end encrypted"><Icon name="lock" size={12} /></span>{/if}
-              {#if chat.isQuiet(r.id)}<span class="lock" title="Quiet reading"><Icon name="eyeOff" size={12} /><span class="sr">Quiet reading</span></span>{/if}
-            {#if r.notifs === 'mute'}<span class="lock" title="Notifications are muted"><Icon name="bellOff" size={12} /><span class="sr">Muted</span></span>{:else if r.notifs === 'mentions'}<span class="lock" title="Only mentions notify you"><Icon name="at" size={12} /><span class="sr">Mentions only</span></span>{/if}
-              <span class="time">{r.lastTs ? shortTime(r.lastTs) : ''}</span>
-            </span>
-            <span class="bottom">
-              {#if r.typing}<span class="preview typing" aria-live="polite">typing<i></i><i></i><i></i></span>{:else}{#if r.draft && chat.activeRoom !== r.id}<span class="preview"><span class="draft">{t("Draft:")}</span> {r.draft}</span>{:else}<span class="preview">{#if PREVIEW_ICON[r.previewKind]}<Icon name={PREVIEW_ICON[r.previewKind]!} size={13} />{/if}{r.preview || (r.previewLoading ? '' : r.topic ? r.topic : t('No messages yet'))}</span>{/if}{/if}
-              {#if r.markedUnread && !r.unread}<span class="badge dotbadge" title="Marked as unread"><span class="sr">Marked as unread</span></span>{/if}
-              {#if r.unread}<span class="badge" class:hl={r.highlight > 0 && r.notifs !== 'mute'} class:quiet={r.notifs === 'mute'}>{r.unread}</span>{/if}
-            </span>
-          </span>
+    {#if sections}
+      {#each sections as sec (sec.id)}
+        <button class="sechead" aria-expanded={!sec.folded} onclick={() => toggleSection(sec.id)}>
+          <Icon name="chevron" size={12} /><span class="sname">{t(sec.label)}</span>
+          {#if sec.folded && sec.unread}<span class="badge sn">{sec.unread}</span>{/if}<span class="n">{sec.items.length}</span>
         </button>
-        <button class="more icon-btn" aria-label="Options for {r.name}" aria-haspopup="menu" onclick={(e) => { const b = e.currentTarget.getBoundingClientRect(); ui.openRoomMenu(r.id, b.left, b.bottom + 4, e.currentTarget) }}><Icon name="more" size={16} /></button>
-      </div>
-    {/each}
+        {#if !sec.folded}{#each sec.items as r (r.id)}{@render roomRow(r)}{/each}{/if}
+      {/each}
+    {:else}
+      {#each rooms as r (r.id)}{@render roomRow(r)}{/each}
+    {/if}
     {#if !chat.ready && !chat.rooms.length}
       <Skeleton variant="list" />
     {:else if !rooms.length && !invites.length}
@@ -146,6 +207,7 @@
   </nav>
 
   <footer>
+    {#if rail}<button class="icon-btn full" onclick={() => ui.setList({ rail: false })} aria-label={t('Show the full room list')} title={t('Show the full room list')}><Icon name="sidebar" /></button>{/if}
     <div class="mewrap">
       <button class="me" title="Change your status" onclick={() => (status = !status)} aria-expanded={status} aria-haspopup="menu">
         <Avatar name={chat.me.name || chat.userId.replace('@', '')} size={28} round src={chat.me.avatar} presence={chat.myStatus} /><span>{chat.me.name || chat.userId}</span>{#if chat.dndActive}<span class="dnd" title={chat.manualDnd ? 'Do not disturb is on' : 'Quiet hours are on'}><Icon name="moon" size={14} /><span class="sr">{chat.manualDnd ? 'Do not disturb is on' : 'Quiet hours are on'}</span></span>{/if}
@@ -180,10 +242,33 @@
     <button class="icon-btn" onclick={() => ui.open('join')} aria-label="Join a room by address" title="Join a room"><Icon name="hash" /></button>
     <button class="icon-btn" onclick={() => (ui.modal = 'settings')} aria-label="Settings" title="Settings"><Icon name="sliders" /></button>
   </footer>
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+  {#if !rail}<div class="resize" role="separator" aria-orientation="vertical" aria-label={t('Resize the room list')} aria-valuenow={L.width} aria-valuemin={WIDTH.min} aria-valuemax={WIDTH.max} tabindex="0" onpointerdown={startResize} onkeydown={resizeKey} ondblclick={() => ui.setList({ width: WIDTH.dflt })}></div>{/if}
 </aside>
 
 <style>
-  aside { display: flex; flex-direction: column; min-width: 0; height: 100%; background: var(--panel); border-right: 1px solid var(--line); }
+  aside { position: relative; display: flex; flex-direction: column; min-width: 0; height: 100%; background: var(--panel); border-right: 1px solid var(--line); }
+  .hbtns { display: inline-flex; flex: none; } header { position: relative; } .icon-btn.on { color: var(--accent); }
+  /* Row density */
+  .list[data-rows='compact'] .row { padding: 4px 8px; } .list[data-rows='large'] .row { padding: 12px 10px; }
+  .list[data-rows='compact'] .body { gap: 0; }
+  .badge.dot { min-width: 9px; width: 9px; height: 9px; padding: 0; line-height: 9px; font-size: 0; }
+  /* Section headings */
+  .sechead { display: flex; align-items: center; gap: 6px; width: 100%; padding: 10px 8px 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: left; } .sechead:hover { color: var(--text); }
+  .sechead :global(svg) { transition: transform .12s; } .sechead[aria-expanded='false'] :global(svg) { transform: rotate(-90deg); } .sname { flex: 1; } .sn { text-transform: none; letter-spacing: 0; } @media (prefers-reduced-motion: reduce) { .sechead :global(svg) { transition: none; } }
+  /* The drag handle on the right edge */
+  .resize { position: absolute; top: 0; bottom: 0; right: -3px; width: 7px; cursor: col-resize; z-index: 3; touch-action: none; } .resize:hover, .resize:focus-visible, .resize:active { background: color-mix(in srgb, var(--accent) 45%, transparent); outline: none; } @media (max-width: 720px) { .resize { display: none; } }
+  /* The icon-only strip (wide windows only: a phone always shows the full list) */
+  .rbadge { position: absolute; top: 1px; right: 3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--muted); color: var(--bg); font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; box-shadow: 0 0 0 2px var(--panel); box-sizing: border-box; } .rbadge.hl { background: var(--accent); color: var(--accent-ink); } .rbadge.quiet { background: var(--tile); color: var(--muted); } .rbadge:empty { min-width: 10px; width: 10px; height: 10px; padding: 0; top: 4px; right: 6px; }
+  .full { display: none; }
+  @media (min-width: 721px) {
+    .rail header { justify-content: center; padding: 12px 4px 8px; } .rail .hbtns, .rail .wsname, .rail .switch > :global(svg:last-child) { display: none; } .rail .switch { padding: 4px; }
+    .rail .search { margin: 0 8px 8px; justify-content: center; padding: 8px 0; } .rail .search span, .rail .search kbd { display: none; }
+    .rail .list { padding: 0 4px 8px; } .rail .row { position: relative; justify-content: center; padding: 6px 0; gap: 0; } .rail .body, .rail .more { display: none; }
+    .rail .invite .meta, .rail .invite .btn, .rail .invite .icon-btn { display: none; } .rail .invite { justify-content: center; padding: 6px 0; }
+    .rail footer { flex-direction: column; align-items: center; padding: 8px 4px; } .rail .full { display: inline-grid; } .rail .me { justify-content: center; padding: 4px; } .rail .me span, .rail .dnd { display: none; }
+    .rail .sechead { display: none; }
+  }
   header { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 8px; }
   .ws { position: relative; min-width: 0; }
   .switch { display: flex; align-items: center; gap: 9px; padding: 4px 8px 4px 4px; border-radius: 10px; max-width: 100%; } .switch:hover, .switch[aria-expanded=true] { background: var(--tile); }
