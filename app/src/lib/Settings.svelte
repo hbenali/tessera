@@ -17,6 +17,8 @@
   import { applySettings, currentSettings } from './settingsio'
   import { MAX_BYTES, describe, fileName, parseSettingsFile, serialize, type Settings } from './settingsfile'
   import { saveBlob } from './export'
+  import { pushDevices } from './pushdevices'
+  import { PUSH_APP_ID, currentSubscription } from './push'
   import { installHelp, isStandalone } from './installhelp'
   const help = installHelp(navigator.userAgent, isStandalone(), navigator.maxTouchPoints > 1)
   import { loadPushConfig, pushSupported, type PushConfig } from './push'
@@ -48,6 +50,16 @@
     backupNote = t('Settings applied.')
     incoming = null
   }
+  // The browsers that have background notifications on for this account, so a device that stopped receiving can be told apart.
+  let mineKey = $state<string | null>(null)
+  let removing = $state<string | null>(null)
+  let removeErr = $state('')
+  $effect(() => { chat.pushers; chat.pushOn; currentSubscription().then((s) => (mineKey = s?.p256dh ?? null), () => (mineKey = null)) })
+  async function removeDevice(id: string) {
+    removeErr = ''
+    try { await chat.removePusher(id) } catch (e) { removeErr = e instanceof Error ? e.message : t('That did not work') }
+    removing = null
+  }
   let tab = $state<'look' | 'security' | 'notify' | 'privacy' | 'sessions' | 'account' | 'about'>('security')
   let perm = $state(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
   async function enableNotifications() {
@@ -55,6 +67,7 @@
   }
   // Background (web push) notifications need a push gateway named in this deployment's config.json.
   let pushCfg = $state<PushConfig | null | undefined>(undefined) // undefined: still looking
+  const devices = $derived(pushDevices(chat.pushers, PUSH_APP_ID, mineKey, pushCfg?.gateway ?? null))
   let pushBusy = $state(false)
   let pushErr = $state('')
   let testSent = $state(false)
@@ -279,6 +292,26 @@
       {#if perm === 'denied'}<p class="hint">Notifications are blocked in your browser settings for this site.</p>{/if}
       {#if testSent}<p class="hint" role="status">Sent. If nothing appeared, check your system's notification settings.</p>{/if}
       {#if pushErr}<div class="err" role="alert">{pushErr}</div>{/if}
+      <h3 class="label">{t("Devices with background notifications on")}</h3>
+      {#if devices.length}
+        <ul class="devs" aria-label={t("Devices with background notifications on")}>
+          {#each devices as d (d.id)}
+            <li>
+              <span class="dn"><b>{d.name}</b>{#if d.mine}<span class="me">{t("This browser")}</span>{/if}<small>{d.service}</small>
+                {#if d.otherGateway}<small class="warn">{t("Set up for a different gateway, so it will not receive from this one. Turn it on again on that device.")}</small>{/if}</span>
+              {#if !d.mine}
+                {#if removing === d.id}<span class="ask"><button class="btn danger sm" onclick={() => removeDevice(d.id)}>{t("Remove")}</button><button class="btn ghost sm" onclick={() => (removing = null)}>{t("Cancel")}</button></span>
+                {:else}<button class="btn ghost sm" onclick={() => (removing = d.id)} aria-label="{t('Remove')} {d.name}">{t("Remove")}</button>{/if}
+              {/if}
+            </li>
+          {/each}
+        </ul>
+        <p class="hint">{t("Each browser or phone that turned this on is listed once. Removing one only stops it getting pushes; it can turn the feature on again.")}</p>
+      {:else}
+        <p class="hint">{t("No device has background notifications on for this account yet.")}</p>
+      {/if}
+      {#if !chat.pushOn && devices.length}<p class="hint">{t("This browser is not on the list: turn it on above if it should get notifications.")}</p>{/if}
+      {#if removeErr}<div class="err" role="alert">{removeErr}</div>{/if}
     {/if}
     <h3 class="label">App</h3>
     {#if install.canInstall}
@@ -366,4 +399,8 @@
   .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; } .actions .btn { display: inline-flex; align-items: center; gap: 6px; }
   .incoming { margin-top: 12px; padding: 12px; border-radius: 10px; background: var(--tile); border: 1px solid var(--line); } .incoming p { margin: 0 0 6px; }
   .incoming ul { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; } .incoming li { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; } .incoming li span { color: var(--muted); } .incoming li b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+  .devs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; } .devs li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--tile); }
+  .dn { display: grid; gap: 1px; min-width: 0; } .dn b { font-weight: 600; overflow-wrap: anywhere; } .dn small { color: var(--muted); font-size: 12px; } .dn .warn { color: var(--danger); }
+  .me { margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); font-size: 11px; font-weight: 600; }
+  .ask { display: inline-flex; gap: 6px; } .btn.sm { padding: 4px 10px; font-size: 12px; } .btn.danger { background: var(--danger); color: var(--bg); }
 </style>

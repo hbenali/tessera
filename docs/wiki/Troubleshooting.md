@@ -22,3 +22,4 @@ Fixed in recent builds, which show an offline bar and queue outgoing messages. U
 ## Sign-in fails against my homeserver
 
 Check that the homeserver allows the origin Tessera is served from (CORS) and that the URL in the Homeserver field is reachable from the browser.
+- **One device stopped getting background notifications.** Open Settings, Notifications, **Devices with background notifications on** on that device: it should be listed with the tag "This browser". If it is not, turn the feature on again there. If the homeserver's gateway log shows pushes being accepted for it, the problem is in the device: the browser must be running (on Linux, Chrome keeps receiving pushes only while it runs), the Tessera tab must not be in front and focused (the notification is skipped then, on purpose), and the system's Do Not Disturb must be off.

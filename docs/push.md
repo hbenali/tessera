@@ -69,6 +69,10 @@ Settings, Notifications, **When Tessera is closed**, Turn on. The browser asks f
 2. registers a Matrix pusher (`app_id` `ovh.hbenali.tessera.web`, `format: event_id_only`, `events_only: true`) so the homeserver sends events to the gateway, following your push rules and per-room mute settings,
 3. keeps your session in this browser's IndexedDB so the worker can read the event. **This is the cost:** the background worker holds your access token while the feature is on. It is removed when you turn it off or sign out.
 
+## Which devices get notifications
+
+Each browser or phone has its own registration (a Matrix pusher) on your account, so turning it on in one never turns it off in another. Settings, Notifications, **Devices with background notifications on** lists them: this browser first (tagged "This browser"), then the others with the push service each uses (Google, Mozilla, Apple or Microsoft; the private address is never shown). A device set up for a different gateway than this site's is flagged, because it will not receive from this one. You can remove another device from the list; it can turn the feature on again. Each browser names its own registration after itself (for example "Tessera (Chrome on Linux)") the next time it opens Settings.
+
 ## Quick actions
 
 Notifications for readable messages carry a **👍 Like** button, which sends a reaction from the worker without opening the app. It is not offered for encrypted rooms. Support varies by browser and platform: Chromium-based browsers show action buttons; others may ignore them and just open the app.

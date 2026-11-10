@@ -29,6 +29,7 @@ import { security } from './security.svelte'
 import { discover } from './discover'
 import { setOriginalLoader, setThumbLoader } from './media'
 import { thisDeviceName } from './devicename'
+import type { Pusher } from './pushdevices'
 import { decryptAttachment, encryptAttachment, isEncryptedFile, type EncryptedFile } from './attachments'
 import { beep, unlockAudio } from './sound'
 import { format, parse, type Route } from './route'
@@ -1641,15 +1642,28 @@ class Chat {
     this.presence[this.userId] = p
   }
 
+  /** Every pusher on the account (this browser's and the other devices' that turned background notifications on). */
+  pushers = $state<Pusher[]>([])
+
   /** Is a pusher registered on the homeserver for this browser's subscription? Also keeps the service worker's session fresh. */
   async refreshPush() {
     try {
       const sub = await currentSubscription()
       const { pushers } = await this.client!.getPushers()
+      this.pushers = pushers as unknown as Pusher[]
       this.pushOn = !!sub && pushers.some((p) => p.app_id === PUSH_APP_ID && p.pushkey === sub.p256dh)
       if (this.pushOn) {
         await this.storeSession()
         this.syncWorkerDnd()
+        // Registrations made before devices were named all say "Tessera in a browser": give this browser's a name that tells it apart.
+        const mine = pushers.find((p) => p.app_id === PUSH_APP_ID && p.pushkey === sub!.p256dh)
+        const name = thisDeviceName()
+        if (mine && mine.device_display_name !== name) {
+          await this.client!.setPusher({ ...mine, device_display_name: name, append: true } as never).then(
+            () => { this.pushers = this.pushers.map((p) => (p === (mine as unknown) ? { ...p, device_display_name: name } : p)) },
+            () => { /* best effort: the list just keeps the old name */ },
+          )
+        }
       }
     } catch {
       this.pushOn = false
@@ -1669,7 +1683,7 @@ class Chat {
       kind: 'http',
       app_id: PUSH_APP_ID,
       app_display_name: 'Tessera',
-      device_display_name: 'Tessera in a browser',
+      device_display_name: thisDeviceName(),
       pushkey: sub.p256dh,
       lang: navigator.language || 'en',
       // Only the event id travels through the gateway; the service worker fetches the text itself.
@@ -1678,6 +1692,13 @@ class Chat {
     } as never)
     this.pushOn = true
     this.syncWorkerDnd()
+    void this.refreshPush()
+  }
+
+  /** Take another device off the list: it stops getting pushes until it turns background notifications on again. */
+  async removePusher(pushkey: string) {
+    await this.client!.setPusher({ kind: null, app_id: PUSH_APP_ID, pushkey } as never)
+    await this.refreshPush()
   }
 
   async disablePush() {
@@ -1687,6 +1708,7 @@ class Chat {
     await storePushSession(null).catch(() => {})
     await storeWorkerDnd(null).catch(() => {})
     this.pushOn = false
+    void this.refreshPush()
   }
 
   /** Display name for a user id, if the room or the client knows it. */

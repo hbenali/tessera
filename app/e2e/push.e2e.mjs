@@ -105,6 +105,51 @@ describe('web push and PWA', () => {
     await page.getByText(/On: you will be notified/).waitFor({ timeout: 15_000 })
   })
 
+  it('lists the devices with background notifications on, tells this browser apart, and removes another', async () => {
+    const more = (key, name, endpoint, url) => api(data.alice.token, 'POST', '/_matrix/client/v3/pushers/set', {
+      kind: 'http', app_id: 'ovh.hbenali.tessera.web', app_display_name: 'Tessera', device_display_name: name, pushkey: key, lang: 'en', append: true,
+      data: { url, format: 'event_id_only', endpoint, auth: 'AAAAAAAAAAAAAAAAAAAAAA', events_only: true },
+    })
+    const k = (c) => c.repeat(87)
+    // A registration from before devices were named says "Tessera in a browser"; opening Settings renames this browser's.
+    const mine = (await pushers())[0]
+    assert.match(mine.device_display_name, /^Tessera \(.+\)$/, 'a new registration is named after the browser')
+    await api(data.alice.token, 'POST', '/_matrix/client/v3/pushers/set', { ...mine, device_display_name: 'Tessera in a browser', append: true })
+    assert.equal((await pushers())[0].device_display_name, 'Tessera in a browser')
+    await more(k('F'), 'Tessera (Firefox on Android)', 'https://updates.push.services.mozilla.com/wpush/v2/secretpart?token=hunter2', gatewayUrl())
+    await more(k('G'), 'Tessera (Chrome on Windows)', 'https://fcm.googleapis.com/fcm/send/x', 'http://172.17.0.1:1/_matrix/push/v1/notify')
+    // Another app's pusher on the same account is not Tessera's and must not be listed.
+    await api(data.alice.token, 'POST', '/_matrix/client/v3/pushers/set', { kind: 'http', app_id: 'im.vector.app', app_display_name: 'Element', device_display_name: 'Element on a phone', pushkey: 'element-key', lang: 'en', append: true, data: { url: 'https://matrix.example/_matrix/push/v1/notify', format: 'event_id_only' } })
+    await page.keyboard.press('Escape')
+    await notifySettings()
+    const list = page.getByRole('list', { name: 'Devices with background notifications on' })
+    await list.waitFor()
+    const items = list.getByRole('listitem')
+    await page.waitForFunction(() => document.querySelectorAll('ul.devs li').length === 3, null, { timeout: 15_000 })
+    assert.equal(await items.count(), 3)
+    for (let i = 0; i < 40 && (await pushers()).find((p) => p.pushkey === mine.pushkey).device_display_name === 'Tessera in a browser'; i++) await new Promise((r) => setTimeout(r, 150))
+    assert.match((await pushers()).find((p) => p.pushkey === mine.pushkey).device_display_name, /^Tessera \(.+\)$/, 'this browser renamed its own old registration')
+    assert.match(await items.first().innerText(), /This browser/, 'this browser comes first')
+    assert.equal(await items.first().getByRole('button', { name: /Remove/ }).count(), 0, 'this browser cannot be removed from the list, only turned off above')
+    const text = await list.innerText()
+    assert.match(text, /Tessera \(Firefox on Android\)[\s\S]*Mozilla \(Firefox\)/)
+    assert.match(text, /Tessera \(Chrome on Windows\)[\s\S]*Google \(Chrome, Edge, Android\)/)
+    assert.match(text, /different gateway/, 'a device set up for another gateway is flagged')
+    assert.doesNotMatch(text, /Element/, 'another app is not listed')
+    assert.doesNotMatch(text, /hunter2|secretpart/, 'the push address is never shown, only its service')
+    // Removing another device asks first, then takes it off the account but leaves this browser's.
+    await list.getByRole('button', { name: /Remove Tessera \(Firefox on Android\)/ }).click()
+    assert.equal((await pushers()).length >= 4, true, 'nothing is removed by the first click')
+    await list.getByRole('button', { name: 'Remove', exact: true }).click()
+    await page.waitForFunction(() => document.querySelectorAll('ul.devs li').length === 2, null, { timeout: 15_000 })
+    const left = (await pushers()).map((p) => p.pushkey)
+    assert.ok(!left.includes(k('F')), 'the removed device is gone from the homeserver')
+    assert.ok(left.includes(k('G')) && left.length >= 3, 'the others stay')
+    assert.match(await items.first().innerText(), /This browser/)
+    // Tidy up the extra pushers so later tests see only this browser's.
+    for (const key of [k('G'), 'element-key']) await api(data.alice.token, 'POST', '/_matrix/client/v3/pushers/set', { kind: null, app_id: key === 'element-key' ? 'im.vector.app' : 'ovh.hbenali.tessera.web', pushkey: key })
+  })
+
   it('stores the session for the worker only while push is on', async () => {
     const has = () => page.evaluate(() => new Promise((res) => { const r = indexedDB.open('tessera-push', 1); r.onsuccess = () => { const g = r.result.transaction('kv').objectStore('kv').get('session'); g.onsuccess = () => res(!!g.result?.accessToken) } }))
     assert.equal(await has(), true)
