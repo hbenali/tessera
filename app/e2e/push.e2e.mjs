@@ -55,7 +55,8 @@ describe('web push and PWA', () => {
       }
     })
     page = await ctx.newPage()
-    if (configured) await ctx.route('**/config.json', (r) => r.fulfill({ json: { push: { gateway: gatewayUrl(), vapidPublicKey: VAPID } } }))
+    // Always supplied here, so the test does not depend on what the deployment's own config.json holds.
+    await ctx.route('**/config.json', (r) => r.fulfill({ json: { push: configured ? { gateway: gatewayUrl(), vapidPublicKey: VAPID } : { gateway: '', vapidPublicKey: '' } } }))
     await signIn(page, server.url, data.alice)
     await page.evaluate(() => navigator.serviceWorker.ready)
   }

@@ -1,6 +1,6 @@
 {
   "push": {
-    "gateway": "",
-    "vapidPublicKey": ""
+    "gateway": "https://push.hbenali.ovh/_matrix/push/v1/notify",
+    "vapidPublicKey": "BO4QGRpGRhkoOMZSZwWB1yUw7vUI7fd3UMWjhtLbTduLHPE4ESifJ4SAyxwMRHz3k-uvDC3qVvFyZQM5cw-qHfI"
   }
 }
