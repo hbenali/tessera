@@ -6,3 +6,6 @@ contact_links:
   - name: Documentation (wiki)
     url: https://github.com/hbenali/tessera/wiki
     about: Usage, configuration, deployment and troubleshooting.
+  - name: Set up background notifications
+    url: https://github.com/hbenali/tessera/blob/main/docs/push.md
+    about: How to run a Web Push gateway and turn notifications on while Tessera is closed.

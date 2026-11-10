@@ -2,6 +2,10 @@ name: Feature request
 description: Suggest an improvement or a new feature
 labels: [enhancement]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Tessera is a personal project, so it helps to say what problem you want solved rather than only the feature. Please look through the [open issues](https://github.com/hbenali/tessera/issues) and the README's list of what works first.
   - type: dropdown
     id: kind
     attributes:
@@ -9,8 +13,10 @@ body:
       options:
         - New feature
         - Improvement to an existing feature
-        - Security / hardening
-        - Deployment (Docker, packaging)
+        - Appearance, layout or accessibility
+        - Notifications
+        - Security or privacy
+        - Deployment (Docker, hosting)
         - Documentation
         - Other
     validations:
@@ -19,16 +25,26 @@ body:
     id: problem
     attributes:
       label: What problem are you trying to solve?
-      description: The situation and what is hard or impossible today.
+      description: The situation, and what is hard or impossible today.
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
       label: What would you like to happen?
-      description: Behaviour, option names, or a sketch of the UI, if you have an idea.
+      description: The behaviour, names of options, or a sketch of the screen, if you have an idea.
   - type: textarea
     id: alternatives
     attributes:
       label: Alternatives and workarounds
-      description: What you do today, and whether an existing option nearly covers it.
+      description: What you do today, how other Matrix clients handle it, and whether an existing option nearly covers it.
+  - type: dropdown
+    id: device
+    attributes:
+      label: Where would you use it?
+      multiple: true
+      options:
+        - Desktop browser
+        - Phone or tablet browser
+        - Installed app
+        - Self-hosted deployment

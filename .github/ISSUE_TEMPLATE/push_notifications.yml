@@ -1,0 +1,75 @@
+name: Background notifications
+description: Notifications do not arrive while Tessera is closed, or the setup fails
+labels: [push-notifications]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Background notifications need a Web Push gateway (Sygnal) that you run, and a deployment that points to it. Please read [the setup guide](https://github.com/hbenali/tessera/blob/main/docs/push.md) and the [Troubleshooting page](https://github.com/hbenali/tessera/wiki/Troubleshooting) first.
+
+        Notifications that fail **while a Tessera tab is open** are a normal bug: use the Bug report form.
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Where does it go wrong?
+      options:
+        - Settings says the gateway is not set up
+        - Turning it on fails or the browser asks for nothing
+        - It turns on, but nothing arrives when Tessera is closed
+        - Notifications arrive, but the text, sender or picture is wrong
+        - The Like button does nothing
+        - Tapping a notification does not open the room
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Browser and system
+      description: For example "Chrome 130 on Fedora 44" or "Firefox on Android 15". Push works differently across browsers.
+    validations:
+      required: true
+  - type: input
+    id: gateway
+    attributes:
+      label: Gateway and version
+      description: For example "Sygnal 0.17 from element-hq/sygnal, behind nginx". Do not paste your private VAPID key.
+    validations:
+      required: true
+  - type: input
+    id: homeserver
+    attributes:
+      label: Homeserver software and version
+      description: For example "Synapse 1.118".
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: The push part of config.json
+      description: Paste the `push` block with the gateway address. The `vapidPublicKey` is public, but you may shorten it. **Never paste the private key.**
+      render: json
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: The steps, what you expected, and whether it ever worked.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: The gateway's log around the time of a message, your homeserver's log line for the push, and the browser console (F12). Remove private data.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: The gateway is served over HTTPS and my homeserver can reach it (and `ip_range_whitelist` allows it if it is on a private address).
+          required: true
+        - label: The push service of my browser is listed in the gateway's `allowed_endpoints`.
+          required: true
+        - label: I removed private keys, tokens and private data from everything above.
+          required: true

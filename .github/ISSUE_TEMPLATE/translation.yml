@@ -1,0 +1,37 @@
+name: Translation fix
+description: A wrong or awkward translation, or a language you would like to add
+labels: [translation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tessera is translated into French, Spanish and German. The English text is the key, and a string without a translation simply shows in English. The files are `app/src/lib/locales/*.ts`, so a pull request is welcome too.
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      options:
+        - Français
+        - Español
+        - Deutsch
+        - A new language
+    validations:
+      required: true
+  - type: input
+    id: english
+    attributes:
+      label: The English text
+      description: Exactly as it appears in Tessera, or leave empty if you are adding a language.
+  - type: input
+    id: current
+    attributes:
+      label: What it says now
+  - type: input
+    id: better
+    attributes:
+      label: What it should say
+  - type: textarea
+    id: why
+    attributes:
+      label: Where you saw it, and why it is better
+      description: The screen it is on. A short reason helps, for example "too formal" or "means something else".

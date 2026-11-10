@@ -1,73 +1,106 @@
 name: Bug report
-description: Something doesn't work as documented
+description: Something does not work as documented
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting. Please check the [Troubleshooting page](https://github.com/hbenali/tessera/wiki/Troubleshooting) first.
+        Thanks for reporting. Please check the [Troubleshooting page](https://github.com/hbenali/tessera/wiki/Troubleshooting) and the [open issues](https://github.com/hbenali/tessera/issues) first.
 
         **Security problem?** Don't file it here, see [SECURITY.md](https://github.com/hbenali/tessera/security/policy).
-  - type: input
-    id: version
+
+        **Background notifications not arriving?** Use the "Background notifications" form instead.
+  - type: textarea
+    id: details
     attributes:
-      label: tessera version
-      description: Output of `tessera --version`, or the Docker image tag.
-      placeholder: "1.2.3"
+      label: Tessera details
+      description: |
+        In Tessera open **Settings, About, Copy details for a bug report** and paste it here. It holds the version, build, homeserver address and Matrix version, your user id and device id, and your browser. It never holds your password, access token or keys.
+        You can delete the `User` line if you prefer not to share it.
+      render: text
+      placeholder: |
+        Tessera 1.2.0 (abc1234, built ...)
+        matrix-js-sdk ...
+        Homeserver https://matrix.example.org, Matrix spec ...
     validations:
       required: true
   - type: dropdown
-    id: install
+    id: where
     attributes:
-      label: How do you run it?
+      label: Where do you use it?
       options:
-        - Package manager (npm, go install, brew, ...)
-        - Docker / Compose
-        - Kubernetes
-        - Standalone binary
-        - From source
+        - tessera.hbenali.ovh
+        - Installed app (from tessera.hbenali.ovh)
+        - Self-hosted with Docker
+        - Self-hosted static files (the release archive, GitHub Pages)
+        - Built from source / development server
         - Other
     validations:
       required: true
   - type: input
     id: platform
     attributes:
-      label: OS and Node version
-      description: For example "Fedora 44, Node 22.12", or "Alpine (Docker image)".
+      label: Browser and system
+      description: For example "Chrome 130 on Fedora 44", "Safari on iPhone (iOS 18)", or "installed app on Android".
     validations:
       required: true
-  - type: textarea
-    id: command
+  - type: input
+    id: homeserver
     attributes:
-      label: Command line or config
-      description: The exact command, or the `--config` file. **Remove passwords and other secrets.**
-      render: shell
+      label: Homeserver software and version
+      description: For example "Synapse 1.118", "Conduit", "Dendrite". Leave empty if you do not know.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part is it?
+      options:
+        - Signing in, accounts or sessions
+        - Rooms and messages
+        - Encrypted rooms, keys or verification
+        - Files, pictures or voice messages
+        - Calls
+        - Search or Jump to
+        - Shared media or the photo viewer
+        - Export (image, PDF, CSV)
+        - Room list, layout, themes or settings
+        - Notifications (a tab is open)
+        - Installing, updating or offline use
+        - Other
     validations:
       required: true
+  - type: dropdown
+    id: encrypted
+    attributes:
+      label: Is the room end-to-end encrypted?
+      options:
+        - "No"
+        - "Yes"
+        - Not sure
+        - Does not apply
   - type: textarea
     id: what
     attributes:
       label: What happened?
-      description: What you did, what you saw, and what you expected instead.
+      description: The steps you took, what you saw, and what you expected instead.
     validations:
       required: true
   - type: textarea
-    id: output
+    id: console
     attributes:
-      label: Server output and browser console
-      description: Anything tessera printed, error messages, and logs that show the problem. Remove private data.
+      label: Browser console output
+      description: Open the developer tools (F12), then Console, and paste any red errors from the moment it went wrong. Remove private data.
       render: text
   - type: textarea
     id: extra
     attributes:
-      label: Anything else
-      description: "Anything else that helps: environment, screenshots, a minimal reproduction."
+      label: Screenshots and anything else
+      description: Drag pictures in here. Cover or crop names and messages you do not want public.
   - type: checkboxes
     id: checks
     attributes:
       label: Before submitting
       options:
-        - label: I read the Troubleshooting page and searched existing issues.
+        - label: I read the Troubleshooting page and searched the existing issues.
           required: true
-        - label: I removed passwords, tokens and private data from everything above.
+        - label: I removed passwords, tokens, recovery keys and private messages from everything above, including screenshots.
           required: true
