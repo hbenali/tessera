@@ -297,7 +297,7 @@
         <ul class="devs" aria-label={t("Devices with background notifications on")}>
           {#each devices as d (d.id)}
             <li>
-              <span class="dn"><b>{d.name}</b>{#if d.mine}<span class="me">{t("This browser")}</span>{/if}<small>{d.service}</small>
+              <span class="dn"><b>{d.name}</b>{#if d.mine}<span class="thisbrowser">{t("This browser")}</span>{/if}<small>{d.service}</small>
                 {#if d.otherGateway}<small class="warn">{t("Set up for a different gateway, so it will not receive from this one. Turn it on again on that device.")}</small>{/if}</span>
               {#if !d.mine}
                 {#if removing === d.id}<span class="ask"><button class="btn danger sm" onclick={() => removeDevice(d.id)}>{t("Remove")}</button><button class="btn ghost sm" onclick={() => (removing = null)}>{t("Cancel")}</button></span>
@@ -401,6 +401,6 @@
   .incoming ul { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; } .incoming li { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; } .incoming li span { color: var(--muted); } .incoming li b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
   .devs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; } .devs li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--tile); }
   .dn { display: grid; gap: 1px; min-width: 0; } .dn b { font-weight: 600; overflow-wrap: anywhere; } .dn small { color: var(--muted); font-size: 12px; } .dn .warn { color: var(--danger); }
-  .me { margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); font-size: 11px; font-weight: 600; }
+  .thisbrowser { margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 11px; font-weight: 600; }
   .ask { display: inline-flex; gap: 6px; } .btn.sm { padding: 4px 10px; font-size: 12px; } .btn.danger { background: var(--danger); color: var(--bg); }
 </style>

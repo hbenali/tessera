@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { generateKeyPairSync } from 'node:crypto'
 import { after, before, describe, it } from 'node:test'
@@ -8,6 +9,7 @@ import { api, app, launch, seed, send, signIn } from './lib.mjs'
 const jwk = generateKeyPairSync('ec', { namedCurve: 'P-256' }).publicKey.export({ format: 'jwk' })
 const VAPID = Buffer.concat([Buffer.from([4]), Buffer.from(jwk.x, 'base64url'), Buffer.from(jwk.y, 'base64url')]).toString('base64url')
 const GATEWAY_HOST = process.env.PUSH_GATEWAY_HOST ?? '172.17.0.1' // how Synapse (in Docker) reaches this machine
+const axeSource = readFileSync(new URL('../node_modules/axe-core/axe.min.js', import.meta.url), 'utf8')
 const ENDPOINT = 'https://push.example.test/send/e2e'
 
 describe('web push and PWA', () => {
@@ -130,6 +132,16 @@ describe('web push and PWA', () => {
     for (let i = 0; i < 40 && (await pushers()).find((p) => p.pushkey === mine.pushkey).device_display_name === 'Tessera in a browser'; i++) await new Promise((r) => setTimeout(r, 150))
     assert.match((await pushers()).find((p) => p.pushkey === mine.pushkey).device_display_name, /^Tessera \(.+\)$/, 'this browser renamed its own old registration')
     assert.match(await items.first().innerText(), /This browser/, 'this browser comes first')
+    // The list, with this browser's tag and a flagged device, must meet contrast and the other accessibility rules in every theme.
+    await page.addScriptTag({ content: axeSource })
+    for (const theme of ['light', 'dark', 'sand', 'forest', 'ocean', 'midnight', 'contrast']) {
+      const bad = await page.evaluate(async (t) => {
+        document.documentElement.dataset.theme = t
+        const r = await axe.run(document.querySelector('[role=dialog]'), { runOnly: ['wcag2a', 'wcag2aa'] })
+        return r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
+      }, theme)
+      assert.deepEqual(bad, [], `Devices list (${theme})`)
+    }
     assert.equal(await items.first().getByRole('button', { name: /Remove/ }).count(), 0, 'this browser cannot be removed from the list, only turned off above')
     const text = await list.innerText()
     assert.match(text, /Tessera \(Firefox on Android\)[\s\S]*Mozilla \(Firefox\)/)
