@@ -1,5 +1,5 @@
 <script lang="ts">
-  type Name = 'phone' | 'phoneOff' | 'video' | 'videoOff' | 'micOff' | 'pin' | 'hash' | 'lock' | 'send' | 'clip' | 'search' | 'plus' | 'smile' | 'reply' | 'edit' | 'chevron' | 'x' | 'users' | 'info' | 'back' | 'shield' | 'sliders' | 'check' | 'logout' | 'trash' | 'clock' | 'checks' | 'alert' | 'qr' | 'link' | 'bellOff' | 'star' | 'at' | 'users2' | 'more' | 'eyeOff' | 'moon' | 'file' | 'mic' | 'play' | 'pause' | 'zoomIn' | 'zoomOut' | 'download' | 'bell' | 'thread' | 'image' | 'expand' | 'collapse' | 'sidebar'
+  type Name = 'phone' | 'phoneOff' | 'video' | 'videoOff' | 'micOff' | 'pin' | 'hash' | 'lock' | 'send' | 'clip' | 'search' | 'plus' | 'smile' | 'smilePlus' | 'reply' | 'edit' | 'chevron' | 'x' | 'users' | 'info' | 'back' | 'shield' | 'sliders' | 'check' | 'logout' | 'trash' | 'clock' | 'checks' | 'alert' | 'qr' | 'link' | 'bellOff' | 'star' | 'at' | 'users2' | 'more' | 'eyeOff' | 'moon' | 'file' | 'mic' | 'play' | 'pause' | 'zoomIn' | 'zoomOut' | 'download' | 'bell' | 'thread' | 'image' | 'expand' | 'collapse' | 'sidebar'
   let { name, size = 18 }: { name: Name; size?: number } = $props()
   const paths: Record<Name, string[]> = {
     phone: ['M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z'],
@@ -15,6 +15,7 @@
     search: ['M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z', 'm21 21-4.3-4.3'],
     plus: ['M5 12h14', 'M12 5v14'],
     smile: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M8 14s1.5 2 4 2 4-2 4-2', 'M9 9h.01', 'M15 9h.01'],
+    smilePlus: ['M22 11v1a10 10 0 1 1-9-10', 'M8 14s1.5 2 4 2 4-2 4-2', 'M9 9h.01', 'M15 9h.01', 'M16 5h6', 'M19 2v6'],
     reply: ['m9 17-5-5 5-5', 'M20 18v-2a4 4 0 0 0-4-4H4'],
     edit: ['M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z'],
     chevron: ['m6 9 6 6 6-6'],

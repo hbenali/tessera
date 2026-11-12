@@ -616,7 +616,7 @@
         {#if newDay}<div class="day" role="separator"><span>{dayLabel(m.ts)}</span></div>{/if}
         {#if m.notice}<div class="sys" data-id={m.id}>{m.notice} <time>{fmt(m.ts)}</time></div>{:else}
         <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-        <article onclick={(e) => tapMessage(e, m.id)} class:mine={m.mine} class:cont class:pending={m.pending} class:active={picker === m.id || seenFor === m.id || tapped === m.id} class:mention={m.mentionsMe} data-id={m.id}>
+        <article onclick={(e) => tapMessage(e, m.id)} class:mine={m.mine} class:cont class:pending={m.pending} class:active={picker === m.id || picker === m.id + ':row' || seenFor === m.id || tapped === m.id} class:mention={m.mentionsMe} data-id={m.id}>
           <div class="gutter">
             {#if !cont}<!-- a mouse shortcut: the sender's name beside it is the accessible way to open the same card --><button class="avbtn" onclick={(e) => card(m.sender, e)} tabindex="-1" aria-hidden="true"><Avatar name={m.senderName} size={36} round src={m.senderAvatar} presence={m.mine ? undefined : chat.presenceOf(m.sender)} /></button>{:else}<time>{fmt(m.ts)}</time>{/if}
           </div>
@@ -648,7 +648,9 @@
                 {@const mine = who.some((u) => u.id === chat.userId)}
                 {@const names = who.map((u) => (u.id === chat.userId ? 'You' : u.name)).join(', ')}
                 <button class:mine data-who={[emojiCode(k), names].filter(Boolean).join(' · ')} onclick={() => chat.react(m.id, k)} aria-pressed={mine} aria-label="{k} {n}: {names}. {mine ? 'Remove your reaction' : 'Add your reaction'}"><span>{k}</span> {n}</button>
-              {/each}</div>
+              {/each}
+                <span class="pw addr"><button class="icon-btn addreact" onclick={() => (picker = picker === m.id + ':row' ? null : m.id + ':row')} aria-label="Add reaction"><Icon name="smilePlus" size={15} /></button>
+                  {#if picker === m.id + ':row'}<EmojiPicker onpick={(e) => chat.react(m.id, e)} onclose={() => (picker = null)} />{/if}</span></div>
             {/if}
           </div>
           <div class="tools">
@@ -782,11 +784,15 @@
   .seen-list { position: absolute; z-index: 9; right: 0; top: calc(100% + 4px); min-width: 200px; max-height: 240px; overflow-y: auto; margin: 0; padding: 6px; list-style: none; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); font-size: 13px; color: var(--text); }
   .seen-list.up { top: auto; bottom: calc(100% + 4px); }
   .seen-list li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; } .seen-list .who { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .seen-list time { color: var(--muted); font-size: 11px; }
-  .reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; } .reacts button { display: inline-flex; flex: none; gap: 5px; align-items: center; white-space: nowrap; line-height: 20px; min-height: 24px; padding: 1px 9px; font-variant-numeric: tabular-nums; border-radius: 999px; background: var(--tile); border: 1px solid var(--line); font-size: 12px; font-weight: 600; } .reacts button span { font-size: 14px; line-height: 20px; } .reacts button:hover { border-color: var(--accent); } .reacts button { position: relative; } .reacts button.mine { background: color-mix(in srgb, var(--accent) 18%, var(--tile)); border-color: var(--accent); }
+  .reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; } .reacts > button { display: inline-flex; flex: none; gap: 5px; align-items: center; white-space: nowrap; line-height: 20px; min-height: 24px; padding: 1px 9px; font-variant-numeric: tabular-nums; border-radius: 999px; background: var(--tile); border: 1px solid var(--line); font-size: 12px; font-weight: 600; } .reacts > button span { font-size: 14px; line-height: 20px; } .reacts > button:hover { border-color: var(--accent); } .reacts > button { position: relative; } .reacts > button.mine { background: color-mix(in srgb, var(--accent) 18%, var(--tile)); border-color: var(--accent); }
   .muted.favmark { color: #e8a317; } .favmark :global(svg) { fill: currentColor; }
-  .reacts button::after { content: attr(data-who); position: absolute; left: 0; bottom: calc(100% + 6px); max-width: min(240px, 72vw); width: max-content; padding: 5px 9px; border-radius: 7px; background: var(--text); color: var(--bg); font-size: 12px; font-weight: 500; white-space: normal; line-height: 1.35; display: none; pointer-events: none; z-index: 7; } .reacts button:hover::after, .reacts button:focus-visible::after { display: block; } @media (prefers-reduced-motion: reduce) { .reacts button::after { transition: none; } }
-  .tools { display: none; position: absolute; top: -16px; right: 20px; z-index: 2; gap: 0; padding: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+  .reacts > button::after { content: attr(data-who); position: absolute; left: 0; bottom: calc(100% + 6px); max-width: min(240px, 72vw); width: max-content; padding: 5px 9px; border-radius: 7px; background: var(--text); color: var(--bg); font-size: 12px; font-weight: 500; white-space: normal; line-height: 1.35; display: none; pointer-events: none; z-index: 7; } .reacts > button:hover::after, .reacts > button:focus-visible::after { display: block; } @media (prefers-reduced-motion: reduce) { .reacts > button::after { transition: none; } }
+  .tools { display: none; position: absolute; top: 2px; right: 20px; z-index: 2; gap: 0; padding: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
   /* content-visibility clips overflow; the toolbar and emoji picker hang outside the row, so lift it while the row is in use. */
+  /* Hybrid: on a message that already has reactions, the add-reaction smiley sits at the end of the chips, next to the text. It is only faded out (never removed) so the row does not change height. */
+  .reacts .addr { display: inline-flex; align-items: center; } .reacts .addr :global(.picker) { right: auto; left: 0; } .reacts .addreact { width: 32px; height: 24px; border: 1px solid var(--line); border-radius: 999px; background: var(--tile); color: var(--muted); opacity: 0; transition: opacity .12s; }
+  article:hover .addreact, article:focus-within .addreact, article.active .addreact, .addreact:focus-visible { opacity: 1; } .reacts .addreact:hover, .reacts .addreact:focus-visible { border-color: var(--accent); color: var(--text); } .reacts .addreact::after { display: none; }
+  @media (hover: none) { .reacts .addreact { opacity: 1; } }
   article:hover, article:focus-within, article.active { content-visibility: visible; }
   article:hover .tools, article:focus-within .tools, article.active .tools { display: flex; }
   /* Each action shows its name under the toolbar on hover or keyboard focus. The text is the button's own accessible name. */
