@@ -1,0 +1,14 @@
+# Documented OSV exceptions (read by OpenSSF Scorecard's Vulnerabilities check
+# and by osv-scanner). Every entry needs a reason and an expiry so it is
+# reviewed again rather than forgotten.
+
+[[IgnoredVulns]]
+id = "GHSA-gcqx-w48m-w2h4"
+# deepmerge mergeObject() prototype poisoning. No patched release exists
+# (4.3.1 is both the latest version and the last affected one). It is only
+# reached through @sveltejs/vite-plugin-svelte at build time, merging this
+# repository's own Svelte/Vite config; it is not in the shipped bundle and
+# never sees untrusted input. Drop this entry once vite-plugin-svelte moves
+# off deepmerge or deepmerge publishes a fix.
+ignoreUntil = 2027-03-12
+reason = "Build-time only (vite-plugin-svelte), merges trusted local config, not in the shipped bundle; no fixed version exists."
