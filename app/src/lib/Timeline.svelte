@@ -138,6 +138,8 @@
       pinIndex = undefined
       stick = false
       el.scrollIntoView({ block: 'center' })
+      el.classList.remove('flash')
+      void el.offsetWidth // restart the animation when the same message is jumped to twice
       el.classList.add('flash')
       setTimeout(() => el.classList.remove('flash'), 1800)
       chat.focusEvent = null
@@ -753,6 +755,9 @@
 .sentinel { min-height: 24px; margin: 4px 0; text-align: center; color: var(--muted); font-size: 12px; }
   .start { margin: 8px 0 4px; text-align: center; color: var(--muted); font-size: 12px; }
   .latest { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 5; display: inline-flex; gap: 6px; align-items: center; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 12px; box-shadow: 0 6px 20px rgb(0 0 0 / .25); cursor: pointer; } .latest :global(svg) { transform: rotate(90deg); }
+  article:global(.flash) { animation: flash 1.8s ease-out; }
+  @keyframes flash { 0%, 35% { background: color-mix(in srgb, var(--accent) 32%, transparent); box-shadow: inset 3px 0 0 var(--accent); } 100% { background: transparent; box-shadow: inset 3px 0 0 transparent; } }
+  @media (prefers-reduced-motion: reduce) { article:global(.flash) { animation-duration: .01s; } }
   article { position: relative; display: flex; gap: 12px; padding: 2px 20px; margin-top: 10px; content-visibility: auto; contain-intrinsic-size: auto 44px; } article.cont { margin-top: 0; } article.mention { background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset 3px 0 0 var(--accent); } article.pending { opacity: .55; } article:hover { background: color-mix(in srgb, var(--tile) 55%, transparent); }
   /* The time on a continuation row is positioned out of the flow and only faded in: showing it must never change the row's height, or every message below it jumps. */
   .gutter { position: relative; flex: none; width: 36px; padding-top: 2px; } .gutter time { position: absolute; top: 2px; left: -8px; right: -8px; opacity: 0; pointer-events: none; white-space: nowrap; font-size: 10px; color: var(--muted); text-align: center; line-height: 21px; } article:hover .gutter time, article:focus-within .gutter time { opacity: 1; }
