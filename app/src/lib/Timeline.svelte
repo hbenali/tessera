@@ -66,6 +66,7 @@
   const QUICK = ['👍', '❤️', '😂', '🎉']
   const fmt = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const status = $derived(seenLine(chat.messages, !!chat.active?.isDM, fmt))
+  const lastSeenId = $derived(chat.messages.findLast((m) => m.seenBy?.length)?.id)
   const byId = (id?: string) => chat.messages.find((m) => m.id === id)
 
   // Consecutive messages from one sender within 5 minutes share a header; a new day gets a divider.
@@ -628,7 +629,7 @@
             {#if m.attachment}<FileCard {...m.attachment} sender={m.senderName} ts={m.ts} />{#if m.attachment.caption}<div class="text caption">{@html render(m.attachment.caption, { name: chat.nameOf, me: chat.userId })}</div>{/if}{:else if m.audio}<AudioPlayer mxc={m.audio.mxc} file={m.audio.file} duration={m.audio.duration} waveform={m.audio.waveform} voice={m.audio.voice} name={m.audio.name} />{:else if m.poll}<PollCard {m} />{:else if m.location}<a class="loc" href={mapLink(m.location.lat, m.location.lon)} target="_blank" rel="noopener noreferrer"><Icon name="pin" size={16} /><span><b>{m.location.label}</b><small>Open in a map</small></span></a>{:else if m.imageMxc}<Photo mxc={m.imageMxc} file={m.imageFile} alt={m.body} onopen={(opener) => (ui.viewer = { id: m.id, opener })} />{:else}<div class="line"><div class="text" class:utd={m.undecryptable} class:emote={m.emote} use:pills>{#if m.emote}<span class="who-emote">* {m.senderName}</span>{" "}{/if}{@html render(m.body, { name: chat.nameOf, me: chat.userId, pills: m.pills })}{#if m.edited}<span class="edited"> (edited)</span>{/if}</div>{#if m.mine}{@render delivery(m)}{/if}</div>{/if}
             {#if m.body && !m.attachment && !m.imageMxc && !m.audio && !m.poll && !m.location && !m.undecryptable}<LinkPreview body={m.body} encrypted={!!chat.active?.encrypted} />{/if}
             {#if m.threadReplies}<button class="thread-link" onclick={() => chat.openThread(m.id)}><Icon name="thread" size={13} /> {m.threadReplies} {m.threadReplies === 1 ? 'reply' : 'replies'}</button>{/if}
-            {#if m.seenBy?.length}
+            {#if m.seenBy?.length && (ui.seenMarks === 'all' || (ui.seenMarks === 'latest' && m.id === lastSeenId))}
               {@const who = m.seenBy}
               {@const names = who.map((s) => s.name).join(', ')}
               {@const dm = !!chat.active?.isDM}

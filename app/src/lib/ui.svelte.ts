@@ -46,6 +46,8 @@ function readTheme(): ThemeId {
   }
 }
 
+export const SEEN_MARKS = ['all', 'latest', 'none'] as const
+export type SeenMarks = (typeof SEEN_MARKS)[number]
 export type Density = 'comfortable' | 'compact'
 export type TextSize = 'small' | 'normal' | 'large'
 const read = <T extends string>(key: string, ok: readonly T[], dflt: T): T => {
@@ -61,6 +63,12 @@ class Ui {
   setLayout(l: Layout) {
     this.layout = l
     try { localStorage.setItem('tessera.layout', l) } catch { /* private mode */ }
+  }
+  /** Which "seen by" avatar rows the timeline draws: under every message readers stopped at, only the latest, or none. Per browser. */
+  seenMarks = $state<SeenMarks>(read('tessera.seenmarks', SEEN_MARKS, 'all'))
+  setSeenMarks(v: SeenMarks) {
+    this.seenMarks = v
+    try { localStorage.setItem('tessera.seenmarks', v) } catch { /* private mode */ }
   }
   /** Text shared into Tessera from another app, waiting for a room to be picked. */
   shared = $state<string | null>(null)

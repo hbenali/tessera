@@ -166,6 +166,12 @@
         <button role="radio" aria-checked={ui.textSize === v} class:on={ui.textSize === v} onclick={() => ui.setLook({ textSize: v as 'small' })}>{t}</button>
       {/each}
     </div>
+    <div class="seg" role="radiogroup" aria-label="Seen indicators" style="margin-top:8px">
+      {#each [['all', 'Show all seen'], ['latest', 'Show latest seen'], ['none', 'Hide seen']] as [v, t] (v)}
+        <button role="radio" aria-checked={ui.seenMarks === v} class:on={ui.seenMarks === v} onclick={() => ui.setSeenMarks(v as 'all')}>{t}</button>
+      {/each}
+    </div>
+    <p class="hint">Who has read up to a message, drawn as small avatars under it. “Latest” keeps only the newest one. Your own "Seen" line by the message box stays.</p>
     <label class="check"><input type="checkbox" checked={ui.showMembership} onchange={(e) => { ui.setShowMembership(e.currentTarget.checked); chat.refreshMessages() }} /> Show joins, leaves and name changes in the timeline</label>
     <p class="hint">These never move a room up the list, whether shown or not.</p>
     <h3 class="label">{t("My settings")}</h3>
