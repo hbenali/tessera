@@ -298,7 +298,11 @@ class Chat {
     // A tapped notification asks the open window to show its room. Listen from the very start: the room list can
     // appear from the local cache well before the first sync, and the hash is read again when it completes.
     navigator.serviceWorker?.addEventListener('message', (e) => {
-      if (e.data?.type === 'open' && typeof e.data.hash === 'string' && e.data.hash.startsWith('#/room/')) location.hash = e.data.hash
+      if (e.data?.type === 'open' && typeof e.data.hash === 'string' && e.data.hash.startsWith('#/room/')) {
+        // Clicking the same notification again leaves the hash unchanged, so no hashchange fires: apply it by hand.
+        if (location.hash === e.data.hash) this.applyRoute()
+        else location.hash = e.data.hash
+      }
     })
     const store = new sdk.IndexedDBStore({
       indexedDB: window.indexedDB,
@@ -617,7 +621,7 @@ class Chat {
     }
     const room = r.room.startsWith('#') ? this.client?.getRooms().find((x) => x.getCanonicalAlias() === r.room || x.getAltAliases().includes(r.room!)) : this.client?.getRoom(r.room)
     if (room?.getMyMembership() === 'join') {
-      this.openRoom(room.roomId, false).then(() => { if (r.event) this.focusEvent = r.event })
+      this.openRoom(room.roomId, false).then(() => { if (r.event) return this.jumpToEvent(r.event) })
     } else {
       this.activeRoom = null
       this.routeMissing = r.room
