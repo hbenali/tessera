@@ -27,6 +27,11 @@
     err = ''
     try { await f(); done = ok } catch (e) { err = e instanceof Error ? e.message : 'That did not work' }
   }
+  let copied = $state(false)
+  async function copyText() {
+    try { await navigator.clipboard.writeText(m.body); copied = true } catch { return }
+    setTimeout(() => { copied = false; open = false }, 800)
+  }
   const copySource = () => navigator.clipboard.writeText(source).then(() => (done = 'Copied'), () => (err = 'Could not copy'))
 </script>
 
@@ -38,6 +43,7 @@
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="away" onclick={() => (open = false)}></div>
     <div class="menu" role="menu" aria-label="More actions for this message">
+      {#if m.body}<button role="menuitem" onclick={copyText}><Icon name={copied ? 'checks' : 'copy'} size={14} />{copied ? t('Copied') : t('Copy text')}</button>{/if}
       <button role="menuitem" onclick={() => show('forward')}><Icon name="send" size={14} />Forward</button>
       <button role="menuitem" onclick={() => { open = false; ui.exportImage = { from: m.id, to: ui.exportImage?.to ?? null }; ui.exportDialog = false }}><Icon name="download" size={14} />{t('Export from here')}</button>
       <button role="menuitem" onclick={() => { open = false; ui.exportImage = { from: ui.exportImage?.from ?? null, to: m.id }; ui.exportDialog = false }}><Icon name="download" size={14} />{t('Export up to here')}</button>
@@ -89,6 +95,7 @@
   .away { position: fixed; inset: 0; z-index: 14; }
   .menu { position: absolute; z-index: 15; right: 0; top: calc(100% + 4px); min-width: 190px; padding: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
   .menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border-radius: 6px; text-align: left; white-space: nowrap; } .menu button:hover { background: var(--tile); }
+  @media (pointer: coarse) { .menu button { min-height: 44px; font-size: 15px; } .menu { max-width: calc(100vw - 24px); } }
   .quote { margin: 0 0 10px; padding: 8px 10px; border-left: 3px solid var(--line); background: var(--tile); border-radius: 6px; color: var(--muted); overflow-wrap: anywhere; }
   .field, .lbl textarea { width: 100%; box-sizing: border-box; font: inherit; color: var(--text); background: var(--tile); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
   .pick { list-style: none; margin: 8px 0 0; padding: 0; max-height: 280px; overflow: auto; } .pick li { display: flex; align-items: center; gap: 10px; padding: 5px 0; } .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .empty { color: var(--muted); }
