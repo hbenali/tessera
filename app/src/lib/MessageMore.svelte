@@ -9,6 +9,8 @@
 
   let { m }: { m: Msg } = $props()
   let open = $state(false)
+  let up = $state(false)
+  let btn: HTMLButtonElement | undefined
   let dialog = $state<null | 'forward' | 'source' | 'report' | 'remove'>(null)
   let term = $state('')
   let reason = $state('')
@@ -18,6 +20,15 @@
   const targets = $derived(chat.rooms.filter((r) => !r.isSpace && !r.invited && r.id !== chat.activeRoom && r.name.toLowerCase().includes(term.trim().toLowerCase())).slice(0, 30))
   const others = $derived(!m.mine && chat.mayRemoveOthers())
 
+  // Open upward when there is no room below (e.g. the latest message, next to the composer)
+  function toggle() {
+    if (!open && btn) {
+      const r = btn.getBoundingClientRect()
+      const floor = btn.closest('.scroll')?.getBoundingClientRect().bottom ?? innerHeight
+      up = floor - r.bottom < 280 && r.top > 280
+    }
+    open = !open
+  }
   function show(d: NonNullable<typeof dialog>) {
     open = false; err = ''; done = ''; reason = ''; term = ''
     if (d === 'source') source = chat.sourceOf(m.id)
@@ -38,11 +49,11 @@
 <svelte:window onkeydown={(e) => { if (open && e.key === 'Escape') { open = false; e.stopPropagation() } }} />
 
 <span class="mw">
-  <button class="icon-btn" onclick={() => (open = !open)} aria-label="More actions" aria-haspopup="menu" aria-expanded={open}><Icon name="more" size={16} /></button>
+  <button class="icon-btn" bind:this={btn} onclick={toggle} aria-label="More actions" aria-haspopup="menu" aria-expanded={open}><Icon name="more" size={16} /></button>
   {#if open}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="away" onclick={() => (open = false)}></div>
-    <div class="menu" role="menu" aria-label="More actions for this message">
+    <div class="menu" class:up role="menu" aria-label="More actions for this message">
       {#if m.body}<button role="menuitem" onclick={copyText}><Icon name={copied ? 'checks' : 'copy'} size={14} />{copied ? t('Copied') : t('Copy text')}</button>{/if}
       <button role="menuitem" onclick={() => show('forward')}><Icon name="send" size={14} />Forward</button>
       <button role="menuitem" onclick={() => { open = false; ui.exportImage = { from: m.id, to: ui.exportImage?.to ?? null }; ui.exportDialog = false }}><Icon name="download" size={14} />{t('Export from here')}</button>
@@ -94,6 +105,7 @@
   .mw { position: relative; display: inline-flex; }
   .away { position: fixed; inset: 0; z-index: 14; }
   .menu { position: absolute; z-index: 15; right: 0; top: calc(100% + 4px); min-width: 190px; padding: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+  .menu.up { top: auto; bottom: calc(100% + 4px); }
   .menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border-radius: 6px; text-align: left; white-space: nowrap; } .menu button:hover { background: var(--tile); }
   @media (pointer: coarse) { .menu button { min-height: 44px; font-size: 15px; } .menu { max-width: calc(100vw - 24px); } }
   .quote { margin: 0 0 10px; padding: 8px 10px; border-left: 3px solid var(--line); background: var(--tile); border-radius: 6px; color: var(--muted); overflow-wrap: anywhere; }
