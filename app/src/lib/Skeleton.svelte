@@ -2,7 +2,12 @@
   // Placeholder shapes while the app loads: the same layout the app will have, so nothing jumps when it arrives.
   let { variant = 'app' }: { variant?: 'app' | 'list' | 'timeline' } = $props()
   import { readSnapshot } from './snapshot'
-  import { initials, shortTime, tileBg } from './ui.svelte'
+  import { initials, shortTime, tileBg, ui } from './ui.svelte'
+  import { RAIL_WIDTH } from './listprefs'
+  // Match the list the app will draw, so a collapsed (icon-only) or hidden list does not flash open and then shut.
+  const rail = ui.list.rail && !matchMedia('(max-width: 720px)').matches
+  const hidden = ui.listHidden && /^#\/room\//.test(location.hash)
+  const listW = rail ? RAIL_WIDTH : ui.list.width
   // The rooms the list had last time, if this browser remembers them: real names beat grey bars.
   const remembered = (() => {
     if (variant !== 'app') return []
@@ -42,8 +47,8 @@
 {:else if variant === 'timeline'}
   {@render timeline()}
 {:else}
-  <div class="app" role="status" aria-live="polite" aria-label="Loading Tessera">
-    <aside>
+  <div class="app" class:hidden style:--list-w="{listW}px" role="status" aria-live="polite" aria-label="Loading Tessera">
+    <aside class:rail>
       <div class="head"><span class="av sh"></span><i class="sh" style="width:90px"></i></div>
       <div class="search sh"></div>
       {@render list()}
@@ -57,7 +62,7 @@
 {/if}
 
 <style>
-  .app { height: 100%; display: grid; grid-template-columns: 320px 1fr; background: var(--bg); }
+  .app { height: 100%; display: grid; grid-template-columns: var(--list-w, 320px) 1fr; background: var(--bg); }
   aside { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; }
   main { display: flex; flex-direction: column; min-width: 0; }
   .head { display: flex; align-items: center; gap: 10px; padding: 14px 14px 10px; height: 56px; box-sizing: border-box; }
@@ -72,6 +77,9 @@
   .real .n { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .real.unread .n { font-weight: 700; } .real .p { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .real.muted { opacity: .6; } .real .lines { gap: 1px; } .tile { display: grid; place-items: center; font-weight: 700; font-size: 14px; color: #10131a; }
   .side { display: grid; justify-items: end; gap: 3px; font-size: 11px; color: var(--muted); } .badge { min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--muted); color: var(--bg); text-align: center; line-height: 20px; }
+  .app.hidden { grid-template-columns: 1fr; } .app.hidden aside { display: none; }
+  .rail .head { justify-content: center; padding: 14px 4px 10px; } .rail .head i, .rail .search { display: none; }
+  .rail .list { padding: 4px; } .rail .row { justify-content: center; padding: 6px 0; } .rail .lines, .rail .side { display: none; }
   @keyframes shimmer { from { background-position: 120% 0; } to { background-position: -100% 0; } }
   @media (prefers-reduced-motion: reduce) { .sh { animation: none; } }
   @media (max-width: 720px) { .app { grid-template-columns: 1fr; } main { display: none; } }
