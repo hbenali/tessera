@@ -82,7 +82,7 @@ export function flowRuns(runs: readonly Run[], max: number, measure: (r: Run) =>
     if (cur.runs.length && (!!r.quote !== !!cur.quote || !!r.pre !== !!cur.pre)) flush() // a quote or code block starts and ends on its own line
     r.text.split('\n').forEach((part, pi) => {
       if (pi > 0) { if (!cur.runs.length) { cur.quote = r.quote; cur.pre = r.pre } flush() }
-      for (const word of part.split(/(?<=\s)/)) {
+      for (const word of r.mention ? [part] : part.split(/(?<=\s)/)) { // a mention stays whole: one pill, not one per word
         if (!word) continue
         if (!cur.runs.length) { cur.quote = r.quote; cur.pre = r.pre }
         if (cur.runs.length && w + measure({ ...r, text: word.trimEnd() }) > avail()) flush()

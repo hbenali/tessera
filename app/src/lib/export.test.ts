@@ -105,6 +105,10 @@ describe('formatted text', () => {
     expect(lines.every((l) => l.runs.map((r) => r.text).join('').length <= 6)).toBe(true)
     expect(lines.flatMap((l) => l.runs.map((r) => r.text)).join('').replace(/\s/g, '')).toBe('aaabbbbcccccccccc')
   })
+  it('keeps a multi-word mention as one pill', () => {
+    const lines = flowRuns([{ text: 'Hello ' }, { text: '@Houssem Ben Ali', mention: true }, { text: ' non' }], 40, w)
+    expect(lines.flatMap((l) => l.runs).filter((r) => r.mention).map((r) => r.text)).toEqual(['@Houssem Ben Ali'])
+  })
   it('prints the source when asked, the result otherwise', () => {
     const m = { id: '1', senderName: 'A', ts: 0, body: '**hi**', html: render('**hi**') }
     expect(messageRuns(m).map((r) => r.text).join('')).toBe('hi')
