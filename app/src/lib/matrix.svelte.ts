@@ -1932,6 +1932,15 @@ class Chat {
     this.focusEvent = hit.eventId
   }
 
+  /** Go to a message in the open room (a replied-to one, say), paging back while it is not loaded yet. */
+  async jumpToEvent(id: string) {
+    const room = this.client?.getRoom(this.activeRoom ?? '')
+    if (!room) return
+    for (let i = 0; i < 60 && !this.messages.some((m) => m.id === id) && this.hasOlder(); i++) if (!(await this.loadOlder())) break
+    this.refreshMessages()
+    if (this.messages.some((m) => m.id === id)) this.focusEvent = id
+  }
+
   /** Go to the first message I have not read, paging back if the read marker is older than what is loaded. */
   async jumpToFirstUnread(): Promise<'ok' | 'none'> {
     const room = this.client?.getRoom(this.activeRoom ?? '')
