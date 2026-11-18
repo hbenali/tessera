@@ -799,7 +799,7 @@
   .reacts .addr { display: inline-flex; align-items: center; } .reacts .addr :global(.picker) { right: auto; left: 0; } .reacts .addreact { width: 32px; height: 24px; border: 1px solid var(--line); border-radius: 999px; background: var(--tile); color: var(--muted); opacity: 0; transition: opacity .12s; }
   article:hover .addreact, article:focus-within .addreact, article.active .addreact, .addreact:focus-visible { opacity: 1; } .reacts .addreact:hover, .reacts .addreact:focus-visible { border-color: var(--accent); color: var(--text); } .reacts .addreact::after { display: none; }
   @media (hover: none) { .reacts .addreact { opacity: 1; } }
-  article:hover, article:focus-within, article.active { content-visibility: visible; }
+  article:hover, article:focus-within, article.active { content-visibility: visible; } article.active { z-index: 5; }
   article:hover .tools, article:focus-within .tools, article.active .tools { display: flex; }
   /* Each action shows its name under the toolbar on hover or keyboard focus. The text is the button's own accessible name. */
   .tools .icon-btn { position: relative; }
