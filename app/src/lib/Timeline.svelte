@@ -446,6 +446,13 @@
   })
   let toast = $state('')
   const say = (t: string) => { toast = t; setTimeout(() => (toast = ''), 3200) }
+  // Deleting is permanent: the first press arms the button, the second one deletes.
+  let delArm = $state<string | null>(null)
+  function armDelete(id: string) {
+    if (delArm !== id) { delArm = id; say('Press the bin again to delete this message'); setTimeout(() => { if (delArm === id) delArm = null }, 4000); return }
+    delArm = null
+    chat.deleteMessage(id).catch(() => say('Could not delete the message'))
+  }
   async function copyLink(m: Msg) {
     try {
       await navigator.clipboard.writeText(chat.permalink(chat.activeRoom!, m.id))
@@ -562,7 +569,7 @@
 {/snippet}
 
 <svelte:window bind:innerWidth={vw} />
-<main class="main" style:--accent={roomAccent} style:--accent-ink={roomAccent ? '#ffffff' : undefined} ondragover={(e) => e.preventDefault()} ondragenter={(e) => hasFiles(e) && dragDepth++} ondragleave={() => (dragDepth = Math.max(0, dragDepth - 1))} ondrop={drop}>
+<main class="main" style:--accent={roomAccent} style:--accent-ink={roomAccent ? '#ffffff' : undefined} style:--accent-text={roomAccent ? `color-mix(in srgb, ${roomAccent} 55%, var(--text))` : undefined} ondragover={(e) => e.preventDefault()} ondragenter={(e) => hasFiles(e) && dragDepth++} ondragleave={() => (dragDepth = Math.max(0, dragDepth - 1))} ondrop={drop}>
   {#if dragDepth > 0 && chat.active}<div class="dropzone" aria-hidden="true"><span><Icon name="clip" size={22} /> Drop to attach</span></div>{/if}
   {#if !chat.active && chat.routeMissing}
     <div class="empty"><Icon name="lock" size={40} /><h1>You are not in this room</h1><p class="mono">{chat.routeMissing}</p>
@@ -665,7 +672,7 @@
             <button class="icon-btn" onclick={() => copyLink(m)} aria-label="Copy link to message"><Icon name="link" size={16} /></button>
             <button class="icon-btn" onclick={() => chat.openThread(m.id)} aria-label="Reply in thread"><Icon name="thread" size={16} /></button>
             {#if m.mine && !m.undecryptable}<button class="icon-btn" onclick={() => { editing = m; replyTo = null; setComposer(m.body) }} aria-label="Edit"><Icon name="edit" size={16} /></button>{/if}
-            {#if m.mine}<button class="icon-btn" onclick={() => chat.deleteMessage(m.id)} aria-label="Delete message"><Icon name="trash" size={16} /></button>{/if}
+            {#if m.mine}<button class="icon-btn" class:on={delArm === m.id} onclick={() => armDelete(m.id)} onblur={() => { if (delArm === m.id) delArm = null }} aria-label={delArm === m.id ? 'Press again to delete this message' : 'Delete message'} title={delArm === m.id ? 'Press again to delete this message' : 'Delete message'}><Icon name="trash" size={16} /></button>{/if}
             <MessageMore {m} />
           </div>
         </article>
@@ -772,12 +779,12 @@
   .text :global(.mention) { cursor: pointer; display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
   .text :global(.mention:hover) { background: color-mix(in srgb, var(--accent) 28%, transparent); }
   .text :global(.mention.me) { background: var(--accent); color: var(--accent-ink); } .text :global(.mention.me i) { box-shadow: 0 0 0 1.5px var(--accent-ink); }
-  .mentions mark { background: transparent; color: var(--accent); font-weight: 700; }
+  .mentions mark { background: transparent; color: var(--accent-text, var(--accent)); font-weight: 700; }
   .text :global(code) { background: var(--tile); padding: 1px 5px; border-radius: 4px; font-family: var(--mono); font-size: 12.5px; } .text :global(pre) { margin: 6px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; } .text :global(pre code) { padding: 0; background: none; }
-  .text :global(blockquote) { margin: 2px 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); } .text :global(a) { color: var(--accent); text-underline-offset: 3px; }
+  .text :global(blockquote) { margin: 2px 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); } .text :global(a) { color: var(--accent-text, var(--accent)); text-underline-offset: 3px; }
   .quote b { flex: 0 1 auto; min-width: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; }
   .quote { background: none; border-top: 0; border-right: 0; border-bottom: 0; font: inherit; font-size: 12px; text-align: left; cursor: pointer; width: 100%; display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; margin: 2px 0 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-left: 8px; border-left: 2px solid var(--accent); }
-  .thread-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 2px 8px; border-radius: 6px; color: var(--accent); font-size: 12px; font-weight: 600; } .thread-link:hover { background: var(--tile); }
+  .thread-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 2px 8px; border-radius: 6px; color: var(--accent-text, var(--accent)); font-size: 12px; font-weight: 600; } .thread-link:hover { background: var(--tile); }
   .pinbar { position: relative; display: flex; align-items: center; gap: 8px; padding: 6px 16px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: 12px; }
   .pin-main { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; } .pin-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
   .pin-count { border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--muted); font: inherit; padding: 2px 10px; cursor: pointer; }
@@ -811,7 +818,7 @@
   .line { display: flex; align-items: flex-end; gap: 8px; } .line .text { flex: 1; min-width: 0; }
   .muted { display: inline-flex; margin-left: 8px; color: var(--muted); vertical-align: -1px; }
   .tick { display: inline-flex; align-items: center; gap: 6px; flex: none; margin-bottom: 3px; color: var(--muted); }
-  .tick.st-sent, .tick.st-seen { animation: tickpop .22s ease-out; } .tick.st-seen { color: var(--accent); }
+  .tick.st-sent, .tick.st-seen { animation: tickpop .22s ease-out; } .tick.st-seen { color: var(--accent-text, var(--accent)); }
   @keyframes tickpop { from { transform: scale(.6); opacity: .3; } to { transform: none; opacity: 1; } }
   .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: spin .8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .tick.st-sent, .tick.st-seen { animation: none; } .spin { animation: none; border-top-color: currentColor; opacity: .6; } }
@@ -819,7 +826,7 @@
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .dots { display: inline-flex; gap: 3px; margin-right: 6px; vertical-align: 1px; } .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: blip 1.2s infinite; } .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; } @keyframes blip { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } } @media (prefers-reduced-motion: reduce) { .dots i { animation: none; } }
   .toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); padding: 8px 14px; border-radius: 8px; background: var(--text); color: var(--bg); font-size: 13px; z-index: 6; box-shadow: var(--shadow); }
-  .status { display: inline-flex; align-items: center; gap: 5px; } .status.st-seen { color: var(--accent); } .status.st-failed { color: var(--danger); }
+  .status { display: inline-flex; align-items: center; gap: 5px; } .status.st-seen { color: var(--accent-text, var(--accent)); } .status.st-failed { color: var(--danger); }
   .typing { height: 22px; padding: 0 20px; font-size: 12px; color: var(--muted); flex: none; }
   footer { padding: 0 16px 10px; flex: none; }
   .composer { background: var(--tile); border: 1px solid var(--line); border-radius: 12px; transition: border-color .15s, box-shadow .15s, background-color .15s; } .composer:focus-within { border-color: var(--accent); background: var(--bg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); } @media (prefers-reduced-motion: reduce) { .composer { transition: none; } }
@@ -881,5 +888,5 @@
   [data-layout='lines'] .text { max-width: none; }
   [data-layout='lines'] .quote, [data-layout='lines'] .reacts, [data-layout='lines'] .seen, [data-layout='lines'] .thread-link { flex-basis: 100%; }
   [data-layout='lines'] :global(.poll), [data-layout='lines'] :global(.filecard) { flex-basis: 100%; }
-.retry { color: var(--accent); text-decoration: underline; font-size: inherit; }
+.retry { color: var(--accent-text, var(--accent)); text-decoration: underline; font-size: inherit; }
 </style>
