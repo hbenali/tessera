@@ -330,7 +330,7 @@ class Chat {
     setOriginalLoader((m, f, k) => this.original(m, f, k))
     security.refresh()
     client.on(sdk.MatrixEventEvent.Decrypted, (ev) => {
-      this.refreshMessages()
+      this.queueRefresh()
       this.maybeNotify(ev)
       this.maybeAutoReply(ev)
     })
@@ -355,7 +355,7 @@ class Chat {
     window.addEventListener('online', () => this.client?.retryImmediately())
     client.on(sdk.RoomEvent.Timeline, (ev, _room, toStart, _removed, data) => {
       this.refreshRooms()
-      this.refreshMessages()
+      this.queueRefresh()
       if (!toStart && data?.liveEvent && ev.getType() === 'm.room.message') {
         this.maybeNotify(ev)
         this.maybeAutoReply(ev)
@@ -1047,6 +1047,17 @@ class Chat {
       m.state = st === 'not_sent' ? 'failed' : m.pending ? 'sending' : (pos.get(m.id) ?? Infinity) <= furthest ? 'seen' : 'sent'
     })
     return out
+  }
+
+  private refreshQueued = false
+  /**
+   * Opening a busy or encrypted room fires one event per message (arrival, then decryption). Rebuilding the whole list
+   * for each makes rows flash and jump, so all the events of one frame share a single rebuild.
+   */
+  private queueRefresh() {
+    if (this.refreshQueued) return
+    this.refreshQueued = true
+    requestAnimationFrame(() => { this.refreshQueued = false; this.refreshMessages() })
   }
 
   private refreshTimer: ReturnType<typeof setTimeout> | undefined
