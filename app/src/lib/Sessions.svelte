@@ -24,6 +24,13 @@
   async function rename(d: Device) {
     try { await chat.renameDevice(d.id, draft); editing = null; await load() } catch (e) { err = e instanceof Error ? e.message : 'Could not rename' }
   }
+  // Signing out a session is hard to undo: the first press arms the button, the second one signs out.
+  let armed = $state<string | null>(null)
+  function confirmOut(key: string, ids: string[]) {
+    if (armed !== key) { armed = key; setTimeout(() => { if (armed === key) armed = null }, 4000); return }
+    armed = null
+    void signOut(ids)
+  }
   async function signOut(ids: string[]) {
     err = ''; note = ''
     try {
@@ -60,15 +67,15 @@
       </div>
       {#if editing !== d.id}
         <button class="icon-btn" aria-label="Rename {deviceTitle(d)}" onclick={() => { editing = d.id; draft = d.name }}><Icon name="edit" size={15} /></button>
-        {#if !d.current}<button class="btn ghost sm" onclick={() => signOut([d.id])}>Sign out</button>{/if}
+        {#if !d.current}<button class="btn ghost sm" onclick={() => confirmOut(d.id, [d.id])} onblur={() => { if (armed === d.id) armed = null }}>{armed === d.id ? 'Confirm sign out' : 'Sign out'}</button>{/if}
       {/if}
     </li>
   {/each}
 </ul>
 {#if others.length}
   <div class="row">
-    <button class="btn ghost" disabled={!picked.length} onclick={() => signOut(picked)}>Sign out selected ({picked.length})</button>
-    {#if stale.length}<button class="btn ghost" onclick={() => signOut(stale.map((d) => d.id))}>Sign out {stale.length} inactive</button>{/if}
+    <button class="btn ghost" disabled={!picked.length} onclick={() => confirmOut('picked', picked)} onblur={() => { if (armed === 'picked') armed = null }}>{armed === 'picked' ? `Confirm: sign out ${picked.length}` : `Sign out selected (${picked.length})`}</button>
+    {#if stale.length}<button class="btn ghost" onclick={() => confirmOut('stale', stale.map((d) => d.id))} onblur={() => { if (armed === 'stale') armed = null }}>{armed === 'stale' ? `Confirm: sign out ${stale.length}` : `Sign out ${stale.length} inactive`}</button>{/if}
   </div>
 {/if}
 {#if asking}

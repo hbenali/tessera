@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from './i18n.svelte'
   import { originalOf, thumb } from './media'
   import type { EncryptedFile } from './attachments'
   // A square picture that loads only when it scrolls into view (a long room can hold hundreds).
@@ -28,7 +29,7 @@
   })
 </script>
 
-<span class="t" bind:this={box} style="--s:{size}px">{#if url}<img src={url} {alt} loading="lazy" draggable="false" />{:else if failed}<span class="x" role="img" aria-label="Unavailable">!</span>{/if}</span>
+<span class="t" bind:this={box} style="--s:{size}px">{#if url}<img src={url} {alt} loading="lazy" draggable="false" />{:else if failed}<span class="x" role="img" aria-label={t('Unavailable')}>!</span>{/if}</span>
 
 <style>
   .t { display: block; width: 100%; aspect-ratio: 1; background: var(--tile); overflow: hidden; border-radius: inherit; }

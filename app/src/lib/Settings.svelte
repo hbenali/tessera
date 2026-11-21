@@ -54,6 +54,7 @@
   // The browsers that have background notifications on for this account, so a device that stopped receiving can be told apart.
   // Quick replies: the one-tap answers shown as buttons on a notification. Edited here, kept in the account data.
   let qr = $state<string[]>([...chat.quickReplies])
+  let outArmed = $state(false)
   let qrErr = $state('')
   $effect(() => { qr = [...chat.quickReplies] })
   const qrChanged = $derived(JSON.stringify(cleanQuickReplies(qr)) !== JSON.stringify(chat.quickReplies))
@@ -393,7 +394,7 @@
     </div>
     <p class="hint">Invisible shows you as offline. Presence must be enabled on your homeserver for others to see it.</p>
     <h3 class="label">Session</h3>
-    <button class="btn" onclick={() => chat.logout()}>Sign out</button>
+    <button class="btn" onclick={() => { if (!outArmed) { outArmed = true; setTimeout(() => (outArmed = false), 4000) } else chat.logout() }} onblur={() => (outArmed = false)}>{outArmed ? t('Press again to sign out. Messages that are not backed up may be lost.') : t('Sign out')}</button>
     <AccountManage />
   {/if}
 </Modal>

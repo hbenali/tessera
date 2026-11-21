@@ -19,12 +19,12 @@
   :root:not([data-theme='dark']):not([data-theme='midnight']):not([data-theme='forest']):not([data-theme='ocean']):not([data-theme='contrast']):not([data-theme='sand']) {
     --bg: #ffffff; --panel: #f5f6f8; --tile: #eceef2; --line: #e2e5ea;
     --text: #14171c; --muted: #596273; --accent: #2c5ce6; --accent-ink: #ffffff; --ok: #0a6b49; --danger: #c93d28;
-    --shadow: 0 8px 28px rgb(20 23 28 / .14); color-scheme: light;
+    --shadow: 0 8px 28px rgb(20 23 28 / .14); --fav: #a86a00; color-scheme: light;
   }
 }
-:root[data-theme='light'] { --bg: #ffffff; --panel: #f5f6f8; --tile: #eceef2; --line: #e2e5ea; --text: #14171c; --muted: #596273; --accent: #2c5ce6; --accent-ink: #ffffff; --ok: #0a6b49; --danger: #c93d28; --shadow: 0 8px 28px rgb(20 23 28 / .14); color-scheme: light; }
+:root[data-theme='light'] { --bg: #ffffff; --panel: #f5f6f8; --tile: #eceef2; --line: #e2e5ea; --text: #14171c; --muted: #596273; --accent: #2c5ce6; --accent-ink: #ffffff; --ok: #0a6b49; --danger: #c93d28; --fav: #a86a00; --shadow: 0 8px 28px rgb(20 23 28 / .14); color-scheme: light; }
 :root[data-theme='midnight'] { --bg: #000; --panel: #080808; --tile: #141414; --line: #232323; --text: #f3f3f3; --muted: #9a9a9a; --accent: #7aa2ff; --accent-ink: #050a18; color-scheme: dark; }
-:root[data-theme='sand'] { --bg: #f8f3e8; --panel: #efe7d6; --tile: #e5dbc4; --line: #d6c9ab; --text: #2b2417; --muted: #5c523b; --accent: #8a4b12; --accent-ink: #fff8ec; --danger: #b3321a; --ok: #2f6b2a; --shadow: 0 8px 28px rgb(60 40 10 / .16); color-scheme: light; }
+:root[data-theme='sand'] { --bg: #f8f3e8; --panel: #efe7d6; --tile: #e5dbc4; --line: #d6c9ab; --text: #2b2417; --muted: #5c523b; --accent: #8a4b12; --accent-ink: #fff8ec; --danger: #b3321a; --fav: #9a5f00; --ok: #2f6b2a; --shadow: 0 8px 28px rgb(60 40 10 / .16); color-scheme: light; }
 :root[data-theme='forest'] { --bg: #0c140f; --panel: #101a14; --tile: #19261e; --line: #25352b; --text: #e8f1ea; --muted: #94aa9c; --accent: #8fd66a; --accent-ink: #08130b; --danger: #ff8a5c; color-scheme: dark; }
 :root[data-theme='ocean'] { --bg: #08101d; --panel: #0c1627; --tile: #14233d; --line: #20324f; --text: #e6f0ff; --muted: #93abcd; --accent: #4fd1ff; --accent-ink: #07111d; --danger: #ff7a7a; color-scheme: dark; }
 :root[data-theme='contrast'] { --bg: #000; --panel: #000; --tile: #1a1a1a; --line: #fff; --text: #fff; --muted: #d4d4d4; --accent: #ffeb00; --accent-ink: #000; --danger: #ff8a70; --ok: #6dff9c; color-scheme: dark; }
