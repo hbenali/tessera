@@ -47,7 +47,8 @@ describe('several accounts, one at a time', () => {
     await page.getByRole('button', { name: 'Settings', exact: true }).click()
     const dlg = page.getByRole('dialog', { name: 'Settings' })
     await dlg.getByRole('tab', { name: 'Account' }).click()
-    await dlg.getByRole('button', { name: 'Sign out', exact: true }).click()
+    await dlg.getByRole('button', { name: 'Sign out', exact: true }).click() // the first press only arms it
+    await dlg.getByRole('button', { name: /press again to sign out/i }).click()
     await page.waitForFunction(() => /bob_/.test(document.querySelector('footer .me')?.textContent ?? ''), null, { timeout: 30_000 })
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('tessera.accounts')).map((a) => a.userId))
     assert.deepEqual(saved, [data.bob.id])

@@ -40,13 +40,14 @@ describe('sessions, room keys and the account', () => {
   })
 
   it('signs another session out, asking for the password', async () => {
-    await dialog().locator('.devs li').filter({ hasText: 'Work laptop' }).getByRole('button', { name: 'Sign out', exact: true }).click()
+    await dialog().locator('.devs li').filter({ hasText: 'Work laptop' }).getByRole('button', { name: /sign out/i }).click()
+    await dialog().locator('.devs li').filter({ hasText: 'Work laptop' }).getByRole('button', { name: /sign out/i }).click()
     await dialog().getByText(/asks for your password/).waitFor()
     await dialog().getByLabel(/asks for your password/).fill('wrong password')
-    await dialog().locator('.devs li').filter({ hasText: 'Work laptop' }).getByRole('button', { name: 'Sign out', exact: true }).click()
+    await dialog().locator('.devs li').filter({ hasText: 'Work laptop' }).getByRole('button', { name: /sign out/i }).click()
     await dialog().getByText('That password is not right').waitFor()
     await dialog().getByLabel(/asks for your password/).fill(PASSWORD)
-    await dialog().locator('.devs li').filter({ hasText: 'Work laptop' }).getByRole('button', { name: 'Sign out', exact: true }).click()
+    await dialog().locator('.devs li').filter({ hasText: 'Work laptop' }).getByRole('button', { name: /sign out/i }).click()
     await dialog().getByText('Signed out', { exact: true }).waitFor({ timeout: 15_000 })
     let status = 200
     for (let i = 0; i < 20 && status !== 401; i++) {

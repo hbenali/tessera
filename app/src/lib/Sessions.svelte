@@ -27,7 +27,7 @@
   // Signing out a session is hard to undo: the first press arms the button, the second one signs out.
   let armed = $state<string | null>(null)
   function confirmOut(key: string, ids: string[]) {
-    if (armed !== key) { armed = key; setTimeout(() => { if (armed === key) armed = null }, 4000); return }
+    if (!asking && armed !== key) { armed = key; setTimeout(() => { if (armed === key) armed = null }, 4000); return }
     armed = null
     void signOut(ids)
   }

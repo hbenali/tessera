@@ -51,7 +51,8 @@ describe('a reload shows the room list before the app has loaded', () => {
     await page.getByRole('button', { name: 'Settings', exact: true }).click()
     const dlg = page.getByRole('dialog', { name: 'Settings' })
     await dlg.getByRole('tab', { name: 'Account' }).click()
-    await dlg.getByRole('button', { name: 'Sign out', exact: true }).click()
+    await dlg.getByRole('button', { name: 'Sign out', exact: true }).click() // the first press only arms it
+    await dlg.getByRole('button', { name: /press again to sign out/i }).click()
     await page.getByRole('heading', { name: 'Sign in' }).waitFor({ timeout: 30_000 })
     assert.equal(await page.evaluate((id) => localStorage.getItem(`tessera.snapshot.${id}`), data.alice.id), null)
   })
