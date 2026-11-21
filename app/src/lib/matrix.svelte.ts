@@ -1057,8 +1057,7 @@ class Chat {
   private queueRefresh() {
     if (this.refreshQueued) return
     this.refreshQueued = true
-    // a timer, not requestAnimationFrame: a background tab never gets frames, and must still keep up (read receipts, notifications)
-    setTimeout(() => { this.refreshQueued = false; this.refreshMessages() }, 16)
+    requestAnimationFrame(() => { this.refreshQueued = false; this.refreshMessages() })
   }
 
   private refreshTimer: ReturnType<typeof setTimeout> | undefined
