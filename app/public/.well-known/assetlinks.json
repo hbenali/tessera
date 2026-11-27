@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ovh.hbenali.tessera",
+      "sha256_cert_fingerprints": ["BA:98:13:3A:E5:98:84:4B:E5:02:D7:90:56:01:6C:8F:C0:A9:BB:CA:D5:A7:B4:D6:55:AE:7E:A6:4C:70:79:54"]
+    }
+  }
+]
