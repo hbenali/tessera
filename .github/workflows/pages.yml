@@ -35,9 +35,15 @@ jobs:
         env:
           TESSERA_PAGES: '1'
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+      # actions/upload-pages-artifact skips hidden files, which would drop /.well-known/assetlinks.json (Digital Asset Links for the
+      # Android app). Build the same tar it makes, but keep the dot files, and upload it under the name Pages expects.
+      - run: tar --dereference --hard-dereference --directory app/dist -cf "$RUNNER_TEMP/artifact.tar" --exclude=.git --exclude=.github .
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          path: app/dist
+          name: github-pages
+          path: ${{ runner.temp }}/artifact.tar
+          retention-days: 1
+          if-no-files-found: error
 
   deploy:
     needs: build
